@@ -18,7 +18,10 @@ export default function HomePage() {
         <h2>Browse</h2>
         <ul>
           <li>
-            <a href="/inbox">→ Pending review inbox (mock)</a>
+            <a href="/inbox">→ Pending review inbox (mock, multi-brand)</a>
+          </li>
+          <li>
+            <a href="/runs">→ Pipeline runs</a>
           </li>
           <li>
             <a href="/voice">→ Voice modules</a>

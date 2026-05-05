@@ -558,3 +558,54 @@ ul.inbox {
   max-height: 480px;
   overflow: auto;
 }
+
+/* Brand filter pills on inbox */
+.brand-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.filter-pill:hover {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.filter-active {
+  border-color: var(--accent);
+  color: var(--fg);
+  background: rgba(125, 211, 252, 0.05);
+}
+
+.filter-count {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.brand-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Runs detail table — code block in cells should not break layout */
+.persona-table code {
+  font-size: 11px;
+  padding: 1px 6px;
+}

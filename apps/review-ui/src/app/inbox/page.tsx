@@ -1,9 +1,11 @@
-import { mockInbox } from "@/lib/mock-inbox";
+import { BRANDS, type BrandId, mockInbox } from "@/lib/mock-inbox";
 import Link from "next/link";
 
 export const metadata = {
   title: "Inbox — Email Sender Platform",
 };
+
+type SearchParams = Promise<{ brand?: string }>;
 
 function StatusPill({ passed }: { passed: boolean }) {
   return (
@@ -32,7 +34,23 @@ function QualityScore({ love, share, churn }: { love: number; share: number; chu
   );
 }
 
-export default function InboxPage() {
+function isBrandId(value: string): value is BrandId {
+  return value in BRANDS;
+}
+
+export default async function InboxPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const filterBrand = params.brand && isBrandId(params.brand) ? params.brand : null;
+  const visible = filterBrand ? mockInbox.filter((r) => r.brandId === filterBrand) : mockInbox;
+
+  const counts: Record<BrandId, number> = {
+    castor_abbott: 0,
+    cortex: 0,
+    fidelon: 0,
+    treasure_financial: 0,
+  };
+  for (const r of mockInbox) counts[r.brandId]++;
+
   return (
     <main>
       <header>
@@ -40,15 +58,37 @@ export default function InboxPage() {
           ← back
         </Link>
         <h1>Pending review</h1>
-        <p className="tagline">{mockInbox.length} drafts awaiting approval</p>
+        <p className="tagline">
+          {visible.length} of {mockInbox.length} drafts shown
+        </p>
       </header>
 
+      <nav className="brand-filter">
+        <Link href="/inbox" className={!filterBrand ? "filter-pill filter-active" : "filter-pill"}>
+          all <span className="filter-count">{mockInbox.length}</span>
+        </Link>
+        {(Object.keys(BRANDS) as BrandId[]).map((bid) => (
+          <Link
+            key={bid}
+            href={`/inbox?brand=${bid}` as never}
+            className={filterBrand === bid ? "filter-pill filter-active" : "filter-pill"}
+            style={{ borderColor: filterBrand === bid ? BRANDS[bid].color : undefined }}
+          >
+            <span className="brand-dot" style={{ background: BRANDS[bid].color }} />
+            {BRANDS[bid].name}
+            <span className="filter-count">{counts[bid]}</span>
+          </Link>
+        ))}
+      </nav>
+
       <ul className="inbox">
-        {mockInbox.map((row) => (
+        {visible.map((row) => (
           <li key={row.id} className="inbox-row">
             <Link href={`/episodes/${row.id}` as never} className="inbox-link">
               <div className="row-meta">
-                <span className="brand">{row.brandName}</span>
+                <span className="brand" style={{ color: BRANDS[row.brandId]?.color ?? undefined }}>
+                  {row.brandName}
+                </span>
                 <span className="edition">{row.edition}</span>
                 <span className="content-type">{row.contentType}</span>
               </div>
@@ -68,6 +108,12 @@ export default function InboxPage() {
           </li>
         ))}
       </ul>
+
+      {visible.length === 0 && (
+        <section className="card">
+          <p>No drafts for this brand.</p>
+        </section>
+      )}
 
       <footer>
         <p>
