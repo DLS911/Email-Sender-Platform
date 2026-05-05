@@ -1,0 +1,26 @@
+{
+  "name": "@platform/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'no tests yet' && exit 0",
+    "migrate": "supabase migration up",
+    "reset": "supabase db reset"
+  },
+  "dependencies": {
+    "@platform/observability": "workspace:*",
+    "@platform/schemas": "workspace:*",
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
