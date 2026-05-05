@@ -199,6 +199,9 @@ async function main(): Promise<void> {
   });
 }
 
+// Internal helpers exposed for unit tests.
+export { parseDateLoose, parseHardBlocked, parseLookbackOverrides };
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err: unknown) => {
     logger.error("concept_migration.fatal", {

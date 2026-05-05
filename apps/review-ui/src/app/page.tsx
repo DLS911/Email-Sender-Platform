@@ -26,6 +26,15 @@ export default function HomePage() {
           <li>
             <a href="/voice">→ Voice modules</a>
           </li>
+          <li>
+            <a href="/concepts">→ Brain concepts (framework + content)</a>
+          </li>
+          <li>
+            <a href="/stats">→ Engagement stats</a>
+          </li>
+          <li>
+            <a href="/tour">→ What's wired vs. what's coming</a>
+          </li>
         </ul>
       </section>
 
