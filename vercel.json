@@ -3,6 +3,5 @@
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter review-ui build",
-  "outputDirectory": "apps/review-ui/.next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/review-ui packages"
+  "outputDirectory": "apps/review-ui/.next"
 }
