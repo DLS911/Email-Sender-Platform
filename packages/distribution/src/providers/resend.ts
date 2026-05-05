@@ -17,6 +17,7 @@ import type {
   SendInput,
   SendResult,
 } from "../provider.js";
+import { verifySvixSignature } from "../svix.js";
 
 let client: Resend | null = null;
 function getClient(): Resend {
@@ -78,14 +79,28 @@ export const resendProvider: DistributionProvider = {
   },
 
   async parseWebhook({ rawBody, headers, signingSecret }): Promise<NormalizedEvent[]> {
-    // Resend uses Svix-style signatures. Verify before parsing.
-    // Placeholder verification — replace with svix lib in stage 2.
     if (!signingSecret) {
       throw new DistributionError("missing signing secret");
     }
-    const sig = headers["svix-signature"] ?? headers["resend-signature"];
-    if (!sig) {
-      throw new DistributionError("missing webhook signature");
+    const id = headers["svix-id"] ?? headers["webhook-id"] ?? "";
+    const timestamp = headers["svix-timestamp"] ?? headers["webhook-timestamp"] ?? "";
+    const sig =
+      headers["svix-signature"] ??
+      headers["webhook-signature"] ??
+      headers["resend-signature"] ??
+      "";
+
+    const verification = verifySvixSignature({
+      id,
+      timestamp,
+      signatureHeader: sig,
+      rawBody,
+      signingSecret,
+    });
+    if (!verification.ok) {
+      throw new DistributionError(`webhook signature verification failed: ${verification.reason}`, {
+        context: { reason: verification.reason },
+      });
     }
 
     let payload: { type: string; created_at: string; data: Record<string, unknown> };

@@ -35,6 +35,9 @@ importers:
       '@platform/distribution':
         specifier: workspace:*
         version: link:../../packages/distribution
+      '@platform/email-templates':
+        specifier: workspace:*
+        version: link:../../packages/email-templates
       '@platform/llm-client':
         specifier: workspace:*
         version: link:../../packages/llm-client
