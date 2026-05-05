@@ -43,10 +43,7 @@ export function buildConceptExtractPrompt(input: ConceptExtractInput): string {
   );
 
   sections.push(
-    formatSection(
-      "Issue (as published)",
-      wrapInTag("issue_json", input.publishedDraftJson),
-    ),
+    formatSection("Issue (as published)", wrapInTag("issue_json", input.publishedDraftJson)),
   );
 
   sections.push(

@@ -1,5 +1,5 @@
-import { ConfigError } from "@platform/schemas";
 import { logger } from "@platform/observability";
+import { ConfigError } from "@platform/schemas";
 import { createServiceRoleClient } from "./client.js";
 
 type ConfigCacheEntry = { value: unknown; cachedAt: number };
@@ -7,9 +7,11 @@ const CACHE_TTL_MS = 60_000;
 const cache = new Map<string, ConfigCacheEntry>();
 
 type GetOptions = {
-  brandId?: string | null;
-  environment?: string;
+  brandId?: string | null | undefined;
+  environment?: string | undefined;
 };
+
+type ConfigRow = { value: unknown };
 
 function cacheKey(key: string, brandId: string | null, environment: string): string {
   return `${key}::${brandId ?? ""}::${environment}`;
@@ -35,35 +37,37 @@ async function get<T = unknown>(key: string, opts: GetOptions = {}): Promise<T> 
   const client = createServiceRoleClient();
 
   if (brandId) {
-    const { data: brandSpecific } = await client
+    const { data } = await client
       .from("platform_config")
       .select("value")
       .eq("key", key)
       .eq("brand_id", brandId)
       .eq("environment", env)
       .maybeSingle();
-    if (brandSpecific?.value !== undefined) {
-      cache.set(cKey, { value: brandSpecific.value, cachedAt: Date.now() });
-      return brandSpecific.value as T;
+    const row = data as ConfigRow | null;
+    if (row && row.value !== undefined) {
+      cache.set(cKey, { value: row.value, cachedAt: Date.now() });
+      return row.value as T;
     }
   }
 
-  const { data: platformDefault } = await client
+  const { data } = await client
     .from("platform_config")
     .select("value")
     .eq("key", key)
     .is("brand_id", null)
     .eq("environment", env)
     .maybeSingle();
+  const row = data as ConfigRow | null;
 
-  if (platformDefault?.value === undefined) {
+  if (!row || row.value === undefined) {
     throw new ConfigError(`config key not found: ${key}`, {
       context: { key, brandId, environment: env },
     });
   }
 
-  cache.set(cKey, { value: platformDefault.value, cachedAt: Date.now() });
-  return platformDefault.value as T;
+  cache.set(cKey, { value: row.value, cachedAt: Date.now() });
+  return row.value as T;
 }
 
 function invalidate(key?: string): void {

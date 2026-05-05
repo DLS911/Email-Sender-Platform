@@ -45,9 +45,7 @@ Framework references: ${input.rejectedTopic.frameworkReferences.join(", ")}`,
     ),
   );
 
-  sections.push(
-    formatSection("Rejection Reason", input.rejectionReason),
-  );
+  sections.push(formatSection("Rejection Reason", input.rejectionReason));
 
   if (input.blockingConcept) {
     sections.push(

@@ -19,7 +19,7 @@
  * - 2-3 relevant Proverbs for the Ancient Truth daily section
  */
 
-import { formatBulletList, formatSection, wrapInTag } from "../_shared/formatters";
+import { formatBulletList, formatSection } from "../_shared/formatters";
 import type { ProposedTopic } from "./concept_check";
 
 export type ResearchWeekdayInput = {
@@ -209,6 +209,6 @@ function buildContentTypeResearchInstructions(contentType: string): string {
 - Verify the proverb's text and reference accurately — misattribution kills credibility`;
 
     default:
-      return `Conduct research appropriate for the topic and angle approved. Surface specifics, sources, and depth that the writer block will need to produce a draft worthy of the brand.`;
+      return "Conduct research appropriate for the topic and angle approved. Surface specifics, sources, and depth that the writer block will need to produce a draft worthy of the brand.";
   }
 }

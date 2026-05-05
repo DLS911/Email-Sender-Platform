@@ -10,7 +10,7 @@
  * the angle, and any priority framework references.
  */
 
-import { formatBulletList, formatSection, wrapInTag } from "../_shared/formatters";
+import { formatBulletList, formatSection } from "../_shared/formatters";
 
 export type RecentIssue = {
   publishedAt: string; // ISO timestamp
@@ -62,12 +62,7 @@ export function buildTopicProposerPrompt(input: TopicProposerInput): string {
         return `${issue.publishedAt.slice(0, 10)} — ${issue.contentType}${fmt}: ${issue.topic}`;
       });
 
-    sections.push(
-      formatSection(
-        "Recent Issues (most recent first)",
-        formatBulletList(recentList),
-      ),
-    );
+    sections.push(formatSection("Recent Issues (most recent first)", formatBulletList(recentList)));
   }
 
   // Editorial calendar guidance

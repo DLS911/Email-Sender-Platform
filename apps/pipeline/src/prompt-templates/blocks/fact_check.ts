@@ -40,10 +40,7 @@ export function buildFactCheckPrompt(input: FactCheckInput): string {
   );
 
   sections.push(
-    formatSection(
-      "Final Draft to Verify",
-      wrapInTag("draft_json", input.finalDraftJson),
-    ),
+    formatSection("Final Draft to Verify", wrapInTag("draft_json", input.finalDraftJson)),
   );
 
   sections.push(

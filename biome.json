@@ -6,14 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": [
-      "node_modules",
-      "dist",
-      ".next",
-      "build",
-      "coverage",
-      "**/*.generated.ts"
-    ]
+    "ignore": ["node_modules", "dist", ".next", "build", "coverage", "**/*.generated.ts"]
   },
   "formatter": {
     "enabled": true,

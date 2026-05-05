@@ -14,7 +14,7 @@ import { createServiceRoleClient } from "./client.js";
  * and `release_brand_lock(text)`.
  */
 
-const HASH_NAMESPACE = 0xCA570A55;
+const HASH_NAMESPACE = 0xca570a55;
 
 function brandLockKey(brandId: string): number {
   let h = HASH_NAMESPACE;

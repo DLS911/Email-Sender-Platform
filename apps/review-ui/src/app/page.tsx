@@ -9,8 +9,11 @@ export default function HomePage() {
       <section className="card">
         <h2>Status</h2>
         <p>
-          Review interface scaffold deployed. The full inbox, episode editor, quality score
-          panel, and approval workflow ship per <code>docs/specs/08_review_interface.spec.md</code>.
+          Review interface scaffold deployed. The full inbox, episode editor, quality score panel,
+          and approval workflow ship per <code>docs/specs/08_review_interface.spec.md</code>.
+        </p>
+        <p>
+          <a href="/inbox">→ View mock inbox</a>
         </p>
       </section>
 
@@ -27,9 +30,7 @@ export default function HomePage() {
 
       <section className="card">
         <h2>Brands</h2>
-        <p>
-          Phase 1: Castor Abbott. Phase 4: Fidelon. Phase 5: Treasure Financial + Cortex.
-        </p>
+        <p>Phase 1: Castor Abbott. Phase 4: Fidelon. Phase 5: Treasure Financial + Cortex.</p>
       </section>
 
       <footer>

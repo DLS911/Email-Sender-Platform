@@ -1,13 +1,13 @@
-import type { z } from "zod";
 import { logger } from "@platform/observability";
-import { LLMGenerationError, SchemaValidationError } from "@platform/schemas";
+import { LLMGenerationError } from "@platform/schemas";
 import type { ModelConfig } from "@platform/schemas";
-import { resolveModelRole } from "./role-resolver.js";
+import type { z } from "zod";
 import { tryValidate } from "./auto-heal.js";
 import { estimateCost } from "./cost.js";
 import { anthropicAdapter } from "./providers/anthropic.js";
-import { openaiAdapter } from "./providers/openai.js";
 import { googleAdapter } from "./providers/google.js";
+import { openaiAdapter } from "./providers/openai.js";
+import { resolveModelRole } from "./role-resolver.js";
 import type { GenerateOptions, GenerateResult, ProviderAdapter } from "./types.js";
 
 const ADAPTERS: Record<string, ProviderAdapter> = {
@@ -23,7 +23,8 @@ export class LLMClient {
   async generate<S extends z.ZodTypeAny>(
     opts: GenerateOptions<S>,
   ): Promise<GenerateResult<z.infer<S>>> {
-    const role = opts.modelOverride ?? (await resolveModelRole(opts.modelRole, opts.context.brandId));
+    const role =
+      opts.modelOverride ?? (await resolveModelRole(opts.modelRole, opts.context.brandId));
     const maxRetries = opts.maxRetries ?? 2;
 
     const systemPrompt = `${opts.systemPrompt}${JSON_MODE_SUFFIX}`;
@@ -138,19 +139,16 @@ export class LLMClient {
     const fallback = await tryModel(role.fallback, "fallback");
     if (fallback) return fallback;
 
-    throw new LLMGenerationError(
-      `both primary and fallback exhausted for role ${opts.modelRole}`,
-      {
-        context: {
-          role: opts.modelRole,
-          primary_model: role.primary.model,
-          fallback_model: role.fallback.model,
-          attempts: attempt,
-          last_error: lastError,
-          run_id: opts.context.runId,
-          block_name: opts.context.blockName,
-        },
+    throw new LLMGenerationError(`both primary and fallback exhausted for role ${opts.modelRole}`, {
+      context: {
+        role: opts.modelRole,
+        primary_model: role.primary.model,
+        fallback_model: role.fallback.model,
+        attempts: attempt,
+        last_error: lastError,
+        run_id: opts.context.runId,
+        block_name: opts.context.blockName,
       },
-    );
+    });
   }
 }

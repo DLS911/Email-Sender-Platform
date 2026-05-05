@@ -46,12 +46,12 @@ export type NormalizedEvent = {
   eventType: EventType;
   eventAt: string;
   email: string;
-  brandId?: string;
-  sendId?: string;
-  clickUrl?: string;
-  bounceType?: "hard" | "soft";
-  replyContent?: string;
-  userAgent?: string;
+  brandId?: string | undefined;
+  sendId?: string | undefined;
+  clickUrl?: string | undefined;
+  bounceType?: "hard" | "soft" | undefined;
+  replyContent?: string | undefined;
+  userAgent?: string | undefined;
   rawPayload: unknown;
 };
 

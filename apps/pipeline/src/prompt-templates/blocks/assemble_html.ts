@@ -41,10 +41,7 @@ export function buildAssembleHtmlPrompt(input: AssembleHtmlInput): string {
   );
 
   sections.push(
-    formatSection(
-      "Final Draft (for context)",
-      wrapInTag("draft_json", input.finalDraftJson),
-    ),
+    formatSection("Final Draft (for context)", wrapInTag("draft_json", input.finalDraftJson)),
   );
 
   if (input.recentSubjectLines.length > 0) {

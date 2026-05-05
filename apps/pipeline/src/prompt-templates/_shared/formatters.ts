@@ -65,7 +65,7 @@ export function wrapInTag(tag: string, content: string): string {
  */
 export function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
-  return text.slice(0, maxChars - 3) + "...";
+  return `${text.slice(0, maxChars - 3)}...`;
 }
 
 /**

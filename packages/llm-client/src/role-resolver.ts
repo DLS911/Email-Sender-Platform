@@ -1,5 +1,5 @@
 import { config } from "@platform/db";
-import { ModelRoleConfigSchema, type ModelRoleConfig, ConfigError } from "@platform/schemas";
+import { ConfigError, type ModelRoleConfig, ModelRoleConfigSchema } from "@platform/schemas";
 
 /**
  * Resolve a logical model role like "weekend.writer" to a concrete

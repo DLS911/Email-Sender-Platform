@@ -22,13 +22,28 @@ export type ContentConcept = {
   episodeId: string | null;
   sectionName: string;
   conceptSummary: string;
+  conceptEmbedding?: number[] | undefined;
   surfaceForm: string | null;
   usedAt: string;
   lookbackUntil: string | null;
   hardBlocked: boolean;
 };
 
+export type ConceptCheckInput = {
+  brandId: string;
+  sectionName: string;
+  candidates: Array<{ slug: string; summary: string; embedding?: number[] }>;
+  similarityThreshold?: number;
+};
+
+export type ConceptCheckMatch = {
+  candidate: string;
+  matchedConcept: ContentConcept;
+  similarity: number;
+};
+
 export type ConceptCheckResult = {
   blocked: string[];
-  near: Array<{ candidate: string; matched: ContentConcept; similarity: number }>;
+  near: ConceptCheckMatch[];
+  passed: boolean;
 };

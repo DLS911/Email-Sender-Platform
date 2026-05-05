@@ -35,12 +35,7 @@ export function buildStylePassPrompt(input: StylePassInput): string {
     `You are performing the style pass on the draft for the ${input.edition} issue dated ${input.issueDate}. Your role is narrow: enforce surface-level style discipline. Do NOT rewrite for substance, restructure, or change the angle. That's the editor block's job.`,
   );
 
-  sections.push(
-    formatSection(
-      "Draft to Style",
-      wrapInTag("draft_json", input.draftJson),
-    ),
-  );
+  sections.push(formatSection("Draft to Style", wrapInTag("draft_json", input.draftJson)));
 
   if (input.bannedPhraseHistory && input.bannedPhraseHistory.length > 0) {
     sections.push(
@@ -135,13 +130,12 @@ function buildLengthBudgets(edition: "weekday" | "weekend", contentType: string)
       default:
         return "- Refer to the content type module in the system prompt for length budget";
     }
-  } else {
-    return `- Cover Story: 400-500 words
+  }
+  return `- Cover Story: 400-500 words
 - Tasting Menu: ~200 words total (3 items)
 - Host's Corner: 100-150 words
 - The Drive: 75-100 words
 - Sunday Prep: 50-75 words
 - Sunday Reset: 40-80 words (quote + reflection)
 - Sabbath: 60-100 words (scripture + reflection)`;
-  }
 }

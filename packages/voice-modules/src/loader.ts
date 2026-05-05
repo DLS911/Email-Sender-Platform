@@ -1,8 +1,8 @@
 import { readFile, readdir, stat } from "node:fs/promises";
-import { resolve, relative, dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import matter from "gray-matter";
 import { ConfigError } from "@platform/schemas";
+import matter from "gray-matter";
 import type { ModuleFrontmatter, VoiceModule } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);

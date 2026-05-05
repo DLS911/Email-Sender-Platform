@@ -1,3 +1,5 @@
+import { logger } from "@platform/observability";
+import { DistributionError } from "@platform/schemas";
 /**
  * Resend adapter. The only place in the codebase that imports the `resend`
  * package. Every other module talks to email through the DistributionProvider
@@ -8,14 +10,12 @@
  * delivery infrastructure only.
  */
 import { Resend } from "resend";
-import { DistributionError } from "@platform/schemas";
-import { logger } from "@platform/observability";
 import type {
   DistributionProvider,
+  EventType,
+  NormalizedEvent,
   SendInput,
   SendResult,
-  NormalizedEvent,
-  EventType,
 } from "../provider.js";
 
 let client: Resend | null = null;
@@ -107,7 +107,8 @@ export const resendProvider: DistributionProvider = {
       eventType,
       eventAt: payload.created_at,
       email: String(data.to ?? data.email ?? ""),
-      bounceType: data.bounce_type === "hard" ? "hard" : data.bounce_type === "soft" ? "soft" : undefined,
+      bounceType:
+        data.bounce_type === "hard" ? "hard" : data.bounce_type === "soft" ? "soft" : undefined,
       clickUrl: typeof data.url === "string" ? data.url : undefined,
       rawPayload: payload,
     };

@@ -39,10 +39,7 @@ export function buildPersonaEvaluatePrompt(input: PersonaEvaluateInput): string 
   );
 
   sections.push(
-    formatSection(
-      "Issue to Evaluate",
-      wrapInTag("issue_json", input.factCheckedDraftJson),
-    ),
+    formatSection("Issue to Evaluate", wrapInTag("issue_json", input.factCheckedDraftJson)),
   );
 
   sections.push(

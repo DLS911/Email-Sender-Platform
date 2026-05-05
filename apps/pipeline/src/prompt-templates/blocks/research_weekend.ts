@@ -192,19 +192,19 @@ function buildCoverStoryResearchInstructions(coverStoryType: string): string {
       return `**Overlooked Destination.** Find specifics about the place: geography (specific enough to be findable), local character, what makes it overlooked relative to obvious alternatives, timing strategy (when to go / when to avoid), insider details (where to stay, where to eat, what to skip). Mark's authentic experience or trustworthy first-hand intel is preferred over secondhand research.`;
 
     case "luxury_insider":
-      return `**Luxury Insider.** Find the comparison pair: the famous luxury option and the better alternative. Both at the same caliber. Specific differentiating factors (food program, scale, service style, demographic mix). Booking intelligence: timing, room category, direct-vs-online booking, what to ask for. Honest acknowledgment of what the famous option does well.`;
+      return "**Luxury Insider.** Find the comparison pair: the famous luxury option and the better alternative. Both at the same caliber. Specific differentiating factors (food program, scale, service style, demographic mix). Booking intelligence: timing, room category, direct-vs-online booking, what to ask for. Honest acknowledgment of what the famous option does well.";
 
     case "peak_season_smart":
       return `**Peak Season Done Smart.** Find the specific peak season's characteristics, the conventional avoid-peak wisdom, the actual cost reality (specific pricing), the tactical moves that turn constraints into advantages (4-5 specific moves with timing), the execution plan timeline.`;
 
     case "food_first_travel":
-      return `**Food-First Travel.** Find a specific culinary route with 3-5 stops in sequence. Each stop needs: identity (what the place is, who runs it), the specific order (what to get and what NOT to get), timing (when to arrive, how long), insider details. Total time, transit between stops, what to skip on the standard tourist circuit.`;
+      return "**Food-First Travel.** Find a specific culinary route with 3-5 stops in sequence. Each stop needs: identity (what the place is, who runs it), the specific order (what to get and what NOT to get), timing (when to arrive, how long), insider details. Total time, transit between stops, what to skip on the standard tourist circuit.";
 
     case "international_insider":
-      return `**International Insider with Lens.** Find the city + specific interest filter combination. Research 3-4 neighborhoods that serve the interest, 5-7 specific spots within those neighborhoods, what to skip from the standard tourist circuit, the deeper context for why this city for this interest.`;
+      return "**International Insider with Lens.** Find the city + specific interest filter combination. Research 3-4 neighborhoods that serve the interest, 5-7 specific spots within those neighborhoods, what to skip from the standard tourist circuit, the deeper context for why this city for this interest.";
 
     case "activity_mastery":
-      return `**Activity Mastery Travel.** Find the specific skill, the destination optimized for learning it, honest difficulty assessment (physical, mental, timeline reality), the progression path beyond the trip, gear and cost reality, and the deeper insight about learning at midlife. Sources should respect that this is for committed learners, not dabblers.`;
+      return "**Activity Mastery Travel.** Find the specific skill, the destination optimized for learning it, honest difficulty assessment (physical, mental, timeline reality), the progression path beyond the trip, gear and cost reality, and the deeper insight about learning at midlife. Sources should respect that this is for committed learners, not dabblers.";
 
     case "family_reality":
       return `**Family Reality Travel.** Find a destination that works for the 13-20 age window (NOT toddler/elementary content). Realistic itinerary with actual energy curves, what works at this age (autonomy, food range, social spaces), what doesn't despite recommendations, logistics reality (meals, transitions, downtime, social dynamics with siblings).`;
@@ -213,12 +213,12 @@ function buildCoverStoryResearchInstructions(coverStoryType: string): string {
       return `**Tactical Weekend (City You Know).** Find what's changed in the city in 2-3 years, 3-4 deep experiences that require insider knowledge, a forgotten neighborhood locals love that tourists miss even on multi-visit return trips, one advance reservation worth weeks of planning. Assume the reader has done the standard tourist circuit.`;
 
     case "logistics_hack":
-      return `**The Logistics Hack.** Find a specific common travel friction (jet lag, multi-city exhaustion, family transit, flight pricing). Research the standard approach and why it produces friction. Develop the systematic solution step-by-step. Quantify savings (time, money, fatigue) specifically. Build an example itinerary showing the system applied.`;
+      return "**The Logistics Hack.** Find a specific common travel friction (jet lag, multi-city exhaustion, family transit, flight pricing). Research the standard approach and why it produces friction. Develop the systematic solution step-by-step. Quantify savings (time, money, fatigue) specifically. Build an example itinerary showing the system applied.";
 
     case "hyper_local":
       return `**Hyper-Local Deep Dive.** Find 2-3 specific neighborhoods within a market Mark has authentic local knowledge of. For each: character, honest pros, honest cons, specific cost reality, life-stage fit. Surface what realtors won't tell you in this specific market. Identify where different life stages actually choose.`;
 
     default:
-      return `Research appropriate to the Cover Story type approved. Surface specifics, sources, and depth the writer block will need.`;
+      return "Research appropriate to the Cover Story type approved. Surface specifics, sources, and depth the writer block will need.";
   }
 }

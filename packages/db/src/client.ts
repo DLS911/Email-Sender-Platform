@@ -1,5 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ConfigError } from "@platform/schemas";
+import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 import type { Database } from "./types.js";
 
 function requireEnv(name: string): string {

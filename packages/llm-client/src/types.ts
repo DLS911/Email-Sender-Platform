@@ -1,5 +1,5 @@
-import type { z } from "zod";
 import type { ModelConfig, ModelRoleConfig, RunContext } from "@platform/schemas";
+import type { z } from "zod";
 
 export type GenerateOptions<S extends z.ZodTypeAny> = {
   /**

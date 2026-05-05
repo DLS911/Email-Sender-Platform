@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-export const BrandIdSchema = z.enum([
-  "castor_abbott",
-  "cortex",
-  "fidelon",
-  "treasure_financial",
-]);
+export const BrandIdSchema = z.enum(["castor_abbott", "cortex", "fidelon", "treasure_financial"]);
 export type BrandId = z.infer<typeof BrandIdSchema>;
 
 export const EditionSchema = z.enum(["weekday", "weekend", "special"]);

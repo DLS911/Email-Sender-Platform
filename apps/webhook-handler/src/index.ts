@@ -1,3 +1,5 @@
+import { resendProvider } from "@platform/distribution";
+import { logger } from "@platform/observability";
 /**
  * Webhook handler.
  *
@@ -9,8 +11,6 @@
  * Function or a small Hono server. The handler logic below is host-neutral.
  */
 import { Hono } from "hono";
-import { logger } from "@platform/observability";
-import { resendProvider } from "@platform/distribution";
 
 const app = new Hono();
 

@@ -11,7 +11,7 @@
  * a revised topic.
  */
 
-import { formatBulletList, formatSection, formatDate, daysBetween } from "../_shared/formatters";
+import { daysBetween, formatBulletList, formatDate, formatSection } from "../_shared/formatters";
 
 export type FrameworkConceptUsage = {
   conceptSlug: string;
@@ -96,10 +96,7 @@ Framework references: ${
       return `${lockout.conceptSlug} (used ${formatDate(lockout.firstUsedAt)}, cooloff ends ${formatDate(lockout.cooloffEndsAt)}, ${daysRemaining} days remaining): ${lockout.conceptDescription}`;
     });
     sections.push(
-      formatSection(
-        "Active Content Concept Lockouts (HARD BLOCK)",
-        formatBulletList(lockoutLines),
-      ),
+      formatSection("Active Content Concept Lockouts (HARD BLOCK)", formatBulletList(lockoutLines)),
     );
   }
 

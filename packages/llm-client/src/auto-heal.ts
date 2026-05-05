@@ -10,17 +10,18 @@ export function stripFencesAndProse(raw: string): string {
   if (fenceMatch?.[1]) {
     text = fenceMatch[1].trim();
   }
-  // Find first { and last } if there's prose around the JSON.
+  // Find first { and last } if there's prose around the JSON object.
   const firstBrace = text.indexOf("{");
   const lastBrace = text.lastIndexOf("}");
-  if (firstBrace > 0 && lastBrace > firstBrace) {
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
     text = text.slice(firstBrace, lastBrace + 1);
-  }
-  // Same for arrays.
-  const firstBracket = text.indexOf("[");
-  if (firstBrace === -1 && firstBracket >= 0) {
+  } else {
+    // Otherwise look for an array.
+    const firstBracket = text.indexOf("[");
     const lastBracket = text.lastIndexOf("]");
-    if (lastBracket > firstBracket) text = text.slice(firstBracket, lastBracket + 1);
+    if (firstBracket >= 0 && lastBracket > firstBracket) {
+      text = text.slice(firstBracket, lastBracket + 1);
+    }
   }
   return text.trim();
 }

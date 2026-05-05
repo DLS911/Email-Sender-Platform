@@ -48,10 +48,7 @@ export function buildEditorPassPrompt(input: EditorPassInput): string {
   );
 
   sections.push(
-    formatSection(
-      "Styled Draft to Review",
-      wrapInTag("draft_json", input.styledDraftJson),
-    ),
+    formatSection("Styled Draft to Review", wrapInTag("draft_json", input.styledDraftJson)),
   );
 
   sections.push(
@@ -167,9 +164,9 @@ function buildContentTypeCriteria(edition: "weekday" | "weekend", contentType: s
       default:
         return `Apply the relevant content type module's structural and voice criteria.`;
     }
-  } else {
-    // weekend
-    return `- Does the Cover Story follow the structural template for the approved type?
+  }
+  // weekend
+  return `- Does the Cover Story follow the structural template for the approved type?
 - Is the unexpected variable surfaced specifically?
 - Is the insight (Physics, Wisdom, or Insider) genuine, not decorative?
 - Does the Tasting Menu have variety in categories (not 3 wines or 3 kitchen tools)?
@@ -178,5 +175,4 @@ function buildContentTypeCriteria(edition: "weekday" | "weekend", contentType: s
 - Is the friend-over-beers test passed for every section?
 - Are personal anchors authentic (not invented or contradicting Mark's canonical context)?
 - Does the Sabbath section feel reverent without proselytizing?`;
-  }
 }
