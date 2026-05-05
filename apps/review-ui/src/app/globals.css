@@ -609,3 +609,75 @@ ul.inbox {
   font-size: 11px;
   padding: 1px 6px;
 }
+
+/* Composition viewer — numbered stack of module ids */
+.composition-stack {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 6px 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.composition-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.composition-step:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.composition-num {
+  display: inline-block;
+  width: 18px;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.composition-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Persona body — markdown shape */
+.persona-body h2 {
+  font-size: 16px;
+  margin: 24px 0 8px;
+  color: var(--fg);
+}
+
+.persona-body h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 20px 0 8px;
+}
+
+.persona-body p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
+.persona-body ul {
+  margin: 0 0 12px 20px;
+  padding: 0;
+}
+
+.persona-body li {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 4px;
+}

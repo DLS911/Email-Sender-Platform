@@ -32,6 +32,14 @@ export default function VoicePage() {
         </Link>
         <h1>Voice modules</h1>
         <p className="tagline">{all.length} modules · composed at runtime per block per brand</p>
+        <nav className="brand-filter" style={{ marginTop: 16 }}>
+          <Link href="/voice/composition" className="filter-pill">
+            → composition viewer
+          </Link>
+          <Link href="/voice/personas" className="filter-pill">
+            → persona profiles
+          </Link>
+        </nav>
       </header>
 
       {groupOrder.map((group) => {
