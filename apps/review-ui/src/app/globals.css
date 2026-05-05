@@ -506,3 +506,55 @@ ul.inbox {
   color: var(--bad);
   border: 1px solid rgba(252, 165, 165, 0.3);
 }
+
+/* Email preview */
+.preview-main {
+  max-width: 880px;
+}
+
+.preview-subject {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0 0 6px;
+}
+
+.preview-preheader {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.preview-frame-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.preview-frame-card h2 {
+  padding: 16px 24px;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.email-iframe {
+  width: 100%;
+  height: 720px;
+  border: 0;
+  background: #f8f8f6;
+  display: block;
+}
+
+.text-render {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  margin: 0;
+  max-height: 480px;
+  overflow: auto;
+}

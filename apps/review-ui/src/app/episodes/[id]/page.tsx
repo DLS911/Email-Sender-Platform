@@ -125,7 +125,23 @@ export default async function EpisodePage({ params }: { params: Params }) {
       </section>
 
       <section className="card">
-        <h2>Sections</h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
+        >
+          <h2 style={{ margin: 0 }}>Sections</h2>
+          <Link
+            href={`/episodes/${episode.id}/preview` as never}
+            className="btn btn-primary"
+            style={{ fontSize: 13, textDecoration: "none" }}
+          >
+            Email preview →
+          </Link>
+        </div>
         {episode.sections.map((s) => (
           <article key={s.name} className="section-block">
             <h3>{s.name}</h3>

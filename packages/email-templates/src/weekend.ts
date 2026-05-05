@@ -1,5 +1,5 @@
-import { escapeHtml, withTracking, wrap } from "./shared.js";
-import type { RenderResult, WeekendInput, WeekendSection } from "./types.js";
+import { escapeHtml, withTracking, wrap } from "./shared";
+import type { RenderResult, WeekendInput, WeekendSection } from "./types";
 
 function paragraphsToHtml(body: string): string {
   return body

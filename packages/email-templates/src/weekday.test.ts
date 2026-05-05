@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { escapeHtml, withTracking } from "./shared.js";
-import { renderWeekday } from "./weekday.js";
-import { renderWeekend } from "./weekend.js";
+import { escapeHtml, withTracking } from "./shared";
+import { renderWeekday } from "./weekday";
+import { renderWeekend } from "./weekend";
 
 describe("escapeHtml", () => {
   it("escapes the four core characters", () => {

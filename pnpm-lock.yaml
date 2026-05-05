@@ -66,6 +66,9 @@ importers:
       '@platform/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@platform/email-templates':
+        specifier: workspace:*
+        version: link:../../packages/email-templates
       '@platform/observability':
         specifier: workspace:*
         version: link:../../packages/observability
