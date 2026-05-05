@@ -12,9 +12,18 @@ export default function HomePage() {
           Review interface scaffold deployed. The full inbox, episode editor, quality score panel,
           and approval workflow ship per <code>docs/specs/08_review_interface.spec.md</code>.
         </p>
-        <p>
-          <a href="/inbox">→ View mock inbox</a>
-        </p>
+      </section>
+
+      <section className="card">
+        <h2>Browse</h2>
+        <ul>
+          <li>
+            <a href="/inbox">→ Pending review inbox (mock)</a>
+          </li>
+          <li>
+            <a href="/voice">→ Voice modules</a>
+          </li>
+        </ul>
       </section>
 
       <section className="card">

@@ -437,3 +437,72 @@ ul.inbox {
   color: var(--muted);
   margin: 8px 0 0;
 }
+
+/* Voice module browser */
+.modules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.module-row {
+  border-top: 1px solid var(--border);
+  padding: 14px 0;
+}
+
+.module-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.module-id {
+  font-size: 13px;
+  color: var(--accent);
+  background: var(--code);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.module-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.module-description {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.module-excerpt {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.pill-experimental {
+  background: rgba(252, 211, 77, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(252, 211, 77, 0.3);
+}
+
+.pill-deprecated {
+  background: rgba(252, 165, 165, 0.12);
+  color: var(--bad);
+  border: 1px solid rgba(252, 165, 165, 0.3);
+}
