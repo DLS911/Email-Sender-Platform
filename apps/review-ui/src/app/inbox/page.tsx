@@ -46,23 +46,25 @@ export default function InboxPage() {
       <ul className="inbox">
         {mockInbox.map((row) => (
           <li key={row.id} className="inbox-row">
-            <div className="row-meta">
-              <span className="brand">{row.brandName}</span>
-              <span className="edition">{row.edition}</span>
-              <span className="content-type">{row.contentType}</span>
-            </div>
-            <h2 className="row-headline">{row.headline}</h2>
-            <div className="row-footer">
-              <span className="scheduled">
-                ships {new Date(row.scheduledSendAt).toLocaleString()}
-              </span>
-              <QualityScore
-                love={row.qualityScore.love}
-                share={row.qualityScore.share}
-                churn={row.qualityScore.churn}
-              />
-              <StatusPill passed={row.qualityScore.passed} />
-            </div>
+            <Link href={`/episodes/${row.id}` as never} className="inbox-link">
+              <div className="row-meta">
+                <span className="brand">{row.brandName}</span>
+                <span className="edition">{row.edition}</span>
+                <span className="content-type">{row.contentType}</span>
+              </div>
+              <h2 className="row-headline">{row.headline}</h2>
+              <div className="row-footer">
+                <span className="scheduled">
+                  ships {new Date(row.scheduledSendAt).toLocaleString()}
+                </span>
+                <QualityScore
+                  love={row.qualityScore.love}
+                  share={row.qualityScore.share}
+                  churn={row.qualityScore.churn}
+                />
+                <StatusPill passed={row.qualityScore.passed} />
+              </div>
+            </Link>
           </li>
         ))}
       </ul>

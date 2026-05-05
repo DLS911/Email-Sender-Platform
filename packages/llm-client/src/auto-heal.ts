@@ -28,7 +28,7 @@ export function stripFencesAndProse(raw: string): string {
 
 export type ValidationOutcome<T> =
   | { ok: true; value: T; healed: boolean }
-  | { ok: false; error: string };
+  | { ok: false; error: string; healed?: boolean };
 
 export function tryValidate<S extends z.ZodTypeAny>(
   schema: S,
