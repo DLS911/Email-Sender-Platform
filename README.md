@@ -49,6 +49,20 @@ pnpm dev
 pnpm lint && pnpm typecheck && pnpm test
 ```
 
+## Getting it actually working in production
+
+Everything in this repo is built, tested, and deployed to Vercel as a static UI. The backend services it talks to (Supabase, Resend, Anthropic) need to exist before the system can do real work.
+
+**Read [`docs/runbooks/phase-0-ops.md`](docs/runbooks/phase-0-ops.md)** — it's the ordered checklist. Each step is independent and unlocks a chunk of capability. Total time: 6-10 hours.
+
+In short:
+
+1. Create Supabase project, apply migrations from `infra/supabase/migrations/` (biggest single unlock)
+2. Verify `mail.castorabbott.com` in Resend, get API key + webhook signing secret
+3. Drop in `ANTHROPIC_API_KEY` + `OPENAI_API_KEY`
+4. Run subscriber + concept import scripts (already in `apps/pipeline/src/scripts/`)
+5. Rotate the existing MindStudio GitHub PAT (security-critical)
+
 ## Where to read next
 
 - **`AGENTS.md`** — agent navigation and house conventions. Read first.
