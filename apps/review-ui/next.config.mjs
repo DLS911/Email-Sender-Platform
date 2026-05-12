@@ -5,12 +5,20 @@ const nextConfig = {
   // rather than requiring each package to ship a build step.
   transpilePackages: [
     "@platform/db",
+    "@platform/distribution",
     "@platform/email-templates",
     "@platform/observability",
     "@platform/schemas",
   ],
   // Next.js 15 promoted typedRoutes out of experimental.
   typedRoutes: true,
+  webpack(config) {
+    config.resolve.extensionAlias = {
+      ".js": [".ts", ".tsx", ".js", ".jsx"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
