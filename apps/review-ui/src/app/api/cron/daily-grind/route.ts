@@ -4,7 +4,7 @@ import { runDailyGrindCron } from "../../../../lib/daily-grind-cron";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function isAuthorized(req: Request): { ok: boolean; via: "cron" | "manual" | "none" } {
   const cronSecret = process.env.CRON_SECRET;

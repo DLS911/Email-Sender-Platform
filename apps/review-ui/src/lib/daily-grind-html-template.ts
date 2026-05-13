@@ -18,6 +18,9 @@ export type WorthKnowingItem = {
   stat?: string;
   statLabel?: string;
   statColor?: "green" | "red" | "gold";
+  sourceUrl: string;
+  sourceName?: string;
+  publishedDate?: string;
   body: string;
   myTake: string;
 };
@@ -128,9 +131,22 @@ function renderWorthKnowingItem(item: WorthKnowingItem, isLast: boolean): string
   </tr>
 </table>`;
   }
+  const headlineHtml = item.sourceUrl
+    ? `<a href="${escapeHtml(item.sourceUrl)}" style="color: #2d2926; text-decoration: none;">${escapeHtml(item.headline)}</a>`
+    : escapeHtml(item.headline);
+
+  const attributionBits: string[] = [];
+  if (item.sourceName) attributionBits.push(escapeHtml(item.sourceName));
+  if (item.publishedDate) attributionBits.push(escapeHtml(item.publishedDate));
+  const sourceLine =
+    attributionBits.length > 0 && item.sourceUrl
+      ? `<p style="font-size: 12px; color: #9a8b7a; margin: 0 0 10px 0;"><a href="${escapeHtml(item.sourceUrl)}" style="color: #9a8b7a; text-decoration: none;">${attributionBits.join(" &bull; ")} &rarr;</a></p>`
+      : "";
+
   return `<div style="${margin}">
   <p style="font-size: 11px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 6px 0;">${escapeHtml(item.category)}</p>
-  <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 700; color: #2d2926; margin: 0 0 12px 0;">${escapeHtml(item.headline)}</p>
+  <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 700; color: #2d2926; margin: 0 0 6px 0;">${headlineHtml}</p>
+  ${sourceLine}
   ${statBlock}
   <p style="color: #4a4540; font-size: 15px; margin: 0 0 12px 0;">${escapeHtml(item.body)}</p>
   <p style="font-style: italic; color: #6b6560; font-size: 14px; padding-left: 16px; border-left: 2px solid #c4a882; margin: 0;"><strong>My take:</strong> ${escapeHtml(item.myTake)}</p>

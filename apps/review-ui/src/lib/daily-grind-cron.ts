@@ -120,6 +120,9 @@ async function persistIssue(
   issue: DailyGrindIssue,
   rendered: { html: string; text: string; subject: string; preheader: string },
 ): Promise<void> {
+  const totalInput = issue.meta.researchInputTokens + issue.meta.writerInputTokens;
+  const totalOutput = issue.meta.researchOutputTokens + issue.meta.writerOutputTokens;
+  const totalLatency = issue.meta.researchLatencyMs + issue.meta.writerLatencyMs;
   const { error } = await db.from("daily_grind_issues").upsert(
     {
       issue_date: issueDate,
@@ -130,11 +133,22 @@ async function persistIssue(
       html: rendered.html,
       text_body: rendered.text,
       model: issue.meta.model,
-      input_tokens: issue.meta.inputTokens,
-      output_tokens: issue.meta.outputTokens,
-      cost_usd: issue.meta.costUsd,
-      latency_ms: issue.meta.latencyMs,
-      generation_meta: { contentType: issue.content.contentType },
+      input_tokens: totalInput,
+      output_tokens: totalOutput,
+      cost_usd: issue.meta.totalCostUsd,
+      latency_ms: totalLatency,
+      generation_meta: {
+        contentType: issue.content.contentType,
+        researchWebSearches: issue.meta.researchWebSearches,
+        researchInputTokens: issue.meta.researchInputTokens,
+        researchOutputTokens: issue.meta.researchOutputTokens,
+        researchLatencyMs: issue.meta.researchLatencyMs,
+        writerInputTokens: issue.meta.writerInputTokens,
+        writerOutputTokens: issue.meta.writerOutputTokens,
+        writerLatencyMs: issue.meta.writerLatencyMs,
+        researchItemCount: issue.research.items.length,
+        researchSources: issue.research.items.map((r) => ({ source: r.source, url: r.url })),
+      },
     },
     { onConflict: "issue_date" },
   );
