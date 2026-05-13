@@ -1,7 +1,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import { renderWeekday } from "@platform/email-templates";
 import { type DailyGrindIssue, generateDailyGrindIssue } from "./daily-grind-generator";
+import {
+  type DailyGrindContent,
+  renderDailyGrindHtml,
+} from "./daily-grind-html-template";
 
 type TestSubscriber = {
   id: string;
@@ -18,7 +21,7 @@ type CachedIssue = {
   subject: string;
   headline: string;
   preheader: string;
-  sections: Array<{ name: string; body: string }>;
+  sections: DailyGrindContent;
   html: string;
   text_body: string;
   model: string;
@@ -101,41 +104,14 @@ async function loadCachedIssue(db: SupabaseClient, issueDate: string): Promise<C
   return (data ?? null) as CachedIssue | null;
 }
 
-async function loadRecentTopics(db: SupabaseClient, limit = 30): Promise<string[]> {
+async function loadRecentHeadlines(db: SupabaseClient, limit = 30): Promise<string[]> {
   const { data, error } = await db
     .from("daily_grind_issues")
     .select("headline")
     .order("issue_date", { ascending: false })
     .limit(limit);
-  if (error) {
-    // Don't crash the cron if the lookup fails; just generate without context.
-    return [];
-  }
+  if (error) return [];
   return ((data ?? []) as Array<{ headline: string }>).map((row) => row.headline);
-}
-
-function renderToHtmlAndText(issue: DailyGrindIssue, episodeId: string): {
-  html: string;
-  text: string;
-  subject: string;
-  preheader: string;
-} {
-  const rendered = renderWeekday({
-    brandName: "Castor Abbott",
-    brandSlug: "castor-abbott",
-    episodeId,
-    headline: issue.headline,
-    preheader: issue.preheader || issue.headline.slice(0, 110),
-    contentType: issue.contentType,
-    sections: issue.sections,
-    unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",
-  });
-  return {
-    html: rendered.html,
-    text: rendered.text,
-    subject: rendered.subject,
-    preheader: rendered.preheader,
-  };
 }
 
 async function persistIssue(
@@ -144,21 +120,24 @@ async function persistIssue(
   issue: DailyGrindIssue,
   rendered: { html: string; text: string; subject: string; preheader: string },
 ): Promise<void> {
-  const { error } = await db.from("daily_grind_issues").insert({
-    issue_date: issueDate,
-    subject: rendered.subject,
-    headline: issue.headline,
-    preheader: rendered.preheader,
-    sections: issue.sections,
-    html: rendered.html,
-    text_body: rendered.text,
-    model: issue.meta.model,
-    input_tokens: issue.meta.inputTokens,
-    output_tokens: issue.meta.outputTokens,
-    cost_usd: issue.meta.costUsd,
-    latency_ms: issue.meta.latencyMs,
-    generation_meta: { contentType: issue.contentType },
-  });
+  const { error } = await db.from("daily_grind_issues").upsert(
+    {
+      issue_date: issueDate,
+      subject: rendered.subject,
+      headline: issue.content.headline,
+      preheader: rendered.preheader,
+      sections: issue.content,
+      html: rendered.html,
+      text_body: rendered.text,
+      model: issue.meta.model,
+      input_tokens: issue.meta.inputTokens,
+      output_tokens: issue.meta.outputTokens,
+      cost_usd: issue.meta.costUsd,
+      latency_ms: issue.meta.latencyMs,
+      generation_meta: { contentType: issue.content.contentType },
+    },
+    { onConflict: "issue_date" },
+  );
   if (error) throw new Error(`persist_issue: ${error.message}`);
 }
 
@@ -169,7 +148,7 @@ async function sendOne(
 ): Promise<string> {
   const fromAddress = process.env.RESEND_FROM_ADDRESS ?? "daily@send.castorabbott.com";
   const result = await resend.emails.send({
-    from: `Castor Abbott Daily Grind <${fromAddress}>`,
+    from: `Mark at Castor Abbott <${fromAddress}>`,
     to: [recipient.email],
     subject: rendered.subject,
     html: rendered.html,
@@ -242,7 +221,6 @@ export async function runDailyGrindCron(opts: { force?: boolean } = {}): Promise
         continue;
       }
     }
-
     due.push({ subscriber: sub, localDate });
   }
 
@@ -252,37 +230,27 @@ export async function runDailyGrindCron(opts: { force?: boolean } = {}): Promise
   const issueDate = due[0]!.localDate;
   result.issueDate = issueDate;
 
-  let cached = await loadCachedIssue(db, issueDate);
-  let issue: DailyGrindIssue;
   let rendered: { html: string; text: string; subject: string; preheader: string };
+  const cached = await loadCachedIssue(db, issueDate);
 
-  if (cached) {
+  if (cached && cached.sections && typeof cached.sections === "object") {
     rendered = {
       html: cached.html,
       text: cached.text_body,
       subject: cached.subject,
       preheader: cached.preheader,
     };
-    issue = {
-      headline: cached.headline,
-      preheader: cached.preheader,
-      contentType: "tactic",
-      sections: cached.sections,
-      meta: {
-        model: cached.model,
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: 0,
-        latencyMs: 0,
-        issueDate,
-      },
-    };
   } else {
-    const recentTopics = await loadRecentTopics(db);
-    issue = await generateDailyGrindIssue({ issueDate, recentTopics });
+    const recentHeadlines = await loadRecentHeadlines(db);
+    const issue = await generateDailyGrindIssue({ issueDate, recentTopics: recentHeadlines });
     result.issueGenerated = true;
-    rendered = renderToHtmlAndText(issue, `daily-grind-${issueDate}`);
-    await persistIssue(db, issueDate, issue, rendered);
+    const renderedOutput = renderDailyGrindHtml(issue.content, {
+      issueDate,
+      unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",
+      webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
+    });
+    rendered = renderedOutput;
+    await persistIssue(db, issueDate, issue, renderedOutput);
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);

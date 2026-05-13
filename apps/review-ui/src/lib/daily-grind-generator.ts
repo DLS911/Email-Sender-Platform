@@ -1,16 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { DAILY_GRIND_VOICE_SYSTEM_PROMPT } from "./daily-grind-voice-prompt";
-
-export type DailyGrindSection = {
-  name: string;
-  body: string;
-};
+import type {
+  DailyGrindContent,
+  DailyGrindContentType,
+  HowToStep,
+  WorthKnowingItem,
+} from "./daily-grind-html-template";
 
 export type DailyGrindIssue = {
-  headline: string;
-  preheader: string;
-  contentType: string;
-  sections: DailyGrindSection[];
+  content: DailyGrindContent;
   meta: {
     model: string;
     inputTokens: number;
@@ -22,8 +20,8 @@ export type DailyGrindIssue = {
 };
 
 const MODEL = "claude-sonnet-4-5-20250929";
-const TEMPERATURE = 0.4;
-const MAX_TOKENS = 4000;
+const TEMPERATURE = 0.45;
+const MAX_TOKENS = 6000;
 
 const INPUT_COST_PER_M = 3;
 const OUTPUT_COST_PER_M = 15;
@@ -34,22 +32,20 @@ function estimateCostUsd(inputTokens: number, outputTokens: number): number {
 
 function buildUserPrompt(issueDate: string, recentTopics: string[]): string {
   const parts: string[] = [];
-  parts.push(`Today is ${issueDate}. Write today's Daily Grind issue.`);
+  parts.push(`Today is ${issueDate}. Write today's Daily Grind issue in full.`);
 
   if (recentTopics.length > 0) {
     parts.push(
-      `\nRecently covered topics (do NOT repeat or rehash):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
+      `\nRecently covered headlines (do NOT repeat or rehash these — pick a fresh angle):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
     );
   }
 
   parts.push(
-    `\nPick the content type and topic yourself. Lead with what an advisor opening their inbox at 6 AM will find immediately useful. Pick a topic that hasn't been covered recently per the list above (if provided).`,
+    `\nProduce a complete issue with the full structure: Opening Trifecta (Number/Unspoken/Flip), First Pull, three Worth Knowing items, the main content section (Tactic/Take/Story/Rant/Special), Grounds for Thought, Ancient Truth, P.S.`,
   );
-
   parts.push(
-    `\nReturn ONLY the JSON object specified in the system prompt. No markdown fences, no preamble.`,
+    `\nReturn ONLY the JSON object specified in the system prompt. No preamble, no markdown fences, no commentary.`,
   );
-
   return parts.join("\n");
 }
 
@@ -64,48 +60,161 @@ function stripCodeFences(text: string): string {
   return trimmed;
 }
 
-type ParsedDraft = {
-  headline: string;
-  preheader: string;
-  contentType: string;
-  sections: DailyGrindSection[];
-};
+function requireString(obj: Record<string, unknown>, key: string, context: string): string {
+  const v = obj[key];
+  if (typeof v !== "string" || v.trim() === "") {
+    throw new Error(`daily_grind_generator: ${context}: missing string field "${key}"`);
+  }
+  return v.trim();
+}
 
-function parseDraft(rawText: string): ParsedDraft {
+function requireObject(
+  obj: Record<string, unknown>,
+  key: string,
+  context: string,
+): Record<string, unknown> {
+  const v = obj[key];
+  if (!v || typeof v !== "object" || Array.isArray(v)) {
+    throw new Error(`daily_grind_generator: ${context}: missing object field "${key}"`);
+  }
+  return v as Record<string, unknown>;
+}
+
+function requireArray(obj: Record<string, unknown>, key: string, context: string): unknown[] {
+  const v = obj[key];
+  if (!Array.isArray(v)) {
+    throw new Error(`daily_grind_generator: ${context}: missing array field "${key}"`);
+  }
+  return v;
+}
+
+const VALID_CONTENT_TYPES: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special"];
+
+function parseContentType(raw: string): DailyGrindContentType {
+  const lower = raw.toLowerCase().trim();
+  if ((VALID_CONTENT_TYPES as string[]).includes(lower)) {
+    return lower as DailyGrindContentType;
+  }
+  return "tactic";
+}
+
+function parseWorthKnowing(raw: unknown[]): WorthKnowingItem[] {
+  if (raw.length < 1) {
+    throw new Error("daily_grind_generator: worthKnowing must have at least one item");
+  }
+  return raw.map((r, i) => {
+    if (!r || typeof r !== "object") {
+      throw new Error(`daily_grind_generator: worthKnowing[${i}] not an object`);
+    }
+    const obj = r as Record<string, unknown>;
+    const ctx = `worthKnowing[${i}]`;
+    const item: WorthKnowingItem = {
+      category: requireString(obj, "category", ctx),
+      headline: requireString(obj, "headline", ctx),
+      body: requireString(obj, "body", ctx),
+      myTake: requireString(obj, "myTake", ctx),
+    };
+    if (typeof obj.stat === "string" && obj.stat.trim() !== "") {
+      item.stat = obj.stat.trim();
+    }
+    if (typeof obj.statLabel === "string" && obj.statLabel.trim() !== "") {
+      item.statLabel = obj.statLabel.trim();
+    }
+    if (
+      typeof obj.statColor === "string" &&
+      ["green", "red", "gold"].includes(obj.statColor)
+    ) {
+      item.statColor = obj.statColor as "green" | "red" | "gold";
+    }
+    return item;
+  });
+}
+
+function parseHowToSteps(raw: unknown[]): HowToStep[] {
+  if (raw.length < 2) {
+    throw new Error("daily_grind_generator: howTo.steps must have at least 2 steps");
+  }
+  return raw.map((r, i) => {
+    if (!r || typeof r !== "object") {
+      throw new Error(`daily_grind_generator: howTo.steps[${i}] not an object`);
+    }
+    const obj = r as Record<string, unknown>;
+    return {
+      label: requireString(obj, "label", `howTo.steps[${i}]`),
+      body: requireString(obj, "body", `howTo.steps[${i}]`),
+    };
+  });
+}
+
+function parseContent(rawText: string): DailyGrindContent {
   const cleaned = stripCodeFences(rawText);
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
   } catch (err) {
     throw new Error(
-      `daily_grind_generator: failed to parse model output as JSON: ${err instanceof Error ? err.message : String(err)}\nraw: ${cleaned.slice(0, 200)}`,
+      `daily_grind_generator: failed to parse model output as JSON: ${err instanceof Error ? err.message : String(err)}\nfirst 200 chars: ${cleaned.slice(0, 200)}`,
     );
   }
   if (!parsed || typeof parsed !== "object") {
     throw new Error("daily_grind_generator: model output is not a JSON object");
   }
   const obj = parsed as Record<string, unknown>;
-  const headline = String(obj.headline ?? "").trim();
-  const preheader = String(obj.preheader ?? "").trim();
-  const contentType = String(obj.contentType ?? "tactic").trim();
-  const rawSections = Array.isArray(obj.sections) ? obj.sections : [];
 
-  if (!headline) throw new Error("daily_grind_generator: missing headline");
-  if (rawSections.length === 0) throw new Error("daily_grind_generator: empty sections array");
+  const trifecta = requireObject(obj, "openingTrifecta", "root");
+  const theNumberObj = requireObject(trifecta, "theNumber", "openingTrifecta");
+  const theFlipObj = requireObject(trifecta, "theFlip", "openingTrifecta");
 
-  const sections: DailyGrindSection[] = rawSections.map((s, i) => {
-    if (!s || typeof s !== "object") {
-      throw new Error(`daily_grind_generator: section ${i} is not an object`);
-    }
-    const row = s as Record<string, unknown>;
-    const name = String(row.name ?? "").trim();
-    const body = String(row.body ?? "").trim();
-    if (!name) throw new Error(`daily_grind_generator: section ${i} missing name`);
-    if (!body) throw new Error(`daily_grind_generator: section ${i} missing body`);
-    return { name, body };
-  });
+  const firstPullObj = requireObject(obj, "firstPull", "root");
+  const firstPullParas = requireArray(firstPullObj, "paragraphs", "firstPull");
 
-  return { headline, preheader, contentType, sections };
+  const mainContentObj = requireObject(obj, "mainContent", "root");
+  const howToObj = requireObject(mainContentObj, "howTo", "mainContent");
+  const howToStepsRaw = requireArray(howToObj, "steps", "mainContent.howTo");
+
+  const ancientObj = requireObject(obj, "ancientTruth", "root");
+
+  return {
+    headline: requireString(obj, "headline", "root"),
+    preheader: requireString(obj, "preheader", "root"),
+    contentType: parseContentType(requireString(obj, "contentType", "root")),
+    openingTrifecta: {
+      theNumber: {
+        stat: requireString(theNumberObj, "stat", "openingTrifecta.theNumber"),
+        description: requireString(theNumberObj, "description", "openingTrifecta.theNumber"),
+      },
+      theUnspoken: requireString(trifecta, "theUnspoken", "openingTrifecta"),
+      theFlip: {
+        conventional: requireString(theFlipObj, "conventional", "openingTrifecta.theFlip"),
+        reality: requireString(theFlipObj, "reality", "openingTrifecta.theFlip"),
+      },
+    },
+    firstPull: {
+      paragraphs: firstPullParas.map((p, i) => {
+        if (typeof p !== "string" || p.trim() === "") {
+          throw new Error(`daily_grind_generator: firstPull.paragraphs[${i}] not a non-empty string`);
+        }
+        return p.trim();
+      }),
+    },
+    worthKnowing: parseWorthKnowing(requireArray(obj, "worthKnowing", "root")),
+    mainContent: {
+      subhead: requireString(mainContentObj, "subhead", "mainContent"),
+      intro: requireString(mainContentObj, "intro", "mainContent"),
+      howTo: {
+        title: requireString(howToObj, "title", "mainContent.howTo"),
+        steps: parseHowToSteps(howToStepsRaw),
+      },
+      closing: requireString(mainContentObj, "closing", "mainContent"),
+    },
+    groundsForThought: requireString(obj, "groundsForThought", "root"),
+    ancientTruth: {
+      verse: requireString(ancientObj, "verse", "ancientTruth"),
+      reference: requireString(ancientObj, "reference", "ancientTruth"),
+      application: requireString(ancientObj, "application", "ancientTruth"),
+    },
+    ps: requireString(obj, "ps", "root"),
+  };
 }
 
 export async function generateDailyGrindIssue(opts: {
@@ -136,14 +245,14 @@ export async function generateDailyGrindIssue(opts: {
     throw new Error("daily_grind_generator: model response missing text block");
   }
 
-  const parsed = parseDraft(firstBlock.text);
+  const content = parseContent(firstBlock.text);
 
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
   const costUsd = estimateCostUsd(inputTokens, outputTokens);
 
   return {
-    ...parsed,
+    content,
     meta: {
       model: MODEL,
       inputTokens,
