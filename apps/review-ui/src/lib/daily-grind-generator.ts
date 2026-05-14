@@ -621,21 +621,31 @@ export async function generateDailyGrindIssue(opts: {
   const recentConcepts = opts.recentConcepts ?? [];
 
   // Research phase is the flakiest step (Anthropic web_search has transient
-  // server-side failures). Retry once after a short delay before giving up.
+  // server-side failures). Retry up to 3 times with backoff on transient errors.
   let research;
-  try {
-    research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
-  } catch (firstErr) {
-    const message = firstErr instanceof Error ? firstErr.message : String(firstErr);
-    // Only retry on transparent search/JSON failures, not on auth or rate limit
-    const transient =
-      message.includes("no JSON object") ||
-      message.includes("web_search") ||
-      message.includes("invalid webhook json") ||
-      message.includes("technical limitation");
-    if (!transient) throw firstErr;
-    await new Promise((r) => setTimeout(r, 5000));
-    research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
+  const transientHints = [
+    "no JSON object",
+    "web_search",
+    "invalid webhook json",
+    "technical limitation",
+    "items array is empty",
+    "items must be at least",
+  ];
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
+      break;
+    } catch (err) {
+      lastErr = err;
+      const message = err instanceof Error ? err.message : String(err);
+      const transient = transientHints.some((h) => message.includes(h));
+      if (!transient || attempt === 3) throw err;
+      await new Promise((r) => setTimeout(r, attempt * 8000));
+    }
+  }
+  if (!research) {
+    throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
   }
   const writer = await runWriterPhase(
     client,
