@@ -191,9 +191,14 @@ async function markSent(
 
 /**
  * Force flag bypasses time-of-day + already-sent gates. Use for manual triggers.
+ * skipCache: bypass daily_grind_issues read/write — generate fresh, don't persist
+ * topicHint: bias the research phase toward a specific topic area
  */
-export async function runDailyGrindCron(opts: { force?: boolean } = {}): Promise<CronResult> {
+export async function runDailyGrindCron(
+  opts: { force?: boolean; skipCache?: boolean; topicHint?: string } = {},
+): Promise<CronResult> {
   const force = opts.force ?? false;
+  const skipCache = opts.skipCache ?? false;
   const db = getServiceRoleClient();
   const nowUtc = new Date();
 
@@ -245,7 +250,7 @@ export async function runDailyGrindCron(opts: { force?: boolean } = {}): Promise
   result.issueDate = issueDate;
 
   let rendered: { html: string; text: string; subject: string; preheader: string };
-  const cached = await loadCachedIssue(db, issueDate);
+  const cached = skipCache ? null : await loadCachedIssue(db, issueDate);
 
   if (cached && cached.sections && typeof cached.sections === "object") {
     rendered = {
@@ -256,7 +261,11 @@ export async function runDailyGrindCron(opts: { force?: boolean } = {}): Promise
     };
   } else {
     const recentHeadlines = await loadRecentHeadlines(db);
-    const issue = await generateDailyGrindIssue({ issueDate, recentTopics: recentHeadlines });
+    const issue = await generateDailyGrindIssue(
+      opts.topicHint
+        ? { issueDate, recentTopics: recentHeadlines, topicHint: opts.topicHint }
+        : { issueDate, recentTopics: recentHeadlines },
+    );
     result.issueGenerated = true;
     const renderedOutput = renderDailyGrindHtml(issue.content, {
       issueDate,
@@ -264,7 +273,9 @@ export async function runDailyGrindCron(opts: { force?: boolean } = {}): Promise
       webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
     });
     rendered = renderedOutput;
-    await persistIssue(db, issueDate, issue, renderedOutput);
+    if (!skipCache) {
+      await persistIssue(db, issueDate, issue, renderedOutput);
+    }
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);

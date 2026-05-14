@@ -184,9 +184,15 @@ async function runResearchPhase(
   client: Anthropic,
   issueDate: string,
   recentTopics: string[],
+  topicHint?: string,
 ): Promise<ResearchResult> {
   const userPromptParts: string[] = [];
   userPromptParts.push(`Today is ${issueDate}.`);
+  if (topicHint) {
+    userPromptParts.push(
+      `\nTopic focus for this issue: ${topicHint}. Bias your searches toward this area; pick research items that support this focus.`,
+    );
+  }
   if (recentTopics.length > 0) {
     userPromptParts.push(
       `\nRecently covered headlines (find DIFFERENT angles — don't search for these same topics):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
@@ -421,6 +427,7 @@ async function runWriterPhase(
 export async function generateDailyGrindIssue(opts: {
   issueDate: string;
   recentTopics?: string[];
+  topicHint?: string;
   apiKey?: string;
 }): Promise<DailyGrindIssue> {
   const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
@@ -428,7 +435,7 @@ export async function generateDailyGrindIssue(opts: {
   const client = new Anthropic({ apiKey });
   const recentTopics = opts.recentTopics ?? [];
 
-  const research = await runResearchPhase(client, opts.issueDate, recentTopics);
+  const research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
   const writer = await runWriterPhase(client, opts.issueDate, research.bundle, recentTopics);
 
   const totalCost = estimateCostUsd(

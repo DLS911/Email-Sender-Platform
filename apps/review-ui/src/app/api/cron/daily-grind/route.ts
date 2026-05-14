@@ -33,11 +33,15 @@ async function handle(req: Request): Promise<NextResponse> {
 
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "1";
+  const skipCache = url.searchParams.get("nocache") === "1";
+  const topicHint = url.searchParams.get("topicHint") ?? undefined;
 
-  logger.info("cron.daily_grind.start", { via: auth.via, force });
+  logger.info("cron.daily_grind.start", { via: auth.via, force, skipCache, topic_hint: topicHint ?? null });
 
   try {
-    const result = await runDailyGrindCron({ force });
+    const result = await runDailyGrindCron(
+      topicHint ? { force, skipCache, topicHint } : { force, skipCache },
+    );
     logger.info("cron.daily_grind.complete", {
       subscribers_checked: result.subscribersChecked,
       subscribers_due_now: result.subscribersDueNow,
