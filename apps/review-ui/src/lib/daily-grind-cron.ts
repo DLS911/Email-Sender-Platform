@@ -114,7 +114,7 @@ async function loadRecentHeadlines(db: SupabaseClient, limit = 30): Promise<stri
   return ((data ?? []) as Array<{ headline: string }>).map((row) => row.headline);
 }
 
-async function loadRecentVerses(db: SupabaseClient, limit = 30): Promise<string[]> {
+async function loadRecentVerses(db: SupabaseClient, limit = 125): Promise<string[]> {
   const { data, error } = await db
     .from("daily_grind_issues")
     .select("sections")
