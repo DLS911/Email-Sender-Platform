@@ -35,11 +35,23 @@ export type CronResult = {
   triggeredAtUtc: string;
   subscribersChecked: number;
   subscribersDueNow: number;
-  sent: Array<{ email: string; issueDate: string; resendId: string }>;
+  sent: Array<{ email: string; issueDate: string; resendId: string; fallback?: boolean }>;
   skipped: Array<{ email: string; reason: string }>;
   errors: Array<{ email: string; error: string }>;
   issueGenerated: boolean;
   issueDate: string | null;
+};
+
+export type GenerateResult = {
+  triggeredAtUtc: string;
+  targetDate: string;
+  generated: boolean;
+  reusedExisting: boolean;
+  headline: string | null;
+  costUsd: number | null;
+  latencyMs: number | null;
+  brainConceptsPersisted: number | null;
+  error: string | null;
 };
 
 function getServiceRoleClient(): SupabaseClient {
@@ -106,6 +118,30 @@ async function loadCachedIssue(db: SupabaseClient, issueDate: string): Promise<C
     .maybeSingle();
   if (error) throw new Error(`load_cached_issue: ${error.message}`);
   return (data ?? null) as CachedIssue | null;
+}
+
+async function loadMostRecentCachedIssue(db: SupabaseClient): Promise<CachedIssue | null> {
+  const { data, error } = await db
+    .from("daily_grind_issues")
+    .select("issue_date, subject, headline, preheader, sections, html, text_body, model")
+    .order("issue_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return (data ?? null) as CachedIssue | null;
+}
+
+/**
+ * Inject a small "retried delivery" footer note into rendered HTML. Used when
+ * the send route falls back to a previous day's issue because today's wasn't
+ * generated. Subscribers see a normal-looking issue with a faint note above
+ * the footer; we can grep for it in delivered logs.
+ */
+function injectFallbackNote(html: string, issueDate: string, fallbackDate: string): string {
+  const note = `<!-- fallback: requested=${issueDate} delivered=${fallbackDate} -->
+<tr><td style="padding: 12px 40px 0 40px;"><p style="font-size: 11px; color: #b8aa92; font-style: italic; margin: 0;">Note: today's fresh issue was not available, so this is a recent issue you may have missed.</p></td></tr>`;
+  // Insert just before the FOOTER row.
+  return html.replace("<!-- FOOTER -->", `${note}\n<!-- FOOTER -->`);
 }
 
 async function loadRecentHeadlines(db: SupabaseClient, limit = 30): Promise<string[]> {
@@ -215,9 +251,227 @@ async function markSent(
 }
 
 /**
+ * GENERATE-ONLY flow. Used by the nightly pre-generate cron.
+ *
+ * Researches + writes + persists for opts.targetDate (default: tomorrow UTC).
+ * Runs brain extract afterward (best-effort). Does NOT send any emails.
+ *
+ * If an issue already exists for targetDate, returns reusedExisting=true and
+ * skips generation unless opts.regenerate is set.
+ *
+ * Designed to run on the slow path with the full 300s Vercel budget — sends
+ * are handled by runDailyGrindSend on a separate cron schedule.
+ */
+export async function runDailyGrindGenerate(
+  opts: { targetDate?: string; topicHint?: string; regenerate?: boolean } = {},
+): Promise<GenerateResult> {
+  const nowUtc = new Date();
+  const targetDate =
+    opts.targetDate ??
+    new Date(nowUtc.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const result: GenerateResult = {
+    triggeredAtUtc: nowUtc.toISOString(),
+    targetDate,
+    generated: false,
+    reusedExisting: false,
+    headline: null,
+    costUsd: null,
+    latencyMs: null,
+    brainConceptsPersisted: null,
+    error: null,
+  };
+
+  try {
+    const db = getServiceRoleClient();
+
+    if (!opts.regenerate) {
+      const existing = await loadCachedIssue(db, targetDate);
+      if (existing) {
+        result.reusedExisting = true;
+        result.headline = existing.headline;
+        return result;
+      }
+    }
+
+    const [recentHeadlines, recentVerses, recentConcepts] = await Promise.all([
+      loadRecentHeadlines(db),
+      loadRecentVerses(db),
+      loadRecentConceptSummaries(db, 80),
+    ]);
+
+    const start = Date.now();
+    const issue = await generateDailyGrindIssue(
+      opts.topicHint
+        ? {
+            issueDate: targetDate,
+            recentTopics: recentHeadlines,
+            recentVerses,
+            recentConcepts,
+            topicHint: opts.topicHint,
+          }
+        : {
+            issueDate: targetDate,
+            recentTopics: recentHeadlines,
+            recentVerses,
+            recentConcepts,
+          },
+    );
+    const renderedOutput = renderDailyGrindHtml(issue.content, {
+      issueDate: targetDate,
+      unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",
+      webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
+    });
+    await persistIssue(db, targetDate, issue, renderedOutput);
+
+    result.generated = true;
+    result.headline = issue.content.headline;
+    result.costUsd = issue.meta.totalCostUsd;
+    result.latencyMs = Date.now() - start;
+
+    try {
+      const brain = await extractAndPersistConcepts({
+        db,
+        content: issue.content,
+        issueDate: targetDate,
+      });
+      result.brainConceptsPersisted = brain.conceptsPersisted;
+    } catch (err) {
+      console.error("brain.extract_failed", err instanceof Error ? err.message : String(err));
+    }
+
+    return result;
+  } catch (err) {
+    result.error = err instanceof Error ? err.message : String(err);
+    return result;
+  }
+}
+
+/**
+ * SEND-ONLY flow. Used by the hourly send cron.
+ *
+ * For each active subscriber whose local time is currently their target hour
+ * on a weekday and who hasn't been sent today's issue yet: look up the cached
+ * issue for that subscriber's local date and send it via Resend. If no cached
+ * issue exists for the local date, fall back to the most recent cached issue
+ * with a footer note (silent re-delivery rather than missing the send).
+ *
+ * Does NOT generate content. If you want to force a generation, hit
+ * runDailyGrindGenerate first or use the legacy runDailyGrindCron path.
+ *
+ * Force flag bypasses time-of-day + already-sent gates for manual fires.
+ */
+export async function runDailyGrindSend(
+  opts: { force?: boolean } = {},
+): Promise<CronResult> {
+  const force = opts.force ?? false;
+  const db = getServiceRoleClient();
+  const nowUtc = new Date();
+
+  const result: CronResult = {
+    triggeredAtUtc: nowUtc.toISOString(),
+    subscribersChecked: 0,
+    subscribersDueNow: 0,
+    sent: [],
+    skipped: [],
+    errors: [],
+    issueGenerated: false,
+    issueDate: null,
+  };
+
+  const subscribers = await loadActiveSubscribers(db);
+  result.subscribersChecked = subscribers.length;
+
+  type DueRow = { subscriber: TestSubscriber; localDate: string };
+  const due: DueRow[] = [];
+  for (const sub of subscribers) {
+    const parts = localTimeParts(nowUtc, sub.timezone);
+    const localDate = toIsoDate(parts);
+    if (!force) {
+      if (!isWeekday(parts.weekday)) {
+        result.skipped.push({ email: sub.email, reason: `weekend (${parts.weekday})` });
+        continue;
+      }
+      if (parts.hour !== sub.send_at_hour_local) {
+        result.skipped.push({
+          email: sub.email,
+          reason: `local hour ${parts.hour} != target ${sub.send_at_hour_local} (${sub.timezone})`,
+        });
+        continue;
+      }
+      if (sub.last_sent_issue_date === localDate) {
+        result.skipped.push({ email: sub.email, reason: `already sent for ${localDate}` });
+        continue;
+      }
+    }
+    due.push({ subscriber: sub, localDate });
+  }
+
+  result.subscribersDueNow = due.length;
+  if (due.length === 0) return result;
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  for (const row of due) {
+    try {
+      const fresh = await loadCachedIssue(db, row.localDate);
+      let rendered: { html: string; text: string; subject: string };
+      let usedFallback = false;
+      let actualIssueDate = row.localDate;
+
+      if (fresh && fresh.sections && typeof fresh.sections === "object") {
+        rendered = {
+          html: fresh.html,
+          text: fresh.text_body,
+          subject: fresh.subject,
+        };
+      } else {
+        const recent = await loadMostRecentCachedIssue(db);
+        if (!recent || !recent.html) {
+          result.errors.push({
+            email: row.subscriber.email,
+            error: `no cached issue for ${row.localDate} and no fallback available`,
+          });
+          continue;
+        }
+        usedFallback = true;
+        actualIssueDate = recent.issue_date;
+        rendered = {
+          html: injectFallbackNote(recent.html, row.localDate, recent.issue_date),
+          text: recent.text_body,
+          subject: recent.subject,
+        };
+      }
+
+      const resendId = await sendOne(resend, row.subscriber, rendered);
+      await markSent(db, row.subscriber.id, row.localDate);
+      const sentEntry: { email: string; issueDate: string; resendId: string; fallback?: boolean } =
+        { email: row.subscriber.email, issueDate: row.localDate, resendId };
+      if (usedFallback) {
+        sentEntry.fallback = true;
+        result.issueDate = actualIssueDate;
+      } else {
+        result.issueDate = row.localDate;
+      }
+      result.sent.push(sentEntry);
+    } catch (err) {
+      result.errors.push({
+        email: row.subscriber.email,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
  * Force flag bypasses time-of-day + already-sent gates. Use for manual triggers.
  * skipCache: bypass daily_grind_issues read/write — generate fresh, don't persist
  * topicHint: bias the research phase toward a specific topic area
+ *
+ * Legacy "do everything in one call" flow. Used by /api/cron/daily-grind for
+ * manual force fires. Production cron uses runDailyGrindGenerate (nightly) +
+ * runDailyGrindSend (hourly) on separate routes.
  */
 export async function runDailyGrindCron(
   opts: { force?: boolean; skipCache?: boolean; topicHint?: string } = {},
