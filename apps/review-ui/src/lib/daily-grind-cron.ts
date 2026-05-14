@@ -1,5 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import {
+  extractAndPersistConcepts,
+  loadRecentConceptSummaries,
+} from "./daily-grind-brain";
 import { type DailyGrindIssue, generateDailyGrindIssue } from "./daily-grind-generator";
 import {
   type DailyGrindContent,
@@ -281,9 +285,10 @@ export async function runDailyGrindCron(
       preheader: cached.preheader,
     };
   } else {
-    const [recentHeadlines, recentVerses] = await Promise.all([
+    const [recentHeadlines, recentVerses, recentConcepts] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
+      loadRecentConceptSummaries(db, 80),
     ]);
     const issue = await generateDailyGrindIssue(
       opts.topicHint
@@ -291,9 +296,15 @@ export async function runDailyGrindCron(
             issueDate,
             recentTopics: recentHeadlines,
             recentVerses,
+            recentConcepts,
             topicHint: opts.topicHint,
           }
-        : { issueDate, recentTopics: recentHeadlines, recentVerses },
+        : {
+            issueDate,
+            recentTopics: recentHeadlines,
+            recentVerses,
+            recentConcepts,
+          },
     );
     result.issueGenerated = true;
     const renderedOutput = renderDailyGrindHtml(issue.content, {
@@ -304,6 +315,18 @@ export async function runDailyGrindCron(
     rendered = renderedOutput;
     if (!skipCache) {
       await persistIssue(db, issueDate, issue, renderedOutput);
+    }
+    // Brain: extract + embed + persist concepts so the next issue knows.
+    // Best-effort — don't fail the cron if this errors.
+    try {
+      await extractAndPersistConcepts({
+        db,
+        content: issue.content,
+        issueDate,
+      });
+    } catch (err) {
+      // Logged but non-fatal — the email already shipped.
+      console.error("brain.extract_failed", err instanceof Error ? err.message : String(err));
     }
   }
 

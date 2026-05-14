@@ -397,6 +397,7 @@ function buildWriterUserPrompt(
   recentTopics: string[],
   recentVerses: string[],
   bannedVerses: string[],
+  recentConcepts: string[] = [],
 ): string {
   const parts: string[] = [];
   parts.push(`Today is ${issueDate}. Write today's Daily Grind issue using the research below.`);
@@ -405,6 +406,11 @@ function buildWriterUserPrompt(
   if (recentTopics.length > 0) {
     parts.push(
       `\n# RECENTLY COVERED HEADLINES (pick a fresh angle — do not repeat):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
+    );
+  }
+  if (recentConcepts.length > 0) {
+    parts.push(
+      `\n# CONCEPTS ALREADY COVERED IN RECENT ISSUES (do not rehash these — even if framed differently):\n${recentConcepts.map((c) => `- ${c}`).join("\n")}\n\nIf today's research overlaps with a concept above, pick a DIFFERENT angle on the topic or pick different research items. The reader has seen these ideas already.`,
     );
   }
   const allBanned = [...new Set([...recentVerses, ...bannedVerses])];
@@ -515,13 +521,21 @@ async function runWriterPhase(
   research: ResearchBundle,
   recentTopics: string[],
   recentVerses: string[],
+  recentConcepts: string[],
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
 }> {
-  const userPrompt = buildWriterUserPrompt(issueDate, research, recentTopics, recentVerses, []);
+  const userPrompt = buildWriterUserPrompt(
+    issueDate,
+    research,
+    recentTopics,
+    recentVerses,
+    [],
+    recentConcepts,
+  );
 
   const start = Date.now();
   const response = await client.messages.create({
@@ -595,6 +609,7 @@ export async function generateDailyGrindIssue(opts: {
   issueDate: string;
   recentTopics?: string[];
   recentVerses?: string[];
+  recentConcepts?: string[];
   topicHint?: string;
   apiKey?: string;
 }): Promise<DailyGrindIssue> {
@@ -603,6 +618,7 @@ export async function generateDailyGrindIssue(opts: {
   const client = new Anthropic({ apiKey });
   const recentTopics = opts.recentTopics ?? [];
   const recentVerses = opts.recentVerses ?? [];
+  const recentConcepts = opts.recentConcepts ?? [];
 
   const research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
   const writer = await runWriterPhase(
@@ -611,6 +627,7 @@ export async function generateDailyGrindIssue(opts: {
     research.bundle,
     recentTopics,
     recentVerses,
+    recentConcepts,
   );
 
   const totalCost = estimateCostUsd(
