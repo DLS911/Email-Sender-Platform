@@ -620,7 +620,23 @@ export async function generateDailyGrindIssue(opts: {
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
 
-  const research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
+  // Research phase is the flakiest step (Anthropic web_search has transient
+  // server-side failures). Retry once after a short delay before giving up.
+  let research;
+  try {
+    research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
+  } catch (firstErr) {
+    const message = firstErr instanceof Error ? firstErr.message : String(firstErr);
+    // Only retry on transparent search/JSON failures, not on auth or rate limit
+    const transient =
+      message.includes("no JSON object") ||
+      message.includes("web_search") ||
+      message.includes("invalid webhook json") ||
+      message.includes("technical limitation");
+    if (!transient) throw firstErr;
+    await new Promise((r) => setTimeout(r, 5000));
+    research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
+  }
   const writer = await runWriterPhase(
     client,
     opts.issueDate,
