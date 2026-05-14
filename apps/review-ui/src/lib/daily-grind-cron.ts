@@ -114,6 +114,27 @@ async function loadRecentHeadlines(db: SupabaseClient, limit = 30): Promise<stri
   return ((data ?? []) as Array<{ headline: string }>).map((row) => row.headline);
 }
 
+async function loadRecentVerses(db: SupabaseClient, limit = 30): Promise<string[]> {
+  const { data, error } = await db
+    .from("daily_grind_issues")
+    .select("sections")
+    .order("issue_date", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  const refs: string[] = [];
+  for (const row of (data ?? []) as Array<{ sections: unknown }>) {
+    const s = row.sections;
+    if (s && typeof s === "object" && !Array.isArray(s)) {
+      const at = (s as Record<string, unknown>).ancientTruth;
+      if (at && typeof at === "object" && !Array.isArray(at)) {
+        const ref = (at as Record<string, unknown>).reference;
+        if (typeof ref === "string" && ref.trim() !== "") refs.push(ref.trim());
+      }
+    }
+  }
+  return refs;
+}
+
 async function persistIssue(
   db: SupabaseClient,
   issueDate: string,
@@ -260,11 +281,19 @@ export async function runDailyGrindCron(
       preheader: cached.preheader,
     };
   } else {
-    const recentHeadlines = await loadRecentHeadlines(db);
+    const [recentHeadlines, recentVerses] = await Promise.all([
+      loadRecentHeadlines(db),
+      loadRecentVerses(db),
+    ]);
     const issue = await generateDailyGrindIssue(
       opts.topicHint
-        ? { issueDate, recentTopics: recentHeadlines, topicHint: opts.topicHint }
-        : { issueDate, recentTopics: recentHeadlines },
+        ? {
+            issueDate,
+            recentTopics: recentHeadlines,
+            recentVerses,
+            topicHint: opts.topicHint,
+          }
+        : { issueDate, recentTopics: recentHeadlines, recentVerses },
     );
     result.issueGenerated = true;
     const renderedOutput = renderDailyGrindHtml(issue.content, {

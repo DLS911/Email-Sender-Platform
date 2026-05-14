@@ -267,6 +267,10 @@ function validateAgainstResearch(items: WorthKnowingItem[], research: ResearchBu
   }
 }
 
+function stripMyTakePrefix(raw: string): string {
+  return raw.replace(/^\s*my\s*take\s*[:\-–—]+\s*/i, "").trim();
+}
+
 function parseWorthKnowing(raw: unknown[]): WorthKnowingItem[] {
   if (raw.length < 1) throw new Error("writer: worthKnowing must have at least one item");
   return raw.map((r, i) => {
@@ -278,7 +282,7 @@ function parseWorthKnowing(raw: unknown[]): WorthKnowingItem[] {
       headline: requireString(obj, "headline", ctx),
       sourceUrl: requireString(obj, "sourceUrl", ctx),
       body: requireString(obj, "body", ctx),
-      myTake: requireString(obj, "myTake", ctx),
+      myTake: stripMyTakePrefix(requireString(obj, "myTake", ctx)),
     };
     if (typeof obj.stat === "string" && obj.stat.trim() !== "") item.stat = obj.stat.trim();
     if (typeof obj.statLabel === "string" && obj.statLabel.trim() !== "")
@@ -378,6 +382,7 @@ async function runWriterPhase(
   issueDate: string,
   research: ResearchBundle,
   recentTopics: string[],
+  recentVerses: string[],
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
@@ -393,6 +398,16 @@ async function runWriterPhase(
       `\n# RECENTLY COVERED HEADLINES (pick a fresh angle — do not repeat):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
     );
   }
+  if (recentVerses.length > 0) {
+    parts.push(
+      `\n# RECENTLY USED ANCIENT TRUTH VERSES (DO NOT pick any of these — choose a different verse, ideally from a different chapter):\n${recentVerses.map((v) => `- ${v}`).join("\n")}`,
+    );
+  }
+  parts.push(
+    `\n# OUTPUT NOTES:
+- For the "myTake" field on each Worth Knowing item, write only the take itself. Do NOT prefix with "My take:" — the rendering layer adds that label.
+- For the Ancient Truth verse: avoid the verses listed above. Common defaults like Proverbs 21:5, 24:27, and 16:9 should not be reused if they appear in the avoid list. Stretch into Ecclesiastes, Psalms, or less-cited Proverbs chapters when needed.`,
+  );
   parts.push(
     `\nReturn ONLY the JSON object specified in the system prompt. No preamble, no markdown fences.`,
   );
@@ -427,6 +442,7 @@ async function runWriterPhase(
 export async function generateDailyGrindIssue(opts: {
   issueDate: string;
   recentTopics?: string[];
+  recentVerses?: string[];
   topicHint?: string;
   apiKey?: string;
 }): Promise<DailyGrindIssue> {
@@ -434,9 +450,16 @@ export async function generateDailyGrindIssue(opts: {
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey });
   const recentTopics = opts.recentTopics ?? [];
+  const recentVerses = opts.recentVerses ?? [];
 
   const research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
-  const writer = await runWriterPhase(client, opts.issueDate, research.bundle, recentTopics);
+  const writer = await runWriterPhase(
+    client,
+    opts.issueDate,
+    research.bundle,
+    recentTopics,
+    recentVerses,
+  );
 
   const totalCost = estimateCostUsd(
     research.inputTokens,
