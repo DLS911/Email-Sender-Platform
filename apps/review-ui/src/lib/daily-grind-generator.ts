@@ -428,7 +428,16 @@ If your topic naturally fits one of those defaults, find a fresher verse that to
   parts.push(
     `\n# OUTPUT NOTES:
 - For each Worth Knowing "myTake" field, write ONLY the take. Do NOT include the literal text "My take:" in the field value — the rendering layer adds that label automatically.
-- Confirm before returning: every Worth Knowing sourceUrl matches a research item URL exactly, and the ancientTruth.reference is NOT in the banned list above.`,
+- Confirm before returning: every Worth Knowing sourceUrl matches a research item URL exactly, and the ancientTruth.reference is NOT in the banned list above.
+
+# ANCIENT TRUTH VERSE SELECTION (this is the single most important variety lever)
+Before you write ancientTruth, name the theme of THIS issue in one phrase (mental note — don't put it in the output). Examples: "fee compression and unbundling AUM", "IRMAA timing risk on Roth conversions", "Reg S-P compliance deadline", "formal referral systems".
+
+Then pick a verse from the THEMATIC FAMILY that matches (see the system prompt's table). Do not pick a generic "planning" verse if the issue is about compliance — pick a watchfulness verse. Do not pick a "diligence" verse if the issue is about M&A wealth — pick a stewardship or hasty-riches verse.
+
+Rotate the source book across issues. If recent issues used Proverbs, lean toward Ecclesiastes, James, or Luke today. If the topic is wealth or fees, Ecclesiastes 5 or Luke 12 are often stronger than the obvious Proverbs pick.
+
+Vary the emotional register: cautionary verses for compliance/risk, opportunity verses for new strategies, rebuke verses for rants, patience verses for growth pieces.`,
   );
   parts.push(
     `\nReturn ONLY the JSON object specified in the system prompt. No preamble, no markdown fences.`,

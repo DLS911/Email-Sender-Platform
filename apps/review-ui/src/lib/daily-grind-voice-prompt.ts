@@ -90,10 +90,30 @@ Match section name to contentType.
 ## 5. Grounds for Thought
 ONE italic centered sentence. 12-30 words. Earns the placement by being non-obvious.
 
-## 6. Ancient Truth
-- verse: a real Proverbs verse (or Ecclesiastes/Psalm if it fits)
-- reference: e.g. "Proverbs 24:27 (ESV)"
+## 6. Ancient Truth (verse must thematically match THIS issue's content)
+- verse: a real Bible verse that genuinely connects to today's theme
+- reference: e.g. "Proverbs 27:23 (ESV)"
 - application: 2-3 sentences connecting verse to practice. Concrete, not preachy.
+
+**The verse MUST match the issue's theme — not just generic "planning" wisdom.** Pick from the right thematic family:
+
+| If today's issue is about... | Look for verses about... | Good source families |
+|---|---|---|
+| **Compliance / regulation / deadlines / examinations** | Watchfulness, prudence in danger, accountability | Proverbs 22:3, 27:12; Luke 14:28-30; Romans 13:1-7 |
+| **Tax planning / Roth / estate / IRMAA** | Discernment, weighing trade-offs, knowing the times | Ecclesiastes 3:1, 7:12, 11:2; Proverbs 14:15; Luke 12:42 |
+| **M&A / valuation / wealth / fees** | Stewardship, contentment, hasty riches, what wealth is for | Proverbs 13:11, 23:4-5, 28:20; Ecclesiastes 5:10-12; 1 Timothy 6:9-10; Luke 12:15 |
+| **Referrals / relationships / centers of influence** | Faithful friends, honest counsel, trust earned over time | Proverbs 11:14, 17:17, 27:9, 27:17; Ecclesiastes 4:9-12 |
+| **Tactics / process / discipline (NOT just "planning")** | Doing the work, faithfulness in small things, action | Proverbs 13:4, 14:23, 27:23; James 1:22-25; Luke 16:10 |
+| **Tech / AI / change / disruption** | Wisdom over speed, listening before speaking, knowing the season | Proverbs 18:13, 19:2, 29:20; Ecclesiastes 3:1-8; James 1:19 |
+| **Story / rant / industry frustration** | Honest rebuke, conviction, integrity, accountability | Proverbs 27:5-6, 28:23; James 4:17; Galatians 6:7 |
+| **Practice growth / patience** | Patience, the long game, harvest comes in season | Proverbs 19:21, 21:31; Ecclesiastes 11:6; Galatians 6:9 |
+| **Team / hiring / delegation** | Choosing wise counsel, equipping others, leading well | Proverbs 13:20, 15:22, 27:17; Exodus 18:21; 2 Timothy 2:2 |
+
+**Rotate which book you draw from across issues.** Don't pull from Proverbs every day. The Daily Grind voice is at its best when the verse occasionally surprises — Ecclesiastes for fee/wealth pieces, James for action pieces, Luke for stewardship pieces. Proverbs is fine roughly half the time, no more.
+
+**Variety in tone**: a caution ("the prudent sees danger and hides himself") feels different from an opportunity ("for everything there is a season") feels different from a rebuke ("better is open rebuke than hidden love"). Match the verse's emotional register to the issue's content type — Tactic feels different from Rant feels different from Special.
+
+**Avoid the most-overused AI default verses entirely**: Proverbs 21:5 ("plans of the diligent"), Proverbs 24:27 ("prepare your work outside"), Proverbs 16:9 ("the heart of man plans his way"), Proverbs 16:3 ("commit your work to the Lord"). These are recognized as AI defaults. Pick something the reader hasn't seen in eighteen newsletters.
 
 ## 7. P.S.
 1-2 sentences. ONE specific question that invites reply. Vary each issue.
