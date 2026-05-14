@@ -275,6 +275,7 @@ export async function runDailyGrindCron(
   result.issueDate = issueDate;
 
   let rendered: { html: string; text: string; subject: string; preheader: string };
+  let freshlyGeneratedContent: DailyGrindContent | null = null;
   const cached = skipCache ? null : await loadCachedIssue(db, issueDate);
 
   if (cached && cached.sections && typeof cached.sections === "object") {
@@ -313,20 +314,9 @@ export async function runDailyGrindCron(
       webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
     });
     rendered = renderedOutput;
+    freshlyGeneratedContent = issue.content;
     if (!skipCache) {
       await persistIssue(db, issueDate, issue, renderedOutput);
-    }
-    // Brain: extract + embed + persist concepts so the next issue knows.
-    // Best-effort — don't fail the cron if this errors.
-    try {
-      await extractAndPersistConcepts({
-        db,
-        content: issue.content,
-        issueDate,
-      });
-    } catch (err) {
-      // Logged but non-fatal — the email already shipped.
-      console.error("brain.extract_failed", err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -342,6 +332,21 @@ export async function runDailyGrindCron(
         email: row.subscriber.email,
         error: err instanceof Error ? err.message : String(err),
       });
+    }
+  }
+
+  // Brain extract runs AFTER sends so emails ship even if this step times out
+  // or fails. Best-effort, non-fatal. Only for freshly-generated issues
+  // (cached re-sends already had concepts extracted on their original run).
+  if (freshlyGeneratedContent) {
+    try {
+      await extractAndPersistConcepts({
+        db,
+        content: freshlyGeneratedContent,
+        issueDate,
+      });
+    } catch (err) {
+      console.error("brain.extract_failed", err instanceof Error ? err.message : String(err));
     }
   }
 
