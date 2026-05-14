@@ -377,6 +377,65 @@ function parseContent(rawText: string): DailyGrindContent {
   };
 }
 
+function normalizeVerseRef(raw: string): string {
+  // Normalize "Proverbs 21:5 (ESV)" → "proverbs 21:5"
+  return raw
+    .toLowerCase()
+    .replace(/\([a-z]+\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function verseConflictsWithRecent(picked: string, recent: string[]): boolean {
+  const norm = normalizeVerseRef(picked);
+  return recent.some((r) => normalizeVerseRef(r) === norm);
+}
+
+function buildWriterUserPrompt(
+  issueDate: string,
+  research: ResearchBundle,
+  recentTopics: string[],
+  recentVerses: string[],
+  bannedVerses: string[],
+): string {
+  const parts: string[] = [];
+  parts.push(`Today is ${issueDate}. Write today's Daily Grind issue using the research below.`);
+  parts.push("\n# RESEARCH (use ONLY these items for Worth Knowing and any cited statistics):");
+  parts.push(JSON.stringify(research, null, 2));
+  if (recentTopics.length > 0) {
+    parts.push(
+      `\n# RECENTLY COVERED HEADLINES (pick a fresh angle — do not repeat):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
+    );
+  }
+  const allBanned = [...new Set([...recentVerses, ...bannedVerses])];
+  if (allBanned.length > 0) {
+    parts.push(
+      `\n# BANNED ANCIENT TRUTH VERSES — HARD RULE
+If you pick any verse from the following list, the response will be REJECTED and you will be asked to regenerate. Pick a completely different verse, ideally from a different book (Ecclesiastes, Psalms, James) or a less-cited Proverbs chapter (e.g., Proverbs 3, 11, 14, 18, 27, 29).
+
+Banned verses for this issue:
+${allBanned.map((v) => `- ${v}`).join("\n")}
+
+Default avoidance regardless of list (these are the most-overused AI defaults):
+- Proverbs 21:5 ("plans of the diligent...")
+- Proverbs 24:27 ("prepare your work outside...")
+- Proverbs 16:9 ("the heart of man plans his way...")
+- Proverbs 16:3 ("commit your work to the LORD...")
+
+If your topic naturally fits one of those defaults, find a fresher verse that touches the same theme from a different angle.`,
+    );
+  }
+  parts.push(
+    `\n# OUTPUT NOTES:
+- For each Worth Knowing "myTake" field, write ONLY the take. Do NOT include the literal text "My take:" in the field value — the rendering layer adds that label automatically.
+- Confirm before returning: every Worth Knowing sourceUrl matches a research item URL exactly, and the ancientTruth.reference is NOT in the banned list above.`,
+  );
+  parts.push(
+    `\nReturn ONLY the JSON object specified in the system prompt. No preamble, no markdown fences.`,
+  );
+  return parts.join("\n");
+}
+
 async function runWriterPhase(
   client: Anthropic,
   issueDate: string,
@@ -389,52 +448,55 @@ async function runWriterPhase(
   outputTokens: number;
   latencyMs: number;
 }> {
-  const parts: string[] = [];
-  parts.push(`Today is ${issueDate}. Write today's Daily Grind issue using the research below.`);
-  parts.push("\n# RESEARCH (use ONLY these items for Worth Knowing and any cited statistics):");
-  parts.push(JSON.stringify(research, null, 2));
-  if (recentTopics.length > 0) {
-    parts.push(
-      `\n# RECENTLY COVERED HEADLINES (pick a fresh angle — do not repeat):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
+  const bannedVerses: string[] = [];
+  let totalInput = 0;
+  let totalOutput = 0;
+  let totalLatency = 0;
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const userPrompt = buildWriterUserPrompt(
+      issueDate,
+      research,
+      recentTopics,
+      recentVerses,
+      bannedVerses,
     );
-  }
-  if (recentVerses.length > 0) {
-    parts.push(
-      `\n# RECENTLY USED ANCIENT TRUTH VERSES (DO NOT pick any of these — choose a different verse, ideally from a different chapter):\n${recentVerses.map((v) => `- ${v}`).join("\n")}`,
-    );
-  }
-  parts.push(
-    `\n# OUTPUT NOTES:
-- For the "myTake" field on each Worth Knowing item, write only the take itself. Do NOT prefix with "My take:" — the rendering layer adds that label.
-- For the Ancient Truth verse: avoid the verses listed above. Common defaults like Proverbs 21:5, 24:27, and 16:9 should not be reused if they appear in the avoid list. Stretch into Ecclesiastes, Psalms, or less-cited Proverbs chapters when needed.`,
-  );
-  parts.push(
-    `\nReturn ONLY the JSON object specified in the system prompt. No preamble, no markdown fences.`,
-  );
 
-  const start = Date.now();
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: WRITER_MAX_TOKENS,
-    temperature: WRITER_TEMPERATURE,
-    system: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: parts.join("\n") }],
-  });
-  const latencyMs = Date.now() - start;
+    const start = Date.now();
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: WRITER_MAX_TOKENS,
+      temperature: WRITER_TEMPERATURE,
+      system: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+    const latencyMs = Date.now() - start;
+    totalInput += response.usage.input_tokens;
+    totalOutput += response.usage.output_tokens;
+    totalLatency += latencyMs;
 
-  const firstBlock = response.content[0];
-  if (!firstBlock || firstBlock.type !== "text") {
-    throw new Error("writer: response missing text block");
+    const firstBlock = response.content[0];
+    if (!firstBlock || firstBlock.type !== "text") {
+      throw new Error("writer: response missing text block");
+    }
+    const content = parseContent(firstBlock.text);
+    validateAgainstResearch(content.worthKnowing, research);
+
+    const allRecent = [...recentVerses, ...bannedVerses];
+    if (allRecent.length > 0 && verseConflictsWithRecent(content.ancientTruth.reference, allRecent)) {
+      if (attempt === maxAttempts) {
+        throw new Error(
+          `writer: model picked banned Ancient Truth verse "${content.ancientTruth.reference}" after ${maxAttempts} attempts. Banned list: ${allRecent.join(", ")}`,
+        );
+      }
+      bannedVerses.push(content.ancientTruth.reference);
+      continue;
+    }
+
+    return { content, inputTokens: totalInput, outputTokens: totalOutput, latencyMs: totalLatency };
   }
-  const content = parseContent(firstBlock.text);
-  validateAgainstResearch(content.worthKnowing, research);
-
-  return {
-    content,
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-    latencyMs,
-  };
+  throw new Error("writer: exhausted attempts (unreachable)");
 }
 
 // ─── Public ─────────────────────────────────────────────────────────────────
