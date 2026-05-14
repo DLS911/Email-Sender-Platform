@@ -436,6 +436,70 @@ If your topic naturally fits one of those defaults, find a fresher verse that to
   return parts.join("\n");
 }
 
+const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+const VERSE_SWAP_MAX_TOKENS = 800;
+
+const VERSE_SWAP_SYSTEM_PROMPT = `You pick a Bible verse for The Daily Grind, a newsletter for independent financial advisors. The host is Mark at Castor Abbott. The verse must fit the issue's theme and the application must be 2-3 sentences applying the verse to advisor practice — concrete, not preachy.
+
+Avoid these AI-default verses: Proverbs 21:5, Proverbs 24:27, Proverbs 16:9, Proverbs 16:3, Proverbs 15:22, Proverbs 22:3.
+
+Prefer less-cited Proverbs (3, 11, 14, 18, 20, 25, 27, 29) or Ecclesiastes, Psalms, James, or Luke when the theme allows.
+
+Return ONLY this JSON, no preamble:
+{
+  "verse": "the verse text in quotes",
+  "reference": "Book Chapter:Verse (Translation)",
+  "application": "2-3 sentences applying the verse to advisor practice"
+}`;
+
+async function swapBannedVerse(
+  client: Anthropic,
+  issueDate: string,
+  headline: string,
+  topicSummary: string,
+  banned: string[],
+): Promise<{
+  verse: string;
+  reference: string;
+  application: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = `Issue date: ${issueDate}
+Issue headline: ${headline}
+Issue theme (1-line): ${topicSummary}
+
+BANNED VERSES — DO NOT use any of these (or any verse that's the most-common AI default like Proverbs 21:5):
+${banned.map((b) => `- ${b}`).join("\n")}
+
+Pick a different verse that fits the theme.`;
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: VERSE_SWAP_MAX_TOKENS,
+    temperature: 0.6,
+    system: VERSE_SWAP_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const firstBlock = response.content[0];
+  if (!firstBlock || firstBlock.type !== "text") {
+    throw new Error("verse_swap: response missing text block");
+  }
+  const json = extractJsonObject(firstBlock.text);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  return {
+    verse: requireString(parsed, "verse", "verse_swap"),
+    reference: requireString(parsed, "reference", "verse_swap"),
+    application: requireString(parsed, "application", "verse_swap"),
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+  };
+}
+
 async function runWriterPhase(
   client: Anthropic,
   issueDate: string,
@@ -448,55 +512,72 @@ async function runWriterPhase(
   outputTokens: number;
   latencyMs: number;
 }> {
-  const bannedVerses: string[] = [];
-  let totalInput = 0;
-  let totalOutput = 0;
-  let totalLatency = 0;
-  const maxAttempts = 3;
+  const userPrompt = buildWriterUserPrompt(issueDate, research, recentTopics, recentVerses, []);
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const userPrompt = buildWriterUserPrompt(
-      issueDate,
-      research,
-      recentTopics,
-      recentVerses,
-      bannedVerses,
-    );
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: WRITER_MAX_TOKENS,
+    temperature: WRITER_TEMPERATURE,
+    system: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  let totalLatency = Date.now() - start;
+  let totalInput = response.usage.input_tokens;
+  let totalOutput = response.usage.output_tokens;
 
-    const start = Date.now();
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: WRITER_MAX_TOKENS,
-      temperature: WRITER_TEMPERATURE,
-      system: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-    const latencyMs = Date.now() - start;
-    totalInput += response.usage.input_tokens;
-    totalOutput += response.usage.output_tokens;
-    totalLatency += latencyMs;
-
-    const firstBlock = response.content[0];
-    if (!firstBlock || firstBlock.type !== "text") {
-      throw new Error("writer: response missing text block");
-    }
-    const content = parseContent(firstBlock.text);
-    validateAgainstResearch(content.worthKnowing, research);
-
-    const allRecent = [...recentVerses, ...bannedVerses];
-    if (allRecent.length > 0 && verseConflictsWithRecent(content.ancientTruth.reference, allRecent)) {
-      if (attempt === maxAttempts) {
-        throw new Error(
-          `writer: model picked banned Ancient Truth verse "${content.ancientTruth.reference}" after ${maxAttempts} attempts. Banned list: ${allRecent.join(", ")}`,
-        );
-      }
-      bannedVerses.push(content.ancientTruth.reference);
-      continue;
-    }
-
-    return { content, inputTokens: totalInput, outputTokens: totalOutput, latencyMs: totalLatency };
+  const firstBlock = response.content[0];
+  if (!firstBlock || firstBlock.type !== "text") {
+    throw new Error("writer: response missing text block");
   }
-  throw new Error("writer: exhausted attempts (unreachable)");
+  const content = parseContent(firstBlock.text);
+  validateAgainstResearch(content.worthKnowing, research);
+
+  if (
+    recentVerses.length > 0 &&
+    verseConflictsWithRecent(content.ancientTruth.reference, recentVerses)
+  ) {
+    const banned = [...recentVerses, content.ancientTruth.reference];
+    let swap = await swapBannedVerse(
+      client,
+      issueDate,
+      content.headline,
+      content.firstPull.paragraphs[0] ?? content.headline,
+      banned,
+    );
+    totalInput += swap.inputTokens;
+    totalOutput += swap.outputTokens;
+    totalLatency += swap.latencyMs;
+
+    // One more swap attempt if Haiku also picked a banned verse
+    if (verseConflictsWithRecent(swap.reference, banned)) {
+      banned.push(swap.reference);
+      swap = await swapBannedVerse(
+        client,
+        issueDate,
+        content.headline,
+        content.firstPull.paragraphs[0] ?? content.headline,
+        banned,
+      );
+      totalInput += swap.inputTokens;
+      totalOutput += swap.outputTokens;
+      totalLatency += swap.latencyMs;
+    }
+
+    if (verseConflictsWithRecent(swap.reference, banned)) {
+      throw new Error(
+        `writer: verse swap failed — Haiku picked banned verse twice. Banned: ${banned.join(", ")}`,
+      );
+    }
+
+    content.ancientTruth = {
+      verse: swap.verse,
+      reference: swap.reference,
+      application: swap.application,
+    };
+  }
+
+  return { content, inputTokens: totalInput, outputTokens: totalOutput, latencyMs: totalLatency };
 }
 
 // ─── Public ─────────────────────────────────────────────────────────────────
