@@ -44,10 +44,10 @@ export type DailyGrindIssue = {
 
 const MODEL = "claude-sonnet-4-5-20250929";
 const RESEARCH_TEMPERATURE = 0;
-const RESEARCH_MAX_TOKENS = 8000;
+const RESEARCH_MAX_TOKENS = 5000;
 const WRITER_TEMPERATURE = 0.45;
-const WRITER_MAX_TOKENS = 6000;
-const WEB_SEARCH_MAX_USES = 5;
+const WRITER_MAX_TOKENS = 5000;
+const WEB_SEARCH_MAX_USES = 4;
 
 const INPUT_COST_PER_M = 3;
 const OUTPUT_COST_PER_M = 15;
