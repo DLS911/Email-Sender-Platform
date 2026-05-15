@@ -542,7 +542,15 @@ async function runWriterPhase(
     model: MODEL,
     max_tokens: WRITER_MAX_TOKENS,
     temperature: WRITER_TEMPERATURE,
-    system: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+    // Cache the large voice modules block. 5-min TTL — cache hits save
+    // 90% on input tokens for any closely-timed retries or batch runs.
+    system: [
+      {
+        type: "text",
+        text: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [{ role: "user", content: userPrompt }],
   });
   let totalLatency = Date.now() - start;
