@@ -213,6 +213,12 @@ async function runResearchPhase(
         type: "web_search_20260209",
         name: "web_search",
         max_uses: WEB_SEARCH_MAX_USES,
+        // Force direct calls. Default behavior allows the model to wrap
+        // web_search inside code_execution, which double-counts against
+        // the tool quota (1 code_execution + 1 web_search per search).
+        // Direct calls are cheaper and avoid the "Server tool use limit
+        // exceeded" failure mode that bricked tonight's tests.
+        allowed_callers: ["direct"],
       },
     ],
     messages: [{ role: "user", content: userPromptParts.join("\n") }],
