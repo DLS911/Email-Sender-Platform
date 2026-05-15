@@ -287,12 +287,13 @@ function stripMyTakePrefix(raw: string): string {
  * a comma which is at least valid English).
  */
 function stripBannedDashes(raw: string): string {
+  // Catch ANY em/en/figure dash regardless of context. Normalize to ", "
+  // and clean up resulting double-spaces or double-commas.
   return raw
-    // " — " or "— " or " —" → ", "
-    .replace(/\s+[—–‒]\s*/g, ", ")
-    .replace(/[—–‒]\s+/g, ", ")
-    // Bare dash between words (e.g. "long—term") → just remove the dash, leave a hyphen if it makes sense
-    .replace(/([a-z])[—–‒]([a-z])/gi, "$1, $2");
+    .replace(/\s*[—–‒]\s*/g, ", ")
+    .replace(/,\s*,/g, ",")
+    .replace(/\s+,/g, ",")
+    .replace(/,([A-Za-z])/g, ", $1");
 }
 
 function deepStripDashes<T>(input: T): T {
@@ -641,11 +642,11 @@ async function runWriterPhase(
       );
     }
 
-    content.ancientTruth = {
+    content.ancientTruth = deepStripDashes({
       verse: swap.verse,
       reference: swap.reference,
       application: swap.application,
-    };
+    });
   }
 
   return { content, inputTokens: totalInput, outputTokens: totalOutput, latencyMs: totalLatency };
