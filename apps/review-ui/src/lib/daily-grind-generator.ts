@@ -422,9 +422,33 @@ function normalizeVerseRef(raw: string): string {
     .trim();
 }
 
+// Permanent ban list — verses that read as dramatic/preachy in a tactical
+// advisor newsletter. Mixed-faith audience means the proverbs work as
+// wisdom literature but eternal-stakes NT verses are out of place.
+const PERMANENT_BAN_VERSES = [
+  "Matthew 7:21",
+  "Matthew 7:7",
+  "John 14:6",
+  "John 3:16",
+  "Romans 8:28",
+  "Romans 10:9",
+  "Philippians 4:13",
+  "Jeremiah 29:11",
+  "Proverbs 3:5-6",
+  "Proverbs 3:5",
+  "Proverbs 3:6",
+  // AI defaults (already covered in prompt but enforced here too)
+  "Proverbs 21:5",
+  "Proverbs 24:27",
+  "Proverbs 16:9",
+  "Proverbs 16:3",
+];
+
 function verseConflictsWithRecent(picked: string, recent: string[]): boolean {
   const norm = normalizeVerseRef(picked);
-  return recent.some((r) => normalizeVerseRef(r) === norm);
+  if (recent.some((r) => normalizeVerseRef(r) === norm)) return true;
+  if (PERMANENT_BAN_VERSES.some((r) => normalizeVerseRef(r) === norm)) return true;
+  return false;
 }
 
 function buildWriterUserPrompt(

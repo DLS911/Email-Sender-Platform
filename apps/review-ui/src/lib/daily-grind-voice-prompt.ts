@@ -161,12 +161,80 @@ Avoid AI defaults: Proverbs 21:5, 24:27, 16:9, 16:3.
 - Is every numeric stat one that appears in research? (No invented percentages)
 - Does The Number cite a research stat and attribute the source?
 - Are there em dashes? Strip them.
-- Does The Unspoken have the specific texture from the language guide (real dollar amounts, named situations, the kind of detail Mark uses)?
+- Does The Unspoken have the specific texture from the examples below (narrative arc + dollar-amount punchline)?
 - Did you use any banned phrases from voice-rules.md / llm-output-discipline.md?
 - Does the main content engage the right framework (Trust Stacking, Physician Model, GAP, Three Torments) when the topic naturally calls for it?
-- Does the ancientTruth.reference avoid the AI defaults (Proverbs 21:5, 24:27, 16:9, 16:3)?
+- Does the ancientTruth verse genuinely fit the theme? Or is it a stretch?
 
 If any answer is no, fix it before returning.
+
+---
+
+# FEW-SHOT EXAMPLES (study these — produce work at this caliber)
+
+## The Unspoken — what it should sound like
+
+These are the actual Unspoken sections from real published Daily Grind issues. Notice the pattern:
+- Opens with "You have a [strategy]" or similar second-person construction
+- Specific named counts (twelve CPAs, three estate attorneys, four times, eighteen months)
+- Specific dates (in 2022, last spring)
+- Concrete scene details (ordered the lobster, aggressive eye contact, took the meeting in the parking lot)
+- A self-deprecating moment of recognition (the reader laughs and winces)
+- Ends with a dollar-amount punchline tied to the failure
+- A final sentence that delivers the punchline cleanly
+
+EXAMPLE 1 (preparation theme):
+"You have a 'centers of influence' strategy. You identified twelve CPAs and three estate attorneys who would be 'perfect referral partners.' You took one to lunch in 2022. They ordered the lobster. You talked about everything except business. They said 'we should definitely do this again.' You have not spoken since. Their contact is still in your CRM tagged 'HOT COI.' You see them at a charity event, make aggressive eye contact, and pretend to take a phone call. That lunch cost you $187 and exactly zero referrals."
+
+EXAMPLE 2 (compliance / referral pattern):
+"You have a 'centers of influence' strategy. You've had lunch with the same estate attorney four times. You've sent him three referrals. He's sent you exactly zero. But you keep scheduling the lunches because you read somewhere that COI relationships 'take time to develop.' It's been two years. You've spent $847 on lunches and parking. You could've bought a nice watch. At least the watch would tell you something useful."
+
+What you should produce:
+- Same second-person construction. Same level of specific detail. Same dollar punchline. Same wry final sentence.
+- AVOID: lists of analytical issues without narrative ("you have advisors texting from personal phones, emailing from Gmail, running Zoom without recording") — this is correct content but the wrong VOICE for The Unspoken
+- The Unspoken is a SHORT STORY, not a bulleted analytical observation. 80-130 words. Single paragraph.
+- Make the reader laugh at themselves while wincing.
+
+## Ancient Truth — what genuine thematic fit looks like
+
+EXAMPLE (preparation topic):
+Verse: "Prepare your work outside; get everything ready for yourself in the field, and after that build your house." (Proverbs 24:27 ESV)
+Application: "The farmer who prepares the field before planting reaps the harvest. The advisor who prepares before the meeting earns the client."
+
+The verse is literally about preparation. The application connects it to advisor practice in two short sentences. Tight 1:1 thematic mapping.
+
+EXAMPLE (same verse, checklist topic):
+Application: "The sequence matters. Preparation before action. Documentation before recommendation. The house built on proper groundwork survives the inspection."
+
+Same verse, different topic, but the topic (checklists / SEC examinations) GENUINELY connects to "prepare your work outside before building" — they're both about doing the foundational work first.
+
+## Ancient Truth — verse selection discipline
+
+The verse must EARN its placement. If you find yourself making a stretchy connection ("Matthew 7:21 'Lord, Lord' is like saying you have a policy but actually doing the work" — that's a stretch), STOP and pick a different verse.
+
+For compliance/recordkeeping topics specifically, the right verse families are:
+- **Faithfulness in small things**: Luke 16:10 ("Whoever is faithful in very little is also faithful in much")
+- **Knowing the condition of what's yours**: Proverbs 27:23-24 ("Be diligent to know the state of your flocks")
+- **Diligent recordkeeping/accounting**: Proverbs 27:23 alone, or Luke 12:42-48 (the wise manager)
+- **Doing the work vs talking about it**: James 1:22-25 (do what the word says, not just hear)
+
+For fee/pricing/retainer topics:
+- **Hasty wealth**: Proverbs 13:11, 28:20
+- **Stewardship**: Luke 16:10-12
+- **Hidden costs**: Ecclesiastes 5:10
+
+For M&A/valuation topics:
+- **Counting the cost**: Luke 14:28-30
+- **Wisdom over speed**: Proverbs 19:2
+- **The proud fall**: Proverbs 16:18
+
+For referrals/relationships:
+- **Faithful counsel**: Proverbs 11:14, 27:9
+- **A friend loves at all times**: Proverbs 17:17
+
+If no verse fits naturally for today's topic, do NOT reach for Matthew or Romans for dramatic effect. Pick a quieter verse from Proverbs about diligence or faithfulness — even if it's slightly generic, it beats a forced fit. The discipline is to skip a forced verse rather than stretch one until it cracks.
+
+ABSOLUTELY AVOID: Matthew 7:21, John 14:6, John 3:16, Romans 8:28 — these are famous religious verses with eternal-stakes themes that read as dramatic and out of place in a tactical newsletter. The Daily Grind audience is mixed faith backgrounds; the proverbs work as wisdom literature, but New Testament dogmatic verses read as preachy.
 `;
 
 /**
