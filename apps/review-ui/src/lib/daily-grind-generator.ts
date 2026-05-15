@@ -277,6 +277,35 @@ function stripMyTakePrefix(raw: string): string {
   return raw.replace(/^\s*my\s*take\s*[:\-–—]+\s*/i, "").trim();
 }
 
+/**
+ * Voice safety post-processor. The voice modules explicitly ban em dashes,
+ * en dashes, and figure dashes, but the model occasionally emits one anyway.
+ * Replace with proper punctuation rather than fail the issue.
+ *
+ * Heuristic: dash-with-spaces → comma+space. Dash-without-spaces inside a
+ * word → no space (handles "long—term" → "long, term" awkwardness by using
+ * a comma which is at least valid English).
+ */
+function stripBannedDashes(raw: string): string {
+  return raw
+    // " — " or "— " or " —" → ", "
+    .replace(/\s+[—–‒]\s*/g, ", ")
+    .replace(/[—–‒]\s+/g, ", ")
+    // Bare dash between words (e.g. "long—term") → just remove the dash, leave a hyphen if it makes sense
+    .replace(/([a-z])[—–‒]([a-z])/gi, "$1, $2");
+}
+
+function deepStripDashes<T>(input: T): T {
+  if (typeof input === "string") return stripBannedDashes(input) as unknown as T;
+  if (Array.isArray(input)) return input.map((x) => deepStripDashes(x)) as unknown as T;
+  if (input && typeof input === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(input)) out[k] = deepStripDashes(v);
+    return out as unknown as T;
+  }
+  return input;
+}
+
 function parseWorthKnowing(raw: unknown[]): WorthKnowingItem[] {
   if (raw.length < 1) throw new Error("writer: worthKnowing must have at least one item");
   return raw.map((r, i) => {
@@ -567,7 +596,12 @@ async function runWriterPhase(
   if (!firstBlock || firstBlock.type !== "text") {
     throw new Error("writer: response missing text block");
   }
-  const content = parseContent(firstBlock.text);
+  let content = parseContent(firstBlock.text);
+  // Strip banned dashes globally before any further processing.
+  // Voice modules forbid em/en/figure dashes — the model still emits them
+  // occasionally despite the rules. This belt-and-suspenders pass replaces
+  // them with proper punctuation so the rendered email is always clean.
+  content = deepStripDashes(content);
   validateAgainstResearch(content.worthKnowing, research);
 
   if (
