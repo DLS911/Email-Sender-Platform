@@ -26,9 +26,18 @@ async function handle(req: Request): Promise<NextResponse> {
   }
 
   const url = new URL(req.url);
-  const targetDate = url.searchParams.get("targetDate") ?? undefined;
+  let targetDate = url.searchParams.get("targetDate") ?? undefined;
   const topicHint = url.searchParams.get("topicHint") ?? undefined;
   const regenerate = url.searchParams.get("regenerate") === "1";
+  const mode = url.searchParams.get("mode");
+  if (!targetDate && mode) {
+    const now = new Date();
+    if (mode === "today") {
+      targetDate = now.toISOString().slice(0, 10);
+    } else if (mode === "tomorrow") {
+      targetDate = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    }
+  }
 
   logger.info("cron.daily_grind_generate.start", {
     via: auth.via,

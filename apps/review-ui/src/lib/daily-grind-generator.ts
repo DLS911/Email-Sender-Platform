@@ -632,7 +632,7 @@ export async function generateDailyGrindIssue(opts: {
     "items must be at least",
   ];
   let lastErr: unknown = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
       break;
@@ -640,8 +640,11 @@ export async function generateDailyGrindIssue(opts: {
       lastErr = err;
       const message = err instanceof Error ? err.message : String(err);
       const transient = transientHints.some((h) => message.includes(h));
-      if (!transient || attempt === 3) throw err;
-      await new Promise((r) => setTimeout(r, attempt * 8000));
+      if (!transient || attempt === 2) throw err;
+      // Single retry keeps total elapsed under the 300s function budget.
+      // For persistent outages, the morning catch-up cron provides a second
+      // independent invocation hours later.
+      await new Promise((r) => setTimeout(r, 6000));
     }
   }
   if (!research) {
