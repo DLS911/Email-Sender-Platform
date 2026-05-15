@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { DAILY_GRIND_VOICE_SYSTEM_PROMPT } from "./daily-grind-voice-prompt";
 import { RESEARCH_SYSTEM_PROMPT } from "./daily-grind-research-prompt";
+import { runPerplexityResearch } from "./daily-grind-research-perplexity";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -693,35 +694,67 @@ export async function generateDailyGrindIssue(opts: {
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
 
-  // Research phase is the flakiest step (Anthropic web_search has transient
-  // server-side failures). Retry up to 3 times with backoff on transient errors.
+  // Research phase: prefer Perplexity (mature, structured citations, cheap),
+  // fall back to Anthropic web_search if PERPLEXITY_API_KEY not configured.
   let research;
-  const transientHints = [
-    "no JSON object",
-    "web_search",
-    "invalid webhook json",
-    "technical limitation",
-    "items array is empty",
-    "items must be at least",
-  ];
-  let lastErr: unknown = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  if (process.env.PERPLEXITY_API_KEY) {
+    const perpOpts: Parameters<typeof runPerplexityResearch>[0] = {
+      issueDate: opts.issueDate,
+      recentTopics,
+    };
+    if (opts.topicHint) perpOpts.topicHint = opts.topicHint;
     try {
-      research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
-      break;
-    } catch (err) {
-      lastErr = err;
-      const message = err instanceof Error ? err.message : String(err);
-      const transient = transientHints.some((h) => message.includes(h));
-      if (!transient || attempt === 2) throw err;
-      // Single retry keeps total elapsed under the 300s function budget.
-      // For persistent outages, the morning catch-up cron provides a second
-      // independent invocation hours later.
-      await new Promise((r) => setTimeout(r, 6000));
+      const perp = await runPerplexityResearch(perpOpts);
+      research = {
+        bundle: perp.bundle,
+        inputTokens: perp.inputTokens,
+        outputTokens: perp.outputTokens,
+        webSearches: perp.webSearches,
+        latencyMs: perp.latencyMs,
+      };
+    } catch (firstErr) {
+      // One retry — Perplexity has been reliable in testing, but be safe
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const perp = await runPerplexityResearch(perpOpts);
+        research = {
+          bundle: perp.bundle,
+          inputTokens: perp.inputTokens,
+          outputTokens: perp.outputTokens,
+          webSearches: perp.webSearches,
+          latencyMs: perp.latencyMs,
+        };
+      } catch (secondErr) {
+        throw secondErr instanceof Error ? secondErr : new Error(String(secondErr));
+      }
     }
-  }
-  if (!research) {
-    throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
+  } else {
+    // Legacy fallback: Anthropic web_search. Kept so the system still works
+    // if PERPLEXITY_API_KEY is missing from Vercel.
+    const transientHints = [
+      "no JSON object",
+      "web_search",
+      "invalid webhook json",
+      "technical limitation",
+      "items array is empty",
+      "items must be at least",
+    ];
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
+        break;
+      } catch (err) {
+        lastErr = err;
+        const message = err instanceof Error ? err.message : String(err);
+        const transient = transientHints.some((h) => message.includes(h));
+        if (!transient || attempt === 2) throw err;
+        await new Promise((r) => setTimeout(r, 6000));
+      }
+    }
+    if (!research) {
+      throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
+    }
   }
   const writer = await runWriterPhase(
     client,
