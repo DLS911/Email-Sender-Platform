@@ -264,15 +264,35 @@ export async function loadRecentConceptSummaries(
   db: SupabaseClient,
   limit = 60,
 ): Promise<string[]> {
-  const { data, error } = await db.rpc("recent_content_concepts", {
+  // First try the RPC (preferred — supports the since-window filter cleanly).
+  // Fall back to a direct SELECT if the RPC isn't installed (migration 0008
+  // not applied). The direct query doesn't require any installed function.
+  const rpcResult = await db.rpc("recent_content_concepts", {
     p_brand_id: BRAND_ID,
     match_count: limit,
   });
+  if (!rpcResult.error && rpcResult.data) {
+    return ((rpcResult.data ?? []) as RecentConcept[]).map((r) => {
+      const sf = r.surfaceForm ? ` ("${r.surfaceForm}")` : "";
+      return `${r.conceptSummary}${sf}`;
+    });
+  }
+  // Fallback: direct table query (no RPC needed).
+  const sinceDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await db
+    .from("content_concepts")
+    .select("concept_summary, surface_form, used_at")
+    .eq("brand_id", BRAND_ID)
+    .gte("used_at", sinceDate)
+    .order("used_at", { ascending: false })
+    .limit(limit);
   if (error) return [];
-  return ((data ?? []) as RecentConcept[]).map((r) => {
-    const sf = r.surfaceForm ? ` ("${r.surfaceForm}")` : "";
-    return `${r.conceptSummary}${sf}`;
-  });
+  return ((data ?? []) as Array<{ concept_summary: string; surface_form: string | null }>).map(
+    (r) => {
+      const sf = r.surface_form ? ` ("${r.surface_form}")` : "";
+      return `${r.concept_summary}${sf}`;
+    },
+  );
 }
 
 export async function findSimilarConceptsForTexts(opts: {
