@@ -120,13 +120,19 @@ async function loadCachedIssue(db: SupabaseClient, issueDate: string): Promise<C
   return (data ?? null) as CachedIssue | null;
 }
 
-async function loadMostRecentCachedIssue(db: SupabaseClient): Promise<CachedIssue | null> {
-  const { data, error } = await db
+async function loadMostRecentCachedIssue(
+  db: SupabaseClient,
+  maxDate?: string,
+): Promise<CachedIssue | null> {
+  let query = db
     .from("daily_grind_issues")
     .select("issue_date, subject, headline, preheader, sections, html, text_body, model")
     .order("issue_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+  // Never fall back to future-dated content. Without this, a pre-generated
+  // tomorrow's issue would silently get sent today if today's was missing.
+  if (maxDate) query = query.lte("issue_date", maxDate);
+  const { data, error } = await query.maybeSingle();
   if (error) return null;
   return (data ?? null) as CachedIssue | null;
 }
@@ -425,7 +431,7 @@ export async function runDailyGrindSend(
           subject: fresh.subject,
         };
       } else {
-        const recent = await loadMostRecentCachedIssue(db);
+        const recent = await loadMostRecentCachedIssue(db, row.localDate);
         if (!recent || !recent.html) {
           result.errors.push({
             email: row.subscriber.email,
