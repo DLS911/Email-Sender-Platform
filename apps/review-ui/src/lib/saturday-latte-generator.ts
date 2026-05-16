@@ -12,8 +12,9 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { composeWeekendWriterVoice } from "./saturday-latte-voice-modules";
+import { type LatteImagePrompts, generateLatteImages } from "./saturday-latte-images";
 import type {
-  HostsCornerStep as _UnusedHostsCornerStep,
+  LinkInBody,
   SaturdayLatteContent,
   TastingMenuItem,
 } from "./saturday-latte-html-template";
@@ -271,19 +272,23 @@ A 450-650 word piece on a destination, an experience, or a discovery. Reference 
 Worth Watching, Worth Drinking, Worth Reading, Worth Listening, Worth Trying — pick three labels. Each item:
 - label: e.g. "Worth Watching" or "Worth Drinking"
 - title: the actual name (movie, product, book, etc.)
+- url: the actual URL where the item can be found (IMDB for movies, manufacturer/Amazon for products, publisher/Amazon for books). USE A URL FROM RESEARCH IF AVAILABLE.
 - body: 80-150 words. The Unexpected Variable named. An insight from the Physics/Wisdom/Insider frame.
 
 Pull from research: products, watchReadListen, cooking.
 
 ### 3. The Host's Corner
 A specific cooking technique or hosting move. Format:
-- leadIn: 1-2 sentences setting up the move
-- moveTitle: short specific title for the move
+- leadIn: 1-2 sentences setting up the move (one-paragraph hook)
+- moveTitle: short specific title for the move (rendered as Georgia headline on dark background — keep punchy, 4-9 words)
 - moveBody: 150-250 words on the technique. Physics-based insight required (why it works at the chemical/thermal level). Specific products (Lodge, dutch oven, pizza steel, etc.) when relevant.
+- learnMoreUrl: optional URL to an authoritative source for the technique (Serious Eats, King Arthur Baking, NYT Cooking, etc.). Use a research URL when available.
+- learnMoreLabel: optional override for the link text. Default "Learn more →" — only set if you want different text like "Read the full guide →"
 
 ### 4. The Drive
 A specific car. 100-200 words.
 - car: full year/make/model (e.g. "2024 Lexus LC 500")
+- url: manufacturer page or Car and Driver / MotorTrend review URL for this exact model. Use a research URL when available.
 - specs: "5.0L V8 • 471 HP • Naturally aspirated, 7,300 RPM redline" — three short specs separated by " • "
 - body: Why this car, in Mark's voice. Include "the unexpected variable" — what the marketing misses. End with a single line of conviction.
 
@@ -325,6 +330,25 @@ Reply prompt. 1-2 sentences asking one specific question.
 
 - **No travel-magazine voice.** "A hidden gem awaits" is banned. Mark wouldn't say that.
 
+## Cover Story Inline Hyperlinks
+The published Latte hyperlinks named restaurants, hotels, and attractions in the cover story body. Include a coverStoryLinks array with text/url pairs. The renderer will find the first occurrence of each text in body paragraphs and convert it to a hyperlink. Use URLs from research items (restaurant_food, destination, activity). 3-8 links typical.
+
+## Image Prompts
+You produce 7 short image prompts. Each becomes a DALL-E 3 image. Keep prompts:
+- Concrete and visual (a thing in a place, not an abstract idea)
+- Cinematic / editorial (warm light, documentary feel)
+- NO text, NO logos, NO people's faces — those will be applied as style automatically
+- Locations: real-world, identifiable (Spanish moss in Savannah square at dawn, not "a beautiful Southern town")
+- For products: the product in context (a wood-grilled oyster on a cast iron pan, not just "oyster")
+- 15-30 words each
+
+The 7 slots:
+- hero: a wide atmospheric image capturing the cover story location/mood
+- coverDetail: a more specific detail from the cover story (a restaurant interior, a marsh view, a doorway, etc.)
+- tastingMenu[0..2]: one per tasting menu item, showing the product or its context
+- hostsCorner: the cooking technique or its result (e.g. wood-grilled oysters with herb butter on a cast iron pan)
+- theDrive: the car in an evocative setting (the road, the garage, the dusk-lit driveway)
+
 ## OUTPUT FORMAT — return ONLY this JSON, no preamble:
 
 {
@@ -332,17 +356,43 @@ Reply prompt. 1-2 sentences asking one specific question.
   "preheader": "...",
   "contentType": "overlooked_destination | luxury_insider | peak_season_smart | food_first_travel | international_insider | activity_mastery | family_reality | tactical_weekend | logistics_hack | hyper_local",
   "coverStoryParagraphs": ["...", "...", "..."],
-  "tastingMenu": [
-    { "label": "Worth Watching", "title": "...", "body": "..." },
-    { "label": "Worth Drinking", "title": "...", "body": "..." },
-    { "label": "Worth Reading", "title": "...", "body": "..." }
+  "coverStoryLinks": [
+    { "text": "Artillery Bar", "url": "https://www.artillerybar.com/" },
+    { "text": "The Grey", "url": "https://thegreyrestaurant.com/" }
   ],
-  "hostsCorner": { "leadIn": "...", "moveTitle": "...", "moveBody": "..." },
-  "theDrive": { "car": "...", "specs": "...", "body": "..." },
+  "tastingMenu": [
+    { "label": "Worth Watching", "title": "...", "url": "https://imdb.com/...", "body": "..." },
+    { "label": "Worth Drinking", "title": "...", "url": "https://...", "body": "..." },
+    { "label": "Worth Reading", "title": "...", "url": "https://...", "body": "..." }
+  ],
+  "hostsCorner": {
+    "leadIn": "...",
+    "moveTitle": "...",
+    "moveBody": "...",
+    "learnMoreUrl": "https://...",
+    "learnMoreLabel": "Learn more →"
+  },
+  "theDrive": {
+    "car": "2024 Lexus LC 500",
+    "url": "https://www.lexus.com/models/LC",
+    "specs": "5.0L V8 • 471 HP • Naturally aspirated, 7,300 RPM redline",
+    "body": "..."
+  },
   "sundayPrep": { "title": "...", "body": "..." },
   "sundayReset": { "quote": "...", "author": "..." },
   "sabbath": { "verse": "...", "reference": "...", "reflection": "..." },
-  "ps": "..."
+  "ps": "...",
+  "imagePrompts": {
+    "hero": "A wide editorial shot of [scene from cover story]. Specific place, warm natural light, documentary feel.",
+    "coverDetail": "[A specific detail from cover story]",
+    "tastingMenu": [
+      "[Image for tasting menu item 1]",
+      "[Image for tasting menu item 2]",
+      "[Image for tasting menu item 3]"
+    ],
+    "hostsCorner": "[Image for the cooking technique or hosting move]",
+    "theDrive": "[Image of the specific car in an evocative setting]"
+  }
 }
 `;
 
@@ -391,7 +441,11 @@ function deepStripDashes<T>(input: T): T {
   return input;
 }
 
-function parseLatteContent(rawText: string): { content: SaturdayLatteContent; contentType: string } {
+function parseLatteContent(rawText: string): {
+  content: SaturdayLatteContent;
+  contentType: string;
+  imagePrompts: LatteImagePrompts | null;
+} {
   const json = extractJsonObject(rawText);
   const parsed = JSON.parse(json) as Record<string, unknown>;
 
@@ -415,12 +469,26 @@ function parseLatteContent(rawText: string): { content: SaturdayLatteContent; co
   const tastingMenu: TastingMenuItem[] = tastingMenuRaw.map((r, i) => {
     if (!r || typeof r !== "object") throw new Error(`writer: tastingMenu[${i}] not an object`);
     const o = r as Record<string, unknown>;
-    return {
+    const item: TastingMenuItem = {
       label: requireString(o, "label", `tastingMenu[${i}]`),
       title: requireString(o, "title", `tastingMenu[${i}]`),
       body: requireString(o, "body", `tastingMenu[${i}]`),
     };
+    if (typeof o.url === "string" && o.url.trim() !== "") item.url = o.url.trim();
+    return item;
   });
+
+  // Optional coverStoryLinks
+  let coverStoryLinks: LinkInBody[] | undefined;
+  if (Array.isArray(parsed.coverStoryLinks)) {
+    coverStoryLinks = parsed.coverStoryLinks
+      .filter((l): l is Record<string, unknown> => !!l && typeof l === "object" && !Array.isArray(l))
+      .map((l) => ({
+        text: typeof l.text === "string" ? l.text.trim() : "",
+        url: typeof l.url === "string" ? l.url.trim() : "",
+      }))
+      .filter((l) => l.text && l.url);
+  }
 
   const hostsCornerObj = requireObject(parsed, "hostsCorner", "root");
   const theDriveObj = requireObject(parsed, "theDrive", "root");
@@ -428,21 +496,38 @@ function parseLatteContent(rawText: string): { content: SaturdayLatteContent; co
   const sundayResetObj = requireObject(parsed, "sundayReset", "root");
   const sabbathObj = requireObject(parsed, "sabbath", "root");
 
+  const hostsCorner: SaturdayLatteContent["hostsCorner"] = {
+    leadIn: requireString(hostsCornerObj, "leadIn", "hostsCorner"),
+    moveTitle: requireString(hostsCornerObj, "moveTitle", "hostsCorner"),
+    moveBody: requireString(hostsCornerObj, "moveBody", "hostsCorner"),
+  };
+  if (typeof hostsCornerObj.learnMoreUrl === "string" && hostsCornerObj.learnMoreUrl.trim() !== "") {
+    hostsCorner.learnMoreUrl = hostsCornerObj.learnMoreUrl.trim();
+  }
+  if (
+    typeof hostsCornerObj.learnMoreLabel === "string" &&
+    hostsCornerObj.learnMoreLabel.trim() !== ""
+  ) {
+    hostsCorner.learnMoreLabel = hostsCornerObj.learnMoreLabel.trim();
+  }
+
+  const theDrive: SaturdayLatteContent["theDrive"] = {
+    car: requireString(theDriveObj, "car", "theDrive"),
+    specs: requireString(theDriveObj, "specs", "theDrive"),
+    body: requireString(theDriveObj, "body", "theDrive"),
+  };
+  if (typeof theDriveObj.url === "string" && theDriveObj.url.trim() !== "") {
+    theDrive.url = theDriveObj.url.trim();
+  }
+
   const content: SaturdayLatteContent = {
     coverStoryHeadline,
     preheader,
     coverStoryParagraphs: coverParas,
+    ...(coverStoryLinks ? { coverStoryLinks } : {}),
     tastingMenu,
-    hostsCorner: {
-      leadIn: requireString(hostsCornerObj, "leadIn", "hostsCorner"),
-      moveTitle: requireString(hostsCornerObj, "moveTitle", "hostsCorner"),
-      moveBody: requireString(hostsCornerObj, "moveBody", "hostsCorner"),
-    },
-    theDrive: {
-      car: requireString(theDriveObj, "car", "theDrive"),
-      specs: requireString(theDriveObj, "specs", "theDrive"),
-      body: requireString(theDriveObj, "body", "theDrive"),
-    },
+    hostsCorner,
+    theDrive,
     sundayPrep: {
       title: requireString(sundayPrepObj, "title", "sundayPrep"),
       body: requireString(sundayPrepObj, "body", "sundayPrep"),
@@ -459,7 +544,33 @@ function parseLatteContent(rawText: string): { content: SaturdayLatteContent; co
     ps: requireString(parsed, "ps", "root"),
   };
 
-  return { content, contentType };
+  // Parse imagePrompts (optional — generator runs without them, no images)
+  let imagePrompts: LatteImagePrompts | null = null;
+  if (parsed.imagePrompts && typeof parsed.imagePrompts === "object" && !Array.isArray(parsed.imagePrompts)) {
+    const ip = parsed.imagePrompts as Record<string, unknown>;
+    const tm = Array.isArray(ip.tastingMenu)
+      ? ip.tastingMenu
+          .filter((s): s is string => typeof s === "string" && s.trim() !== "")
+          .map((s) => s.trim())
+      : [];
+    if (
+      typeof ip.hero === "string" &&
+      typeof ip.coverDetail === "string" &&
+      tm.length === 3 &&
+      typeof ip.hostsCorner === "string" &&
+      typeof ip.theDrive === "string"
+    ) {
+      imagePrompts = {
+        hero: ip.hero.trim(),
+        coverDetail: ip.coverDetail.trim(),
+        tastingMenu: tm,
+        hostsCorner: ip.hostsCorner.trim(),
+        theDrive: ip.theDrive.trim(),
+      };
+    }
+  }
+
+  return { content, contentType, imagePrompts };
 }
 
 async function runWriterPhase(
@@ -470,6 +581,7 @@ async function runWriterPhase(
 ): Promise<{
   content: SaturdayLatteContent;
   contentType: string;
+  imagePrompts: LatteImagePrompts | null;
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
@@ -506,12 +618,13 @@ async function runWriterPhase(
   const firstBlock = response.content[0];
   if (!firstBlock || firstBlock.type !== "text") throw new Error("writer: no text block");
 
-  const { content, contentType } = parseLatteContent(firstBlock.text);
+  const { content, contentType, imagePrompts } = parseLatteContent(firstBlock.text);
   const stripped = deepStripDashes(content);
 
   return {
     content: stripped,
     contentType,
+    imagePrompts,
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
     latencyMs,
@@ -532,6 +645,10 @@ export type SaturdayLatteIssue = {
     researchCitations: number;
     writerInputTokens: number;
     writerOutputTokens: number;
+    imagesCostUsd: number;
+    imagesLatencyMs: number;
+    imagesGenerated: number;
+    imagesFailed: number;
     totalCostUsd: number;
     researchLatencyMs: number;
     writerLatencyMs: number;
@@ -561,8 +678,47 @@ export async function generateSaturdayLatteIssue(opts: {
     (writer.inputTokens / 1_000_000) * ANTHROPIC_INPUT_PER_M +
     (writer.outputTokens / 1_000_000) * ANTHROPIC_OUTPUT_PER_M;
 
+  // Image generation phase: fire 7 DALL-E 3 calls in parallel, upload to
+  // Supabase Storage. Best-effort — if any fail, the email still renders
+  // (the template handles missing image slots gracefully).
+  let imagesCostUsd = 0;
+  let imagesLatencyMs = 0;
+  let imagesGenerated = 0;
+  let imagesFailed = 0;
+  let contentWithImages = writer.content;
+
+  if (writer.imagePrompts) {
+    try {
+      const imageResult = await generateLatteImages({
+        prompts: writer.imagePrompts,
+        issueDate: opts.issueDate,
+      });
+      imagesCostUsd = imageResult.costUsd;
+      imagesLatencyMs = imageResult.latencyMs;
+      imagesFailed = imageResult.failures.length;
+      // Count successes by counting set keys in urls (tasting menu counted per slot)
+      const tmCount = imageResult.urls.tastingMenu
+        ? imageResult.urls.tastingMenu.filter((u) => u && u.trim() !== "").length
+        : 0;
+      const otherCount = [
+        imageResult.urls.hero,
+        imageResult.urls.coverDetail,
+        imageResult.urls.hostsCorner,
+        imageResult.urls.theDrive,
+      ].filter((u) => u && u.trim() !== "").length;
+      imagesGenerated = tmCount + otherCount;
+      contentWithImages = { ...writer.content, images: imageResult.urls };
+    } catch (err) {
+      // Image generation failed entirely — log but don't fail the issue
+      console.error(
+        "latte.image_generation_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   return {
-    content: writer.content,
+    content: contentWithImages,
     contentType: writer.contentType,
     research: research.bundle,
     meta: {
@@ -573,7 +729,11 @@ export async function generateSaturdayLatteIssue(opts: {
       researchCitations: research.citationsCount,
       writerInputTokens: writer.inputTokens,
       writerOutputTokens: writer.outputTokens,
-      totalCostUsd: research.costUsd + writerCost,
+      imagesCostUsd,
+      imagesLatencyMs,
+      imagesGenerated,
+      imagesFailed,
+      totalCostUsd: research.costUsd + writerCost + imagesCostUsd,
       researchLatencyMs: research.latencyMs,
       writerLatencyMs: writer.latencyMs,
       issueDate: opts.issueDate,
