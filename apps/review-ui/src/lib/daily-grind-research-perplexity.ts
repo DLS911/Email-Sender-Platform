@@ -265,7 +265,12 @@ export async function runPerplexityResearch(opts: {
         { role: "user", content: userPrompt },
       ],
       temperature: 0,
-      search_recency_filter: "month",
+      // Do NOT use search_recency_filter — empirical testing 2026-05-18
+      // showed it returns garbage citations (gardening, food, USDA) for
+      // financial advisor queries when set to "month". The model then
+      // hallucinates plausible URLs from training. Without the filter,
+      // Perplexity returns real advisor-industry sources. Recency bias
+      // is enforced via the prompt instead ("fresh items from last 30 days").
       return_citations: true,
     }),
   });

@@ -219,7 +219,9 @@ async function runPerplexityResearch(opts: {
         { role: "user", content: userParts.join("\n") },
       ],
       temperature: 0,
-      search_recency_filter: "month",
+      // search_recency_filter removed — empirical testing showed it returns
+      // garbage citations (gardening/food/movies) for our query pattern.
+      // Recency bias enforced via the prompt ("fresh real recent" framing).
       return_citations: true,
     }),
   });
