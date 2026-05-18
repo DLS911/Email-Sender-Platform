@@ -1,15 +1,17 @@
 /**
- * Image generation for Saturday Morning Latte.
+ * Image generation for Saturday Morning Latte — Google Gemini 2.5 Flash
+ * Image ("Nano Banana"). Cheaper and faster than DALL-E 3 with comparable
+ * editorial quality.
  *
- * 7 images per issue, generated via OpenAI DALL-E 3 (standard quality,
- * $0.04 each = $0.28 per issue), then downloaded and uploaded to
- * Supabase Storage public bucket `latte-images` for permanent URLs.
+ * Pricing: ~$0.039 per image (1290 output tokens at $30/M).
+ * 7 images per issue = ~$0.27 (similar to DALL-E but much faster +
+ * better at following editorial photography style prompts).
  *
- * Why this two-step: DALL-E 3 returns temporary URLs that expire after
- * ~1 hour. The Saturday cron generates Friday night and sends Saturday
- * morning, so we must self-host.
+ * Generated images are returned as base64 inline data in the API response.
+ * We decode and upload to Supabase Storage public bucket `latte-images` for
+ * permanent URLs (the model does not host images for us).
  *
- * Image positions match published examples:
+ * 7 image slots:
  *   1. hero — top banner under header
  *   2. coverDetail — mid-cover-story detail
  *   3-5. tastingMenu[0..2] — one per item
@@ -17,15 +19,14 @@
  *   7. theDrive — the car
  */
 
-import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
 
 const STORAGE_BUCKET = "latte-images";
-const DALLE_MODEL = "dall-e-3";
-const DALLE_SIZE = "1024x1024" as const;
-const DALLE_QUALITY = "standard" as const;
-const DALLE_COST_PER_IMAGE = 0.04;
+const GEMINI_MODEL = "gemini-2.5-flash-image";
+const GEMINI_ENDPOINT = (model: string, apiKey: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+const COST_PER_IMAGE = 0.039;
 
 export type LatteImagePrompts = {
   hero: string;
@@ -60,40 +61,76 @@ function getStorageClient(): SupabaseClient {
 }
 
 const LATTE_IMAGE_STYLE_SUFFIX =
-  ". Editorial photography style. Warm natural lighting. Documentary feel, not stock photo. Slightly desaturated. Subtle film grain. 4:3 to square framing. NO TEXT, NO LOGOS, NO PEOPLE'S FACES visible. Atmospheric and grounded.";
+  ". Editorial photography style. Warm natural lighting. Documentary feel, not stock photo. Slightly desaturated. Subtle film grain. Square framing 1:1. NO TEXT, NO LOGOS, NO PEOPLE'S FACES visible. Atmospheric and grounded.";
+
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+        inlineData?: {
+          mimeType?: string;
+          data?: string;
+        };
+      }>;
+    };
+  }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
+  promptFeedback?: {
+    blockReason?: string;
+  };
+};
 
 async function generateOneImage(
-  openai: OpenAI,
+  apiKey: string,
   slotPrompt: string,
-): Promise<{ tmpUrl: string; revisedPrompt: string }> {
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
   const fullPrompt = `${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
-  const response = await openai.images.generate({
-    model: DALLE_MODEL,
-    prompt: fullPrompt,
-    n: 1,
-    size: DALLE_SIZE,
-    quality: DALLE_QUALITY,
-    response_format: "url",
+  const response = await fetch(GEMINI_ENDPOINT(GEMINI_MODEL, apiKey), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      generationConfig: {
+        responseModalities: ["IMAGE"],
+      },
+    }),
   });
-  const item = response.data?.[0];
-  if (!item?.url) throw new Error("dall-e: no url in response");
-  return { tmpUrl: item.url, revisedPrompt: item.revised_prompt ?? "" };
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`gemini image: HTTP ${response.status} — ${body.slice(0, 400)}`);
+  }
+
+  const data = (await response.json()) as GeminiResponse;
+  if (data.promptFeedback?.blockReason) {
+    throw new Error(`gemini image: blocked — ${data.promptFeedback.blockReason}`);
+  }
+
+  const parts = data.candidates?.[0]?.content?.parts ?? [];
+  for (const part of parts) {
+    if (part.inlineData?.data) {
+      const bytes = Uint8Array.from(Buffer.from(part.inlineData.data, "base64"));
+      return { bytes, mimeType: part.inlineData.mimeType ?? "image/png" };
+    }
+  }
+  throw new Error("gemini image: no inline image data in response");
 }
 
-async function downloadAndUpload(
+async function uploadToStorage(
   storage: SupabaseClient,
-  tmpUrl: string,
+  bytes: Uint8Array,
   storagePath: string,
+  mimeType: string,
 ): Promise<string> {
-  const r = await fetch(tmpUrl);
-  if (!r.ok) throw new Error(`download failed: HTTP ${r.status}`);
-  const arrayBuffer = await r.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-
   const { error: uploadErr } = await storage.storage
     .from(STORAGE_BUCKET)
     .upload(storagePath, bytes, {
-      contentType: "image/png",
+      contentType: mimeType,
       upsert: true,
     });
   if (uploadErr) throw new Error(`storage upload: ${uploadErr.message}`);
@@ -103,34 +140,39 @@ async function downloadAndUpload(
   return publicData.publicUrl;
 }
 
+function extForMime(mimeType: string): string {
+  if (mimeType.includes("png")) return "png";
+  if (mimeType.includes("jpeg") || mimeType.includes("jpg")) return "jpg";
+  if (mimeType.includes("webp")) return "webp";
+  return "png";
+}
+
 async function generateAndStore(
-  openai: OpenAI,
+  apiKey: string,
   storage: SupabaseClient,
   slot: string,
   prompt: string,
   issueDate: string,
 ): Promise<{ url: string }> {
-  const dalle = await generateOneImage(openai, prompt);
-  const filename = `${issueDate}/${slot}.png`;
-  const publicUrl = await downloadAndUpload(storage, dalle.tmpUrl, filename);
+  const img = await generateOneImage(apiKey, prompt);
+  const filename = `${issueDate}/${slot}.${extForMime(img.mimeType)}`;
+  const publicUrl = await uploadToStorage(storage, img.bytes, filename, img.mimeType);
   return { url: publicUrl };
 }
 
 export async function generateLatteImages(opts: {
   prompts: LatteImagePrompts;
   issueDate: string;
-  openaiApiKey?: string;
+  googleApiKey?: string;
 }): Promise<ImageGenResult> {
   const start = Date.now();
-  const apiKey = opts.openaiApiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("latte-images: OPENAI_API_KEY missing");
+  const apiKey = opts.googleApiKey ?? process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("latte-images: GOOGLE_API_KEY missing");
 
-  const openai = new OpenAI({ apiKey });
   const storage = getStorageClient();
   const urls: LatteImageUrls = {};
   const failures: Array<{ slot: string; error: string }> = [];
 
-  // Define all 7 image jobs
   const jobs: Array<{
     slot: string;
     prompt: string;
@@ -190,12 +232,12 @@ export async function generateLatteImages(opts: {
     },
   ];
 
-  // Fire all 7 in parallel — DALL-E handles concurrent requests fine
+  // Fire all 7 in parallel — Gemini is fast and tolerates concurrent requests
   const results = await Promise.allSettled(
     jobs.map((job) =>
       job.prompt.trim() === ""
         ? Promise.reject(new Error("empty prompt"))
-        : generateAndStore(openai, storage, job.slot, job.prompt, opts.issueDate),
+        : generateAndStore(apiKey, storage, job.slot, job.prompt, opts.issueDate),
     ),
   );
 
@@ -216,7 +258,7 @@ export async function generateLatteImages(opts: {
 
   return {
     urls,
-    costUsd: successCount * DALLE_COST_PER_IMAGE,
+    costUsd: successCount * COST_PER_IMAGE,
     latencyMs: Date.now() - start,
     failures,
   };
