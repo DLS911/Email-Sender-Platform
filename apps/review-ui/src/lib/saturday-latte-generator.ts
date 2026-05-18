@@ -21,7 +21,7 @@ import type {
 
 const WRITER_MODEL = "claude-sonnet-4-5-20250929";
 const WRITER_TEMPERATURE = 0.55;
-const WRITER_MAX_TOKENS = 6500;
+const WRITER_MAX_TOKENS = 8000;
 
 const PERPLEXITY_MODEL = "sonar-pro";
 const PERPLEXITY_ENDPOINT = "https://api.perplexity.ai/chat/completions";
@@ -333,21 +333,24 @@ Reply prompt. 1-2 sentences asking one specific question.
 ## Cover Story Inline Hyperlinks
 The published Latte hyperlinks named restaurants, hotels, and attractions in the cover story body. Include a coverStoryLinks array with text/url pairs. The renderer will find the first occurrence of each text in body paragraphs and convert it to a hyperlink. Use URLs from research items (restaurant_food, destination, activity). 3-8 links typical.
 
-## Image Prompts
-You produce 7 short image prompts. Each becomes a DALL-E 3 image. Keep prompts:
+## Image Prompts — REQUIRED OUTPUT FIELD
+
+Every issue MUST include an "imagePrompts" object at the end of your JSON with EXACTLY 7 prompts in 5 fields. These prompts will be passed to an image generation model — they are NOT optional, they are NOT examples for the writer to follow. Produce real prompts based on TODAY's actual content.
+
+Each prompt is 15-30 words. Each must be:
 - Concrete and visual (a thing in a place, not an abstract idea)
 - Cinematic / editorial (warm light, documentary feel)
-- NO text, NO logos, NO people's faces — those will be applied as style automatically
-- Locations: real-world, identifiable (Spanish moss in Savannah square at dawn, not "a beautiful Southern town")
-- For products: the product in context (a wood-grilled oyster on a cast iron pan, not just "oyster")
-- 15-30 words each
+- Real-world identifiable scene (e.g. "Spanish moss draped over a Savannah square at low winter sun" — NOT "a beautiful Southern city")
+- For products: the product in context (e.g. "wood-grilled oysters with herb butter on a black cast iron pan in a kitchen window light")
 
-The 7 slots:
-- hero: a wide atmospheric image capturing the cover story location/mood
-- coverDetail: a more specific detail from the cover story (a restaurant interior, a marsh view, a doorway, etc.)
-- tastingMenu[0..2]: one per tasting menu item, showing the product or its context
-- hostsCorner: the cooking technique or its result (e.g. wood-grilled oysters with herb butter on a cast iron pan)
-- theDrive: the car in an evocative setting (the road, the garage, the dusk-lit driveway)
+The 5 image fields (one prompt per field, tastingMenu has 3 sub-prompts):
+- hero: the cover story's primary place/mood, wide framing
+- coverDetail: a specific detail from the cover story (restaurant interior, marsh, doorway)
+- tastingMenu: array of 3 prompts, one per tasting menu item, showing each item in context
+- hostsCorner: the actual cooking technique or its result (matching this issue's moveTitle)
+- theDrive: the specific car you picked, in an evocative real-world setting
+
+DO NOT use placeholder text or bracketed templates like "[scene from cover story]". WRITE THE ACTUAL PROMPT based on the content you just produced. If your cover story is about Eureka Springs Arkansas, your hero prompt is "Quiet brick streets of historic Eureka Springs at dawn, Ozark hills in the background, autumn leaves on the sidewalk."
 
 ## OUTPUT FORMAT — return ONLY this JSON, no preamble:
 
@@ -383,17 +386,19 @@ The 7 slots:
   "sabbath": { "verse": "...", "reference": "...", "reflection": "..." },
   "ps": "...",
   "imagePrompts": {
-    "hero": "A wide editorial shot of [scene from cover story]. Specific place, warm natural light, documentary feel.",
-    "coverDetail": "[A specific detail from cover story]",
+    "hero": "REQUIRED. 15-30 words describing the cover story location and mood.",
+    "coverDetail": "REQUIRED. 15-30 words describing a specific detail scene from the cover story.",
     "tastingMenu": [
-      "[Image for tasting menu item 1]",
-      "[Image for tasting menu item 2]",
-      "[Image for tasting menu item 3]"
+      "REQUIRED. 15-30 words. Visual context for tasting menu item 1.",
+      "REQUIRED. 15-30 words. Visual context for tasting menu item 2.",
+      "REQUIRED. 15-30 words. Visual context for tasting menu item 3."
     ],
-    "hostsCorner": "[Image for the cooking technique or hosting move]",
-    "theDrive": "[Image of the specific car in an evocative setting]"
+    "hostsCorner": "REQUIRED. 15-30 words showing the cooking technique result.",
+    "theDrive": "REQUIRED. 15-30 words of the specific car in an evocative real-world setting."
   }
 }
+
+FINAL CHECK BEFORE RETURNING: Did you fill in every field in imagePrompts with an actual prompt (not the placeholder text "REQUIRED...")? If not, GO BACK and write them. The image renderer fails silently if these are missing, so the email will look broken. EVERY ISSUE NEEDS ALL 7 PROMPTS.
 `;
 
 function requireString(obj: Record<string, unknown>, key: string, ctx: string): string {
