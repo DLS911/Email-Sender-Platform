@@ -22,6 +22,8 @@ import type {
 const WRITER_MODEL = "claude-sonnet-4-5-20250929";
 const WRITER_TEMPERATURE = 0.55;
 const WRITER_MAX_TOKENS = 8000;
+const IMAGE_PROMPT_MODEL = "claude-haiku-4-5-20251001";
+const IMAGE_PROMPT_MAX_TOKENS = 1500;
 
 const PERPLEXITY_MODEL = "sonar-pro";
 const PERPLEXITY_ENDPOINT = "https://api.perplexity.ai/chat/completions";
@@ -636,6 +638,93 @@ async function runWriterPhase(
   };
 }
 
+// ─── Image prompts fallback (Haiku) ────────────────────────────────────────
+
+const IMAGE_PROMPT_SYSTEM_PROMPT = `You produce 7 image generation prompts for a Saturday Morning Latte newsletter issue, based on the issue's content. Each prompt is 15-30 words, concrete and visual, editorial photography style.
+
+Rules:
+- NO text in the prompts (text in generated images breaks the editorial look)
+- NO logos, NO people's faces
+- Real-world identifiable scenes (e.g. "Spanish moss draped over a Savannah square at low winter sun" — NOT "a beautiful Southern city")
+- For products: the product in context (e.g. "wood-grilled oysters with herb butter on a black cast iron pan, kitchen window light")
+- Warm natural lighting, documentary feel, slightly desaturated
+
+The 7 slots, output as JSON only:
+{
+  "hero": "wide atmospheric scene from the cover story location",
+  "coverDetail": "specific detail from cover story (interior, doorway, marsh, etc.)",
+  "tastingMenu": [
+    "prompt for tasting menu item 1",
+    "prompt for tasting menu item 2",
+    "prompt for tasting menu item 3"
+  ],
+  "hostsCorner": "the cooking technique or its plated result",
+  "theDrive": "the specific car in an evocative real-world setting"
+}
+
+Return ONLY the JSON. No preamble.`;
+
+async function generateImagePromptsWithHaiku(
+  client: Anthropic,
+  content: SaturdayLatteContent,
+): Promise<LatteImagePrompts> {
+  const userPrompt = `Generate image prompts for this Saturday Morning Latte issue:
+
+COVER STORY HEADLINE: ${content.coverStoryHeadline}
+COVER STORY FIRST PARAGRAPH: ${content.coverStoryParagraphs[0] ?? ""}
+COVER STORY SECOND PARAGRAPH: ${content.coverStoryParagraphs[1] ?? ""}
+
+TASTING MENU:
+${content.tastingMenu.map((t, i) => `${i + 1}. [${t.label}] ${t.title}: ${t.body.slice(0, 200)}`).join("\n")}
+
+HOST'S CORNER:
+${content.hostsCorner.moveTitle}: ${content.hostsCorner.moveBody.slice(0, 300)}
+
+THE DRIVE:
+${content.theDrive.car} — ${content.theDrive.body.slice(0, 200)}
+
+Return ONLY the 7-field JSON specified in the system prompt.`;
+
+  const response = await client.messages.create({
+    model: IMAGE_PROMPT_MODEL,
+    max_tokens: IMAGE_PROMPT_MAX_TOKENS,
+    temperature: 0.3,
+    system: IMAGE_PROMPT_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const firstBlock = response.content[0];
+  if (!firstBlock || firstBlock.type !== "text") {
+    throw new Error("haiku image-prompts: no text block");
+  }
+  const json = extractJsonObject(firstBlock.text);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+
+  const tm = Array.isArray(parsed.tastingMenu)
+    ? parsed.tastingMenu
+        .filter((s): s is string => typeof s === "string" && s.trim() !== "")
+        .map((s) => s.trim())
+    : [];
+  if (
+    typeof parsed.hero !== "string" ||
+    typeof parsed.coverDetail !== "string" ||
+    tm.length !== 3 ||
+    typeof parsed.hostsCorner !== "string" ||
+    typeof parsed.theDrive !== "string"
+  ) {
+    throw new Error(
+      `haiku image-prompts: incomplete output (tm=${tm.length}, hero=${typeof parsed.hero}, cover=${typeof parsed.coverDetail}, host=${typeof parsed.hostsCorner}, drive=${typeof parsed.theDrive})`,
+    );
+  }
+
+  return {
+    hero: parsed.hero.trim(),
+    coverDetail: parsed.coverDetail.trim(),
+    tastingMenu: tm,
+    hostsCorner: parsed.hostsCorner.trim(),
+    theDrive: parsed.theDrive.trim(),
+  };
+}
+
 // ─── Public ────────────────────────────────────────────────────────────────
 
 export type SaturdayLatteIssue = {
@@ -692,10 +781,26 @@ export async function generateSaturdayLatteIssue(opts: {
   let imagesFailed = 0;
   let contentWithImages = writer.content;
 
-  if (writer.imagePrompts) {
+  // Image prompts: try the writer's output first, fall back to a focused
+  // Haiku call if the writer skipped them. Haiku is fast and cheap, and
+  // having a dedicated call means the prompts are tightly grounded in the
+  // writer's actual content rather than being an afterthought.
+  let imagePrompts = writer.imagePrompts;
+  if (!imagePrompts) {
+    try {
+      imagePrompts = await generateImagePromptsWithHaiku(client, writer.content);
+    } catch (err) {
+      console.error(
+        "latte.image_prompts_haiku_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  if (imagePrompts) {
     try {
       const imageResult = await generateLatteImages({
-        prompts: writer.imagePrompts,
+        prompts: imagePrompts,
         issueDate: opts.issueDate,
       });
       imagesCostUsd = imageResult.costUsd;
