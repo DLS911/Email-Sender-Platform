@@ -161,6 +161,83 @@ async function loadRecentCoverStories(db: SupabaseClient, limit = 12): Promise<s
   );
 }
 
+export type RecentLatteContext = {
+  coverStoryHeadlines: string[];
+  cars: string[];
+  tastingMenuTitles: string[];
+  cookingMoves: string[];
+  sundayResetAuthors: string[];
+  sabbathReferences: string[];
+};
+
+export async function loadRecentLatteContext(
+  db: SupabaseClient,
+  limit = 12,
+): Promise<RecentLatteContext> {
+  const { data, error } = await db
+    .from("saturday_latte_issues")
+    .select("cover_story_headline, sections")
+    .order("issue_date", { ascending: false })
+    .limit(limit);
+  if (error) {
+    return {
+      coverStoryHeadlines: [],
+      cars: [],
+      tastingMenuTitles: [],
+      cookingMoves: [],
+      sundayResetAuthors: [],
+      sabbathReferences: [],
+    };
+  }
+  const ctx: RecentLatteContext = {
+    coverStoryHeadlines: [],
+    cars: [],
+    tastingMenuTitles: [],
+    cookingMoves: [],
+    sundayResetAuthors: [],
+    sabbathReferences: [],
+  };
+  for (const row of (data ?? []) as Array<{ cover_story_headline: string; sections: unknown }>) {
+    if (row.cover_story_headline) ctx.coverStoryHeadlines.push(row.cover_story_headline);
+    const s = row.sections;
+    if (!s || typeof s !== "object" || Array.isArray(s)) continue;
+    const sections = s as Record<string, unknown>;
+    const drive = sections.theDrive;
+    if (drive && typeof drive === "object" && !Array.isArray(drive)) {
+      const car = (drive as Record<string, unknown>).car;
+      if (typeof car === "string" && car.trim() !== "") ctx.cars.push(car.trim());
+    }
+    const tm = sections.tastingMenu;
+    if (Array.isArray(tm)) {
+      for (const item of tm) {
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          const title = (item as Record<string, unknown>).title;
+          if (typeof title === "string" && title.trim() !== "")
+            ctx.tastingMenuTitles.push(title.trim());
+        }
+      }
+    }
+    const hc = sections.hostsCorner;
+    if (hc && typeof hc === "object" && !Array.isArray(hc)) {
+      const title = (hc as Record<string, unknown>).moveTitle;
+      if (typeof title === "string" && title.trim() !== "")
+        ctx.cookingMoves.push(title.trim());
+    }
+    const sr = sections.sundayReset;
+    if (sr && typeof sr === "object" && !Array.isArray(sr)) {
+      const author = (sr as Record<string, unknown>).author;
+      if (typeof author === "string" && author.trim() !== "")
+        ctx.sundayResetAuthors.push(author.trim());
+    }
+    const sb = sections.sabbath;
+    if (sb && typeof sb === "object" && !Array.isArray(sb)) {
+      const ref = (sb as Record<string, unknown>).reference;
+      if (typeof ref === "string" && ref.trim() !== "") ctx.sabbathReferences.push(ref.trim());
+    }
+  }
+  return ctx;
+}
+
 async function persistIssue(
   db: SupabaseClient,
   issueDate: string,
@@ -295,9 +372,16 @@ export async function runLatteGenerate(
       }
     }
 
-    const recentCoverStories = await loadRecentCoverStories(db);
+    const [recentCoverStories, recentContext] = await Promise.all([
+      loadRecentCoverStories(db),
+      loadRecentLatteContext(db),
+    ]);
     const start = Date.now();
-    const issue = await generateSaturdayLatteIssue({ issueDate: targetDate, recentCoverStories });
+    const issue = await generateSaturdayLatteIssue({
+      issueDate: targetDate,
+      recentCoverStories,
+      recentContext,
+    });
     const rendered = renderSaturdayLatteHtml(issue.content, {
       issueDate: targetDate,
       unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",

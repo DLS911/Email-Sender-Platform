@@ -13,6 +13,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { composeWeekendWriterVoice } from "./saturday-latte-voice-modules";
 import { type LatteImagePrompts, generateLatteImages } from "./saturday-latte-images";
+import { validateContentUrls } from "./saturday-latte-url-validate";
 import type {
   LinkInBody,
   SaturdayLatteContent,
@@ -167,6 +168,7 @@ function parseLatteResearchItem(raw: unknown, citationsSet: Set<string>): LatteR
 async function runPerplexityResearch(opts: {
   issueDate: string;
   recentCoverStories: string[];
+  recentContext?: LatteRecentContext;
   apiKey?: string;
 }): Promise<{
   bundle: LatteResearch;
@@ -185,6 +187,22 @@ async function runPerplexityResearch(opts: {
     userParts.push(
       `\nRECENT COVER STORIES (do NOT pick destinations or themes that overlap):\n${opts.recentCoverStories.map((s) => `- ${s}`).join("\n")}`,
     );
+  }
+  if (opts.recentContext) {
+    const ctx = opts.recentContext;
+    const exclusions: string[] = [];
+    if (ctx.cars.length > 0) exclusions.push(`- Cars recently featured: ${ctx.cars.join("; ")}`);
+    if (ctx.tastingMenuTitles.length > 0)
+      exclusions.push(
+        `- Books/films/products recently in Tasting Menu: ${ctx.tastingMenuTitles.join("; ")}`,
+      );
+    if (ctx.cookingMoves.length > 0)
+      exclusions.push(`- Cooking moves recently covered: ${ctx.cookingMoves.join("; ")}`);
+    if (exclusions.length > 0) {
+      userParts.push(
+        `\nALREADY COVERED (do NOT return research items duplicating these — find genuinely different angles):\n${exclusions.join("\n")}`,
+      );
+    }
   }
   userParts.push(
     `\nFind 12-20 items across the five categories (destinations, products, watchReadListen, cooking, cars). Return the structured JSON specified in the system prompt. No preamble.`,
@@ -585,6 +603,7 @@ async function runWriterPhase(
   issueDate: string,
   research: LatteResearch,
   recentCoverStories: string[],
+  recentContext?: LatteRecentContext,
 ): Promise<{
   content: SaturdayLatteContent;
   contentType: string;
@@ -601,6 +620,33 @@ async function runWriterPhase(
     parts.push(
       `\n# RECENT COVER STORIES (do NOT pick a destination or theme that overlaps):\n${recentCoverStories.map((s) => `- ${s}`).join("\n")}`,
     );
+  }
+  if (recentContext) {
+    const ctx = recentContext;
+    const exclusions: string[] = [];
+    if (ctx.cars.length > 0)
+      exclusions.push(
+        `## RECENT THE DRIVE PICKS (do NOT repeat — pick a DIFFERENT car from a different category of Mark's spectrum):\n${ctx.cars.map((c) => `- ${c}`).join("\n")}`,
+      );
+    if (ctx.tastingMenuTitles.length > 0)
+      exclusions.push(
+        `## RECENT TASTING MENU PICKS (do NOT repeat books/films/products):\n${ctx.tastingMenuTitles.map((t) => `- ${t}`).join("\n")}`,
+      );
+    if (ctx.cookingMoves.length > 0)
+      exclusions.push(
+        `## RECENT HOST'S CORNER MOVES (do NOT repeat the technique):\n${ctx.cookingMoves.map((m) => `- ${m}`).join("\n")}`,
+      );
+    if (ctx.sundayResetAuthors.length > 0)
+      exclusions.push(
+        `## RECENT SUNDAY RESET AUTHORS (vary — find a different secular author):\n${ctx.sundayResetAuthors.map((a) => `- ${a}`).join("\n")}`,
+      );
+    if (ctx.sabbathReferences.length > 0)
+      exclusions.push(
+        `## RECENT SABBATH VERSES (pick a different verse):\n${ctx.sabbathReferences.map((r) => `- ${r}`).join("\n")}`,
+      );
+    if (exclusions.length > 0) {
+      parts.push(`\n# MEMORY — recently covered items, DO NOT repeat:\n\n${exclusions.join("\n\n")}`);
+    }
   }
   parts.push(`\nReturn ONLY the JSON object specified. No preamble, no markdown fences.`);
 
@@ -746,6 +792,8 @@ export type SaturdayLatteIssue = {
     imagePromptsSource?: "writer" | "haiku" | "none";
     imagePromptsError?: string;
     imagesError?: string;
+    urlsValidated: number;
+    urlsDropped: number;
     totalCostUsd: number;
     researchLatencyMs: number;
     writerLatencyMs: number;
@@ -753,9 +801,19 @@ export type SaturdayLatteIssue = {
   };
 };
 
+export type LatteRecentContext = {
+  coverStoryHeadlines: string[];
+  cars: string[];
+  tastingMenuTitles: string[];
+  cookingMoves: string[];
+  sundayResetAuthors: string[];
+  sabbathReferences: string[];
+};
+
 export async function generateSaturdayLatteIssue(opts: {
   issueDate: string;
   recentCoverStories?: string[];
+  recentContext?: LatteRecentContext;
   anthropicApiKey?: string;
   perplexityApiKey?: string;
 }): Promise<SaturdayLatteIssue> {
@@ -763,13 +821,25 @@ export async function generateSaturdayLatteIssue(opts: {
   if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey: anthropicKey });
   const recentCoverStories = opts.recentCoverStories ?? [];
+  const recentContext = opts.recentContext;
 
   const research = await runPerplexityResearch(
     opts.perplexityApiKey
-      ? { issueDate: opts.issueDate, recentCoverStories, apiKey: opts.perplexityApiKey }
-      : { issueDate: opts.issueDate, recentCoverStories },
+      ? {
+          issueDate: opts.issueDate,
+          recentCoverStories,
+          apiKey: opts.perplexityApiKey,
+          ...(recentContext ? { recentContext } : {}),
+        }
+      : { issueDate: opts.issueDate, recentCoverStories, ...(recentContext ? { recentContext } : {}) },
   );
-  const writer = await runWriterPhase(client, opts.issueDate, research.bundle, recentCoverStories);
+  const writer = await runWriterPhase(
+    client,
+    opts.issueDate,
+    research.bundle,
+    recentCoverStories,
+    recentContext,
+  );
 
   const writerCost =
     (writer.inputTokens / 1_000_000) * ANTHROPIC_INPUT_PER_M +
@@ -800,6 +870,19 @@ export async function generateSaturdayLatteIssue(opts: {
     }
   }
 
+  // URL validation: drop any URLs that aren't research-cited and don't pass
+  // an HTTP HEAD check. Runs in parallel with image gen since they don't
+  // interact.
+  const allResearchUrls = [
+    ...research.bundle.destinations.map((r) => r.url),
+    ...research.bundle.products.map((r) => r.url),
+    ...research.bundle.watchReadListen.map((r) => r.url),
+    ...research.bundle.cooking.map((r) => r.url),
+    ...research.bundle.cars.map((r) => r.url),
+  ].filter((u) => u && u.trim() !== "");
+
+  const urlValidationPromise = validateContentUrls(writer.content, allResearchUrls);
+
   if (imagePrompts) {
     try {
       const imageResult = await generateLatteImages({
@@ -828,6 +911,14 @@ export async function generateSaturdayLatteIssue(opts: {
     }
   }
 
+  // Apply URL validation results (await the parallel job we kicked off above)
+  const urlValidation = await urlValidationPromise;
+  // Merge images into the validated content so we keep both transformations
+  contentWithImages = {
+    ...urlValidation.content,
+    ...(contentWithImages.images ? { images: contentWithImages.images } : {}),
+  };
+
   return {
     content: contentWithImages,
     contentType: writer.contentType,
@@ -847,6 +938,8 @@ export async function generateSaturdayLatteIssue(opts: {
       imagePromptsSource,
       ...(imagePromptsError ? { imagePromptsError } : {}),
       ...(imagesError ? { imagesError } : {}),
+      urlsValidated: urlValidation.validated,
+      urlsDropped: urlValidation.dropped,
       totalCostUsd: research.costUsd + writerCost + imagesCostUsd,
       researchLatencyMs: research.latencyMs,
       writerLatencyMs: writer.latencyMs,
