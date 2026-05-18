@@ -285,6 +285,8 @@ async function persistIssue(
         imagesFailed: issue.meta.imagesFailed,
         imagesCostUsd: issue.meta.imagesCostUsd,
         imagesLatencyMs: issue.meta.imagesLatencyMs,
+        urlsValidated: issue.meta.urlsValidated,
+        urlsDropped: issue.meta.urlsDropped,
         ...(issue.meta.imagePromptsSource ? { imagePromptsSource: issue.meta.imagePromptsSource } : {}),
         ...(issue.meta.imagePromptsError ? { imagePromptsError: issue.meta.imagePromptsError } : {}),
         ...(issue.meta.imagesError ? { imagesError: issue.meta.imagesError } : {}),

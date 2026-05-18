@@ -684,6 +684,115 @@ async function runWriterPhase(
   };
 }
 
+// ─── Sabbath verse + Sunday Reset author swap (Haiku) ─────────────────────
+
+const SABBATH_BAN_LIST = [
+  "Matthew 11:28",
+  "Matthew 7:21",
+  "John 14:6",
+  "John 3:16",
+  "Romans 8:28",
+  "Jeremiah 29:11",
+  "Proverbs 3:5-6",
+  "Proverbs 21:5",
+  "Philippians 4:13",
+];
+
+function normalizeRef(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\([a-z]+\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function refInList(picked: string, list: string[]): boolean {
+  const norm = normalizeRef(picked);
+  return list.some((r) => normalizeRef(r) === norm);
+}
+
+async function swapSabbathVerse(
+  client: Anthropic,
+  bannedRefs: string[],
+  theme: string,
+): Promise<{ verse: string; reference: string; reflection: string }> {
+  const allBanned = [...new Set([...bannedRefs, ...SABBATH_BAN_LIST])];
+  const response = await client.messages.create({
+    model: IMAGE_PROMPT_MODEL,
+    max_tokens: 800,
+    temperature: 0.7,
+    system: `You pick a Sabbath verse for The Saturday Morning Latte, a Saturday-morning lifestyle newsletter. The verse must relate to rest, abundance, presence, gratitude, or the small things — Saturday/Sunday morning themes, not industry tactics. The reflection is 2-3 sentences, reverent but not preachy.
+
+BANNED VERSES (do not pick any of these):
+${allBanned.map((b) => `- ${b}`).join("\n")}
+
+Pick something different. Lean into less-cited verses: Psalms 23/65/103/126/131, Ecclesiastes 3, Isaiah 30:15, Hosea 6:3, Luke 10:42, James 1:17, Lamentations 3:22-23, Zephaniah 3:17, etc.
+
+Return ONLY this JSON, no preamble:
+{
+  "verse": "the verse text in clean prose",
+  "reference": "Book Chapter:Verse (Translation)",
+  "reflection": "2-3 sentences, reverent not preachy"
+}`,
+    messages: [{ role: "user", content: `Theme for this issue: ${theme}` }],
+  });
+  const firstBlock = response.content[0];
+  if (!firstBlock || firstBlock.type !== "text") {
+    throw new Error("sabbath_swap: no text block");
+  }
+  const json = extractJsonObject(firstBlock.text);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  if (
+    typeof parsed.verse !== "string" ||
+    typeof parsed.reference !== "string" ||
+    typeof parsed.reflection !== "string"
+  ) {
+    throw new Error("sabbath_swap: incomplete output");
+  }
+  return {
+    verse: parsed.verse.trim(),
+    reference: parsed.reference.trim(),
+    reflection: parsed.reflection.trim(),
+  };
+}
+
+async function swapSundayResetAuthor(
+  client: Anthropic,
+  bannedAuthors: string[],
+  theme: string,
+): Promise<{ quote: string; author: string }> {
+  const response = await client.messages.create({
+    model: IMAGE_PROMPT_MODEL,
+    max_tokens: 700,
+    temperature: 0.8,
+    system: `You pick a Sunday Reset quote for The Saturday Morning Latte. SECULAR authors only — Wendell Berry, Mary Oliver, Annie Dillard, Marcus Aurelius, David Whyte, Pico Iyer, Rebecca Solnit, Isak Dinesen, John O'Donohue, Antonio Machado, Anne Lamott, Robert Louis Stevenson, Henry David Thoreau, Ralph Waldo Emerson, etc.
+
+NO Bible verses, NO religious instruction (those are in the Sabbath section).
+
+BANNED AUTHORS (do not pick any of these — they've been used recently):
+${bannedAuthors.map((b) => `- ${b}`).join("\n")}
+
+Pick a different author with a thoughtful quote about rest, presence, small things, time, the ordinary, or work. Quote 15-40 words ideally.
+
+Return ONLY this JSON:
+{
+  "quote": "the quote text (no surrounding quotes — the template adds them)",
+  "author": "the author's full name"
+}`,
+    messages: [{ role: "user", content: `Theme for this issue: ${theme}` }],
+  });
+  const firstBlock = response.content[0];
+  if (!firstBlock || firstBlock.type !== "text") {
+    throw new Error("sunday_reset_swap: no text block");
+  }
+  const json = extractJsonObject(firstBlock.text);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  if (typeof parsed.quote !== "string" || typeof parsed.author !== "string") {
+    throw new Error("sunday_reset_swap: incomplete output");
+  }
+  return { quote: parsed.quote.trim(), author: parsed.author.trim() };
+}
+
 // ─── Image prompts fallback (Haiku) ────────────────────────────────────────
 
 const IMAGE_PROMPT_SYSTEM_PROMPT = `You produce 7 image generation prompts for a Saturday Morning Latte newsletter issue, based on the issue's content. Each prompt is 15-30 words, concrete and visual, editorial photography style.
@@ -918,6 +1027,45 @@ export async function generateSaturdayLatteIssue(opts: {
     ...urlValidation.content,
     ...(contentWithImages.images ? { images: contentWithImages.images } : {}),
   };
+
+  // Enforce Sabbath verse + Sunday Reset author memory via Haiku swaps.
+  // Writer prompt asks for variety but Claude defaults to Matthew 11:28
+  // and a few rotating authors regardless. Code-level check + swap.
+  const recentSabbathRefs = recentContext?.sabbathReferences ?? [];
+  const recentAuthors = recentContext?.sundayResetAuthors ?? [];
+  if (
+    refInList(contentWithImages.sabbath.reference, recentSabbathRefs) ||
+    refInList(contentWithImages.sabbath.reference, SABBATH_BAN_LIST)
+  ) {
+    try {
+      const newSabbath = await swapSabbathVerse(
+        client,
+        recentSabbathRefs,
+        contentWithImages.coverStoryHeadline,
+      );
+      contentWithImages = { ...contentWithImages, sabbath: newSabbath };
+    } catch (err) {
+      console.error(
+        "latte.sabbath_swap_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  if (recentAuthors.includes(contentWithImages.sundayReset.author)) {
+    try {
+      const newReset = await swapSundayResetAuthor(
+        client,
+        recentAuthors,
+        contentWithImages.coverStoryHeadline,
+      );
+      contentWithImages = { ...contentWithImages, sundayReset: newReset };
+    } catch (err) {
+      console.error(
+        "latte.sunday_reset_swap_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
 
   return {
     content: contentWithImages,
