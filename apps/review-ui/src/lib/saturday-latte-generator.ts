@@ -1037,33 +1037,64 @@ export async function generateSaturdayLatteIssue(opts: {
     refInList(contentWithImages.sabbath.reference, recentSabbathRefs) ||
     refInList(contentWithImages.sabbath.reference, SABBATH_BAN_LIST)
   ) {
-    try {
-      const newSabbath = await swapSabbathVerse(
-        client,
-        recentSabbathRefs,
-        contentWithImages.coverStoryHeadline,
-      );
-      contentWithImages = { ...contentWithImages, sabbath: newSabbath };
-    } catch (err) {
-      console.error(
-        "latte.sabbath_swap_failed",
-        err instanceof Error ? err.message : String(err),
-      );
+    // Up to 2 swap attempts. If Haiku picks a banned verse, retry once with
+    // the failed pick added to the banned list. After 2 strikes, accept
+    // whatever Haiku gave us (better than the original banned pick).
+    const accumulatedBans = [...recentSabbathRefs];
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const newSabbath = await swapSabbathVerse(
+          client,
+          accumulatedBans,
+          contentWithImages.coverStoryHeadline,
+        );
+        const isStillBanned =
+          refInList(newSabbath.reference, accumulatedBans) ||
+          refInList(newSabbath.reference, SABBATH_BAN_LIST);
+        if (!isStillBanned) {
+          contentWithImages = { ...contentWithImages, sabbath: newSabbath };
+          break;
+        }
+        if (attempt === 2) {
+          // Accept it — the alternative is keeping the original banned pick
+          contentWithImages = { ...contentWithImages, sabbath: newSabbath };
+          break;
+        }
+        accumulatedBans.push(newSabbath.reference);
+      } catch (err) {
+        console.error(
+          "latte.sabbath_swap_failed",
+          err instanceof Error ? err.message : String(err),
+        );
+        break;
+      }
     }
   }
   if (recentAuthors.includes(contentWithImages.sundayReset.author)) {
-    try {
-      const newReset = await swapSundayResetAuthor(
-        client,
-        recentAuthors,
-        contentWithImages.coverStoryHeadline,
-      );
-      contentWithImages = { ...contentWithImages, sundayReset: newReset };
-    } catch (err) {
-      console.error(
-        "latte.sunday_reset_swap_failed",
-        err instanceof Error ? err.message : String(err),
-      );
+    const accumulatedAuthorBans = [...recentAuthors];
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const newReset = await swapSundayResetAuthor(
+          client,
+          accumulatedAuthorBans,
+          contentWithImages.coverStoryHeadline,
+        );
+        if (!accumulatedAuthorBans.includes(newReset.author)) {
+          contentWithImages = { ...contentWithImages, sundayReset: newReset };
+          break;
+        }
+        if (attempt === 2) {
+          contentWithImages = { ...contentWithImages, sundayReset: newReset };
+          break;
+        }
+        accumulatedAuthorBans.push(newReset.author);
+      } catch (err) {
+        console.error(
+          "latte.sunday_reset_swap_failed",
+          err instanceof Error ? err.message : String(err),
+        );
+        break;
+      }
     }
   }
 
