@@ -551,6 +551,7 @@ async function swapBannedVerse(
   headline: string,
   topicSummary: string,
   banned: string[],
+  temperature = 0.6,
 ): Promise<{
   verse: string;
   reference: string;
@@ -572,7 +573,7 @@ Pick a different verse that fits the theme.`;
   const response = await client.messages.create({
     model: HAIKU_MODEL,
     max_tokens: VERSE_SWAP_MAX_TOKENS,
-    temperature: 0.6,
+    temperature,
     system: VERSE_SWAP_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
   });
@@ -652,35 +653,33 @@ async function runWriterPhase(
     verseConflictsWithRecent(content.ancientTruth.reference, recentVerses)
   ) {
     const banned = [...recentVerses, content.ancientTruth.reference];
-    let swap = await swapBannedVerse(
-      client,
-      issueDate,
-      content.headline,
-      content.firstPull.paragraphs[0] ?? content.headline,
-      banned,
-    );
-    totalInput += swap.inputTokens;
-    totalOutput += swap.outputTokens;
-    totalLatency += swap.latencyMs;
-
-    // One more swap attempt if Haiku also picked a banned verse
-    if (verseConflictsWithRecent(swap.reference, banned)) {
-      banned.push(swap.reference);
-      swap = await swapBannedVerse(
+    // Escalate temperature on each retry to shake Haiku out of mode-collapse
+    // when the ban list is large. 5 attempts is enough for the recent-window
+    // overlap; failing past that means the prompt itself is too narrow.
+    const temps = [0.6, 0.8, 0.9, 1.0, 1.0];
+    let swap: Awaited<ReturnType<typeof swapBannedVerse>> | null = null;
+    for (let attempt = 0; attempt < temps.length; attempt++) {
+      const result = await swapBannedVerse(
         client,
         issueDate,
         content.headline,
         content.firstPull.paragraphs[0] ?? content.headline,
         banned,
+        temps[attempt],
       );
-      totalInput += swap.inputTokens;
-      totalOutput += swap.outputTokens;
-      totalLatency += swap.latencyMs;
+      totalInput += result.inputTokens;
+      totalOutput += result.outputTokens;
+      totalLatency += result.latencyMs;
+      if (!verseConflictsWithRecent(result.reference, banned)) {
+        swap = result;
+        break;
+      }
+      banned.push(result.reference);
     }
 
-    if (verseConflictsWithRecent(swap.reference, banned)) {
+    if (!swap) {
       throw new Error(
-        `writer: verse swap failed — Haiku picked banned verse twice. Banned: ${banned.join(", ")}`,
+        `writer: verse swap failed after ${temps.length} attempts. Banned: ${banned.join(", ")}`,
       );
     }
 
