@@ -743,6 +743,9 @@ export type SaturdayLatteIssue = {
     imagesLatencyMs: number;
     imagesGenerated: number;
     imagesFailed: number;
+    imagePromptsSource?: "writer" | "haiku" | "none";
+    imagePromptsError?: string;
+    imagesError?: string;
     totalCostUsd: number;
     researchLatencyMs: number;
     writerLatencyMs: number;
@@ -779,21 +782,21 @@ export async function generateSaturdayLatteIssue(opts: {
   let imagesLatencyMs = 0;
   let imagesGenerated = 0;
   let imagesFailed = 0;
+  let imagesError: string | null = null;
   let contentWithImages = writer.content;
 
   // Image prompts: try the writer's output first, fall back to a focused
-  // Haiku call if the writer skipped them. Haiku is fast and cheap, and
-  // having a dedicated call means the prompts are tightly grounded in the
-  // writer's actual content rather than being an afterthought.
+  // Haiku call if the writer skipped them.
   let imagePrompts = writer.imagePrompts;
+  let imagePromptsSource: "writer" | "haiku" | "none" = imagePrompts ? "writer" : "none";
+  let imagePromptsError: string | null = null;
   if (!imagePrompts) {
     try {
       imagePrompts = await generateImagePromptsWithHaiku(client, writer.content);
+      imagePromptsSource = "haiku";
     } catch (err) {
-      console.error(
-        "latte.image_prompts_haiku_failed",
-        err instanceof Error ? err.message : String(err),
-      );
+      imagePromptsError = err instanceof Error ? err.message : String(err);
+      console.error("latte.image_prompts_haiku_failed", imagePromptsError);
     }
   }
 
@@ -820,10 +823,8 @@ export async function generateSaturdayLatteIssue(opts: {
       contentWithImages = { ...writer.content, images: imageResult.urls };
     } catch (err) {
       // Image generation failed entirely — log but don't fail the issue
-      console.error(
-        "latte.image_generation_failed",
-        err instanceof Error ? err.message : String(err),
-      );
+      imagesError = err instanceof Error ? err.message : String(err);
+      console.error("latte.image_generation_failed", imagesError);
     }
   }
 
@@ -843,6 +844,9 @@ export async function generateSaturdayLatteIssue(opts: {
       imagesLatencyMs,
       imagesGenerated,
       imagesFailed,
+      imagePromptsSource,
+      ...(imagePromptsError ? { imagePromptsError } : {}),
+      ...(imagesError ? { imagesError } : {}),
       totalCostUsd: research.costUsd + writerCost + imagesCostUsd,
       researchLatencyMs: research.latencyMs,
       writerLatencyMs: writer.latencyMs,
