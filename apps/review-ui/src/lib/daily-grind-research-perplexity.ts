@@ -138,7 +138,28 @@ function urlMatchesCitation(url: string, citations: string[]): string | null {
   return null;
 }
 
-function parseResearchItems(content: string, citations: string[]): ResearchItem[] {
+async function urlIsLive(url: string, timeoutMs = 5000): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const response = await fetch(url, {
+      method: "HEAD",
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+    clearTimeout(timeoutId);
+    if (response.status === 405) return true; // HEAD not allowed, treat as live
+    return response.status >= 200 && response.status < 400;
+  } catch {
+    return false;
+  }
+}
+
+async function parseResearchItems(content: string, citations: string[]): Promise<ResearchItem[]> {
   const cleaned = stripCodeFences(content);
   // Find the JSON object boundaries
   const firstBrace = cleaned.indexOf("{");
@@ -168,16 +189,21 @@ function parseResearchItems(content: string, citations: string[]): ResearchItem[
     const source = typeof obj.source === "string" ? obj.source.trim() : "";
     const summary = typeof obj.summary === "string" ? obj.summary.trim() : "";
     if (!category || !title || !url || !source || !summary) continue;
-    // Match the item's URL against Perplexity's citations with normalization
-    // (strips trailing slash, www, params, hash, case). If a match is found,
-    // use the canonical citation URL — that's what was actually fetched.
+    // Match the item's URL against Perplexity's citations with normalization.
+    // If matched → use the canonical citation URL.
+    // If not matched → HTTP HEAD verify. If live, accept the writer's URL.
+    // Else drop.
     const matchedCitation = urlMatchesCitation(url, citations);
     let canonicalUrl: string;
     if (matchedCitation) {
       canonicalUrl = matchedCitation;
     } else {
-      // No citation match. Skip this item — the URL is likely hallucinated.
-      continue;
+      const live = await urlIsLive(url);
+      if (live) {
+        canonicalUrl = url;
+      } else {
+        continue;
+      }
     }
     const item: ResearchItem = {
       category,
@@ -258,7 +284,7 @@ export async function runPerplexityResearch(opts: {
   }
 
   const citations = data.citations ?? [];
-  const items = parseResearchItems(choice.message.content, citations);
+  const items = await parseResearchItems(choice.message.content, citations);
 
   if (items.length === 0) {
     throw new Error("perplexity: no valid items survived URL-citation validation");
