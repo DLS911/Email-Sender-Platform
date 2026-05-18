@@ -483,7 +483,20 @@ function buildWriterUserPrompt(
   parts.push(JSON.stringify(research, null, 2));
   if (recentTopics.length > 0) {
     parts.push(
-      `\n# RECENTLY COVERED HEADLINES (pick a fresh angle — do not repeat):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
+      `\n# RECENT HEADLINES — STRUCTURAL ANTI-PATTERN MEMORY
+
+The following are the actual H1 headlines from the most recent Daily Grind issues. Today's headline MUST be structurally different from every one of these — not just topically different, structurally different.
+
+Look at the headlines below. If they share a grammatical pattern (e.g. starting with "The", ending in "-ing", a "Nobody's X" construction, a noun-noun-noun pile), do NOT match that pattern. Pick a DIFFERENT structural template from the system prompt's strong headline patterns.
+
+Recent headlines:
+${recentTopics.map((t) => `- ${t}`).join("\n")}
+
+Before you finalize today's headline:
+1. Read your draft headline aloud.
+2. Compare its STRUCTURE (not topic) against the list above.
+3. If it matches any structural pattern present in the list, REWRITE using a different template.
+4. Specifically: if your headline uses "Nobody's X" or any banned pattern from the system prompt, REWRITE.`,
     );
   }
   if (recentConcepts.length > 0) {
@@ -531,6 +544,87 @@ Vary the emotional register: cautionary verses for compliance/risk, opportunity 
 
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 const VERSE_SWAP_MAX_TOKENS = 800;
+const HEADLINE_REWRITE_MAX_TOKENS = 300;
+
+// Patterns the writer keeps mode-collapsing onto. If a generated headline
+// matches any of these, we rewrite via Haiku rather than ship a weak hook.
+const HEADLINE_BAN_PATTERNS: Array<{ name: string; rx: RegExp }> = [
+  { name: "Nobody's X", rx: /\bnobody'?s\b/i },
+  { name: "Nobody Is/Asked/Tells", rx: /\bnobody\s+(is|are|asked|tells?|knows?|wants?)\b/i },
+  { name: "What Nobody Tells You", rx: /^what\s+nobody\b/i },
+  { name: "The Truth About X", rx: /^the\s+truth\s+about\b/i },
+  { name: "Why X Matters", rx: /\bwhy\s+.+\s+matters?\b/i },
+  { name: "Rethinking / Understanding", rx: /^(rethinking|understanding|reimagining)\b/i },
+  { name: "N Ways / N Things / N Tips listicle", rx: /^\d+\s+(ways?|things?|tips?|reasons?|secrets?|steps?)\b/i },
+  { name: "You're Not / You Aren't", rx: /\byou(\s|')?re\s+not\b/i },
+];
+
+function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null {
+  for (const p of HEADLINE_BAN_PATTERNS) {
+    if (p.rx.test(headline)) return p;
+  }
+  return null;
+}
+
+const HEADLINE_REWRITE_SYSTEM_PROMPT = `You rewrite the H1 headline for The Daily Grind, a newsletter for independent financial advisors written in Mark's voice — sharp, contrarian, specific.
+
+The headline must:
+- Be 5-12 words, title case.
+- Take a position or name a specific thing. Not neutral, not descriptive.
+- NOT use any of these banned patterns: "Nobody's X", "What Nobody Tells You", "The Truth About X", "Why X Matters", "Rethinking/Understanding X", "N Ways/Things/Tips" listicles, "You're Not X".
+- Use ONE of these structural templates (pick whichever fits the issue):
+  • The contrarian stat: "63% of Discovery Calls End in the First 4 Minutes"
+  • The named gap: "What Advisors Promise vs. What Compliance Logs Show"
+  • The reframe directive: "Stop Sending NDAs. Send a Calendar Hold."
+  • The observation w/ count: "Three CRM Fields Predict 80% of Closes"
+  • The challenge: "Your Pipeline Has 47 Names. Eight Will Move."
+  • The setup-and-twist: "Conventional Wisdom Says Niche Down. The Math Says Scale Up First."
+  • The number specific: "The 15-Minute Window That Decides Every Review"
+  • The blunt verdict: "Form CRS Is Useless. Here's What Replaces It."
+
+Return ONLY this JSON, no preamble:
+{ "headline": "the rewritten H1" }`;
+
+async function rewriteBannedHeadline(
+  client: Anthropic,
+  issueDate: string,
+  bannedHeadline: string,
+  matchedPattern: string,
+  recentHeadlines: string[],
+  contextSummary: string,
+): Promise<{ headline: string; inputTokens: number; outputTokens: number; latencyMs: number }> {
+  const userPrompt = `Issue date: ${issueDate}
+Issue context (from first paragraph): ${contextSummary}
+
+The writer produced this headline, which matches a BANNED pattern:
+"${bannedHeadline}"  ← matches "${matchedPattern}"
+
+Rewrite it. The new headline must NOT match any banned pattern AND must be structurally different from these recent headlines:
+${recentHeadlines.slice(0, 15).map((h) => `- ${h}`).join("\n") || "(none)"}
+
+Return JSON only.`;
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: HEADLINE_REWRITE_MAX_TOKENS,
+    temperature: 0.8,
+    system: HEADLINE_REWRITE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    throw new Error("headline_rewrite: response missing text block");
+  }
+  const json = extractJsonObject(block.text);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  return {
+    headline: requireString(parsed, "headline", "headline_rewrite"),
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+  };
+}
 
 const VERSE_SWAP_SYSTEM_PROMPT = `You pick a Bible verse for The Daily Grind, a newsletter for independent financial advisors. The host is Mark at Castor Abbott. The verse must fit the issue's theme and the application must be 2-3 sentences applying the verse to advisor practice — concrete, not preachy.
 
@@ -647,6 +741,41 @@ async function runWriterPhase(
   // them with proper punctuation so the rendered email is always clean.
   content = deepStripDashes(content);
   validateAgainstResearch(content.worthKnowing, research);
+
+  // Headline pattern check: if the writer produced a headline matching one of
+  // the banned formulas (e.g. "Nobody's X"), rewrite it via Haiku rather than
+  // ship a weak/repetitive hook. Up to 3 attempts before we accept whatever
+  // we have to avoid a generation failure on a recoverable issue.
+  const headlineBan = headlineBanMatch(content.headline);
+  if (headlineBan) {
+    const contextSummary = content.firstPull.paragraphs[0] ?? content.headline;
+    let rewritten: string | null = null;
+    let bannedPattern = headlineBan;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await rewriteBannedHeadline(
+        client,
+        issueDate,
+        content.headline,
+        bannedPattern.name,
+        recentTopics,
+        contextSummary,
+      );
+      totalInput += result.inputTokens;
+      totalOutput += result.outputTokens;
+      totalLatency += result.latencyMs;
+      const newMatch = headlineBanMatch(result.headline);
+      if (!newMatch) {
+        rewritten = result.headline;
+        break;
+      }
+      bannedPattern = newMatch;
+    }
+    if (rewritten) {
+      content = deepStripDashes({ ...content, headline: rewritten });
+    }
+    // If all 3 rewrites still matched a banned pattern, ship the original
+    // rather than fail the issue — at least the rest of the content is good.
+  }
 
   if (
     recentVerses.length > 0 &&

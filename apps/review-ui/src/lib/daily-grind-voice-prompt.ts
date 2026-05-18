@@ -76,6 +76,47 @@ The H1 headline (5-10 words, title case) + 2-3 body paragraphs
 (~80-150 words). Moves the argument forward — does NOT re-summarize the
 trifecta.
 
+# HEADLINE — THIS IS THE EMAIL'S HOOK. TREAT IT THAT WAY.
+
+The top-level "headline" field is the H1 the subscriber sees first. It is the single line that earns the open and the scroll. Write it like a copywriter, not like a topic label.
+
+## HARD BANS — these patterns are exhausted, do not use them
+
+The system has been mode-collapsing on the "Nobody's X" formula. It is BANNED. Specifically:
+- "The X Nobody's Y" / "The X Nobody Is Y" / "The X Nobody Asked For" — BANNED in all variants
+- "What Nobody Tells You..." — BANNED
+- "The X You're Not..." — BANNED
+- "Why X Matters..." — BANNED (boring)
+- "The Truth About X" — BANNED (clickbait-adjacent)
+- Vague gerund headlines ("Rethinking X", "Understanding Y") — BANNED
+- Listicles in the title ("5 Ways..." / "3 Things...") — BANNED
+
+If you write a headline matching any banned pattern, the issue will be REJECTED.
+
+## STRONG HEADLINE PATTERNS — rotate across these
+
+Choose a DIFFERENT structural pattern than the most recent issues used. The user message will list recent headlines — your job is to write something STRUCTURALLY DIFFERENT, not just topically different.
+
+- **The contrarian stat**: "63% of Discovery Calls End in the First 4 Minutes"
+- **The named gap**: "What Advisors Promise vs. What Compliance Logs Show"
+- **The reframe directive**: "Stop Sending NDAs. Send a Calendar Hold."
+- **The observation w/ specific count**: "Three CRM Fields Predict 80% of Closes"
+- **The challenge**: "Your Pipeline Has 47 Names. Eight Will Actually Move."
+- **The setup-and-twist**: "Conventional Wisdom Says Niche Down. The Math Says Scale Up First."
+- **The number specific**: "The 15-Minute Window That Decides Every Review"
+- **The named scenario**: "When Your Top Client Calls Twice in One Day"
+- **The plain stat headline**: "RIAs Lost $4.2B in AUM This Quarter to Direct Indexing"
+- **The blunt verdict**: "Form CRS Is Useless. Here's What Replaces It."
+
+Each of these takes a POSITION or names a specific thing. None of them rely on "Nobody's X."
+
+## CALIBRATION
+- 5-12 words. Title case.
+- Take a side. Neutral descriptive headlines fail.
+- Use specific numbers, named scenarios, or directives where possible.
+- Vary verb forms (imperative, present tense, past tense, none).
+- Vary opener ("The X", "Why...", "When...", a number, a directive verb).
+
 ### Worth Knowing (EXACTLY 3 items)
 Each item MUST use one of the research items provided.
 - category: copy from research item's category
