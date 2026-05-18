@@ -703,18 +703,12 @@ export async function generateDailyGrindIssue(opts: {
       recentTopics,
     };
     if (opts.topicHint) perpOpts.topicHint = opts.topicHint;
-    try {
-      const perp = await runPerplexityResearch(perpOpts);
-      research = {
-        bundle: perp.bundle,
-        inputTokens: perp.inputTokens,
-        outputTokens: perp.outputTokens,
-        webSearches: perp.webSearches,
-        latencyMs: perp.latencyMs,
-      };
-    } catch (firstErr) {
-      // One retry — Perplexity has been reliable in testing, but be safe
-      await new Promise((r) => setTimeout(r, 5000));
+    // Retry up to 3 times. Failures mostly come from "items survived URL
+    // citation validation: 0" — Perplexity occasionally returns items
+    // whose URLs don't match its own citations list, and after normalization
+    // we drop them. Retry usually fixes this.
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const perp = await runPerplexityResearch(perpOpts);
         research = {
@@ -724,9 +718,17 @@ export async function generateDailyGrindIssue(opts: {
           webSearches: perp.webSearches,
           latencyMs: perp.latencyMs,
         };
-      } catch (secondErr) {
-        throw secondErr instanceof Error ? secondErr : new Error(String(secondErr));
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt === 3) {
+          throw err instanceof Error ? err : new Error(String(err));
+        }
+        await new Promise((r) => setTimeout(r, attempt * 4000));
       }
+    }
+    if (!research) {
+      throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
     }
   } else {
     // Legacy fallback: Anthropic web_search. Kept so the system still works

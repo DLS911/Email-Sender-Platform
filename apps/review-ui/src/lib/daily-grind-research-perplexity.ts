@@ -110,6 +110,34 @@ function buildUserPrompt(opts: {
   return parts.join("\n");
 }
 
+function normalizeUrl(u: string): string {
+  try {
+    const parsed = new URL(u);
+    // Drop trailing slash + query string + hash + 'www.' prefix
+    const host = parsed.hostname.replace(/^www\./, "");
+    const pathname = parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.protocol}//${host}${pathname}`.toLowerCase();
+  } catch {
+    return u.trim().toLowerCase();
+  }
+}
+
+function urlMatchesCitation(url: string, citations: string[]): string | null {
+  const normUrl = normalizeUrl(url);
+  for (const c of citations) {
+    if (normalizeUrl(c) === normUrl) return c;
+  }
+  // Loose substring fallback — handles short URLs that may have been
+  // expanded by Perplexity or vice versa
+  for (const c of citations) {
+    const normC = normalizeUrl(c);
+    if (normC.length > 20 && (normC.includes(normUrl) || normUrl.includes(normC))) {
+      return c;
+    }
+  }
+  return null;
+}
+
 function parseResearchItems(content: string, citations: string[]): ResearchItem[] {
   const cleaned = stripCodeFences(content);
   // Find the JSON object boundaries
@@ -130,7 +158,6 @@ function parseResearchItems(content: string, citations: string[]): ResearchItem[
   if (!Array.isArray(parsed.items)) {
     throw new Error("perplexity: missing items array");
   }
-  const citationsSet = new Set(citations);
   const items: ResearchItem[] = [];
   for (const raw of parsed.items) {
     if (!raw || typeof raw !== "object") continue;
@@ -141,23 +168,21 @@ function parseResearchItems(content: string, citations: string[]): ResearchItem[
     const source = typeof obj.source === "string" ? obj.source.trim() : "";
     const summary = typeof obj.summary === "string" ? obj.summary.trim() : "";
     if (!category || !title || !url || !source || !summary) continue;
-    // Only accept items whose URL matches one Perplexity actually retrieved.
-    // This is the anti-hallucination guard — Perplexity's model can in theory
-    // invent a URL, but we'll only allow ones that appeared in citations.
-    if (!citationsSet.has(url)) {
-      // Try to find a citation that's a substring match (handles URL fragment differences)
-      const matched = citations.find((c) => c.includes(url) || url.includes(c));
-      if (matched) {
-        // Use the canonical citation URL
-      } else {
-        // Skip — model made this URL up
-        continue;
-      }
+    // Match the item's URL against Perplexity's citations with normalization
+    // (strips trailing slash, www, params, hash, case). If a match is found,
+    // use the canonical citation URL — that's what was actually fetched.
+    const matchedCitation = urlMatchesCitation(url, citations);
+    let canonicalUrl: string;
+    if (matchedCitation) {
+      canonicalUrl = matchedCitation;
+    } else {
+      // No citation match. Skip this item — the URL is likely hallucinated.
+      continue;
     }
     const item: ResearchItem = {
       category,
       title,
-      url,
+      url: canonicalUrl,
       source,
       summary,
     };
