@@ -646,6 +646,7 @@ async function swapBannedVerse(
   topicSummary: string,
   banned: string[],
   temperature = 0.6,
+  forceNonProverbs = false,
 ): Promise<{
   verse: string;
   reference: string;
@@ -654,6 +655,10 @@ async function swapBannedVerse(
   outputTokens: number;
   latencyMs: number;
 }> {
+  const bookConstraint = forceNonProverbs
+    ? `\n\nMANDATORY: Do NOT pick a verse from Proverbs. Use Ecclesiastes, Psalms, James, Luke, Matthew, Mark, John, Acts, 1 Corinthians, Philippians, or Colossians. Proverbs is exhausted for this issue.`
+    : "";
+
   const userPrompt = `Issue date: ${issueDate}
 Issue headline: ${headline}
 Issue theme (1-line): ${topicSummary}
@@ -661,7 +666,7 @@ Issue theme (1-line): ${topicSummary}
 BANNED VERSES — DO NOT use any of these (or any verse that's the most-common AI default like Proverbs 21:5):
 ${banned.map((b) => `- ${b}`).join("\n")}
 
-Pick a different verse that fits the theme.`;
+Pick a different verse that fits the theme.${bookConstraint}`;
 
   const start = Date.now();
   const response = await client.messages.create({
@@ -783,8 +788,9 @@ async function runWriterPhase(
   ) {
     const banned = [...recentVerses, content.ancientTruth.reference];
     // Escalate temperature on each retry to shake Haiku out of mode-collapse
-    // when the ban list is large. 5 attempts is enough for the recent-window
-    // overlap; failing past that means the prompt itself is too narrow.
+    // when the ban list is large. From attempt 3 onward, also force a
+    // non-Proverbs book — Haiku tends to mode-collapse on the same Proverbs
+    // verse repeatedly when bumping temperature alone doesn't help.
     const temps = [0.6, 0.8, 0.9, 1.0, 1.0];
     let swap: Awaited<ReturnType<typeof swapBannedVerse>> | null = null;
     for (let attempt = 0; attempt < temps.length; attempt++) {
@@ -795,6 +801,7 @@ async function runWriterPhase(
         content.firstPull.paragraphs[0] ?? content.headline,
         banned,
         temps[attempt],
+        attempt >= 2, // forceNonProverbs from attempt 3 onward
       );
       totalInput += result.inputTokens;
       totalOutput += result.outputTokens;
@@ -806,17 +813,22 @@ async function runWriterPhase(
       banned.push(result.reference);
     }
 
+    // If all 5 retries still picked a banned verse, ship the writer's original
+    // pick rather than fail the entire issue. A repeated verse in one issue out
+    // of 125 is far less bad than no issue going out at all. Log so we can
+    // monitor frequency — if this fires often, we tighten the swap prompt
+    // further or curate a known-safe verse pool.
     if (!swap) {
-      throw new Error(
-        `writer: verse swap failed after ${temps.length} attempts. Banned: ${banned.join(", ")}`,
+      console.warn(
+        `[daily-grind] verse swap exhausted after ${temps.length} attempts — shipping original verse "${content.ancientTruth.reference}". Banned candidates: ${banned.join(", ")}`,
       );
+    } else {
+      content.ancientTruth = deepStripDashes({
+        verse: swap.verse,
+        reference: swap.reference,
+        application: swap.application,
+      });
     }
-
-    content.ancientTruth = deepStripDashes({
-      verse: swap.verse,
-      reference: swap.reference,
-      application: swap.application,
-    });
   }
 
   return { content, inputTokens: totalInput, outputTokens: totalOutput, latencyMs: totalLatency };
