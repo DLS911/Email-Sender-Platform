@@ -161,13 +161,35 @@ async function urlIsLive(url: string, timeoutMs = 5000): Promise<boolean> {
 
 async function parseResearchItems(content: string, citations: string[]): Promise<ResearchItem[]> {
   const cleaned = stripCodeFences(content);
-  // Find the JSON object boundaries
+  // String-aware brace matching: find the close brace that matches the first
+  // open brace, ignoring braces inside string literals. Robust against
+  // trailing commentary appended after the JSON block.
   const firstBrace = cleaned.indexOf("{");
-  const lastBrace = cleaned.lastIndexOf("}");
-  if (firstBrace === -1 || lastBrace === -1) {
+  if (firstBrace === -1) {
     throw new Error(`perplexity: no JSON in response: ${cleaned.slice(0, 200)}`);
   }
-  const json = cleaned.slice(firstBrace, lastBrace + 1);
+  let endIndex = -1;
+  {
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = firstBrace; i < cleaned.length; i++) {
+      const ch = cleaned[i]!;
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) { endIndex = i; break; }
+      }
+    }
+  }
+  if (endIndex === -1) {
+    throw new Error(`perplexity: unbalanced JSON in response: ${cleaned.slice(0, 200)}`);
+  }
+  const json = cleaned.slice(firstBrace, endIndex + 1);
   let parsed: { items?: unknown };
   try {
     parsed = JSON.parse(json);

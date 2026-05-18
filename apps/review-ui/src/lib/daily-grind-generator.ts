@@ -82,11 +82,28 @@ function stripCodeFences(text: string): string {
 function extractJsonObject(text: string): string {
   const cleaned = stripCodeFences(text);
   const firstBrace = cleaned.indexOf("{");
-  const lastBrace = cleaned.lastIndexOf("}");
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+  if (firstBrace === -1) {
     throw new Error(`no JSON object found in model output: ${cleaned.slice(0, 200)}`);
   }
-  return cleaned.slice(firstBrace, lastBrace + 1);
+  // Walk the string string-aware, tracking brace depth, to find the matching
+  // close brace for the first open brace. Robust against trailing commentary
+  // the writer occasionally appends after the JSON block.
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = firstBrace; i < cleaned.length; i++) {
+    const ch = cleaned[i]!;
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return cleaned.slice(firstBrace, i + 1);
+    }
+  }
+  throw new Error(`unbalanced JSON object in model output: ${cleaned.slice(0, 200)}`);
 }
 
 function requireString(obj: Record<string, unknown>, key: string, context: string): string {
