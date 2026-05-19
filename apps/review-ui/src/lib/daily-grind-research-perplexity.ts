@@ -37,6 +37,15 @@ Independent financial advisors, RIAs, breakaway brokers, fee-only fiduciaries. T
 - Prefer items with at least one concrete number the writer can build around.
 - If a category has no fresh items, return fewer items rather than padding with weak ones.
 
+# URL REQUIREMENTS — HARD RULE
+- The "url" field MUST be a deep article URL with a slug, NOT a homepage or section page.
+- VALID: https://www.investmentnews.com/regulation/dol-revives-2021-rule/123456
+- INVALID: https://www.investmentnews.com (homepage)
+- INVALID: https://www.investmentnews.com/news (section page)
+- INVALID: https://www.investmentnews.com/regulation (section page)
+- If you cannot find a deep article URL for an item, DO NOT INCLUDE THE ITEM. Drop it and return fewer items.
+- The reader will click "Source: [Publisher]" and expect to land on the actual article. A homepage link breaks trust.
+
 # OUTPUT FORMAT
 Return ONLY this JSON object — no preamble, no markdown fences, no commentary outside the JSON:
 
@@ -119,6 +128,37 @@ function normalizeUrl(u: string): string {
     return `${parsed.protocol}//${host}${pathname}`.toLowerCase();
   } catch {
     return u.trim().toLowerCase();
+  }
+}
+
+/**
+ * Returns true if the URL is a bare site (homepage or top-level section) and
+ * NOT a specific article URL. We drop these because they don't actually cite
+ * the story — the reader clicks "Source: Investment News" and lands on the
+ * homepage, not the piece. A real article URL almost always has a slug.
+ *
+ * Heuristics:
+ * - Path empty, "/", or "/index.html"
+ * - Path length under 15 chars (e.g. "/news", "/about") — no article slug
+ * - Path has only 1 segment AND that segment has no hyphens (real article
+ *   slugs are typically hyphen-separated word lists)
+ */
+function isBareDomainUrl(u: string): boolean {
+  try {
+    const parsed = new URL(u);
+    const path = parsed.pathname.replace(/\/+$/, "");
+    if (path === "" || path === "/" || path === "/index.html") return true;
+    if (path.length < 15) return true;
+    // Strip leading slash, split on /
+    const segments = path.replace(/^\/+/, "").split("/").filter(Boolean);
+    if (segments.length === 1) {
+      const seg = segments[0]!;
+      // Section pages like "/news", "/markets" — no slug
+      if (!seg.includes("-") && seg.length < 25) return true;
+    }
+    return false;
+  } catch {
+    return true;
   }
 }
 
@@ -211,6 +251,10 @@ async function parseResearchItems(content: string, citations: string[]): Promise
     const source = typeof obj.source === "string" ? obj.source.trim() : "";
     const summary = typeof obj.summary === "string" ? obj.summary.trim() : "";
     if (!category || !title || !url || !source || !summary) continue;
+    // Drop bare-domain URLs (homepages, section pages) — they don't cite
+    // the actual story. Reader clicks "Source: Foo News" and lands on the
+    // homepage instead of the article. Quality bar: only article-deep URLs.
+    if (isBareDomainUrl(url)) continue;
     // Match the item's URL against Perplexity's citations with normalization.
     // If matched → use the canonical citation URL.
     // If not matched → HTTP HEAD verify. If live, accept the writer's URL.
@@ -218,6 +262,8 @@ async function parseResearchItems(content: string, citations: string[]): Promise
     const matchedCitation = urlMatchesCitation(url, citations);
     let canonicalUrl: string;
     if (matchedCitation) {
+      // Even the matched citation must be a real article URL, not a homepage
+      if (isBareDomainUrl(matchedCitation)) continue;
       canonicalUrl = matchedCitation;
     } else {
       const live = await urlIsLive(url);

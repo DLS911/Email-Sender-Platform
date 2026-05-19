@@ -84,6 +84,13 @@ const RESEARCH_SYSTEM_PROMPT = `You are the research analyst for The Saturday Mo
 - Bias toward items with concrete specs/facts the writer can cite.
 - Skip pure advertorial content.
 
+# URL REQUIREMENTS — HARD RULE
+- If you include a "url" field, it MUST be a deep article URL (with a slug), NOT a homepage or section page.
+- VALID: https://www.caranddriver.com/reviews/a12345/2024-amg-c63
+- INVALID: https://www.caranddriver.com (homepage)
+- INVALID: https://www.caranddriver.com/reviews (section page)
+- If you cannot find a deep article URL, OMIT the url field entirely rather than supplying a homepage. The newsletter renders fine without a URL — but a homepage link is worse than none because it breaks reader trust.
+
 # OUTPUT
 Return ONLY this JSON object — no preamble, no markdown fences:
 
@@ -145,15 +152,37 @@ function extractJsonObject(text: string): string {
   throw new Error(`unbalanced JSON object in output: ${cleaned.slice(0, 200)}`);
 }
 
+function isBareDomainUrl(u: string): boolean {
+  try {
+    const parsed = new URL(u);
+    const path = parsed.pathname.replace(/\/+$/, "");
+    if (path === "" || path === "/" || path === "/index.html") return true;
+    if (path.length < 15) return true;
+    const segments = path.replace(/^\/+/, "").split("/").filter(Boolean);
+    if (segments.length === 1) {
+      const seg = segments[0]!;
+      if (!seg.includes("-") && seg.length < 25) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 function parseLatteResearchItem(raw: unknown, citationsSet: Set<string>): LatteResearchItem | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
   const category = typeof obj.category === "string" ? obj.category.trim() : "other";
   const title = typeof obj.title === "string" ? obj.title.trim() : "";
-  const url = typeof obj.url === "string" ? obj.url.trim() : "";
+  let url = typeof obj.url === "string" ? obj.url.trim() : "";
   const source = typeof obj.source === "string" ? obj.source.trim() : "";
   const summary = typeof obj.summary === "string" ? obj.summary.trim() : "";
   if (!title || !source || !summary) return null;
+  // Drop bare-domain URLs (homepages, section pages) — they don't cite the
+  // actual story. Keep the item if otherwise valid, just without the URL.
+  if (url && isBareDomainUrl(url)) {
+    url = "";
+  }
   // URL is optional for some items, but if present must match a citation
   if (url) {
     if (!citationsSet.has(url)) {
