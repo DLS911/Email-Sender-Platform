@@ -407,15 +407,49 @@ function parseHowToSteps(raw: unknown[]): HowToStep[] {
   });
 }
 
+/**
+ * Repair common LLM JSON output errors before parsing. The writer
+ * occasionally emits malformed JSON (missing comma between array elements,
+ * trailing comma, smart quotes). These are ALL recoverable — we don't need
+ * to regenerate the whole issue just because of a comma.
+ *
+ * Repairs applied in order:
+ * 1. Smart quotes → straight quotes inside string boundaries
+ * 2. Missing comma between adjacent }, { array elements
+ * 3. Missing comma between adjacent ", " object keys on new lines
+ * 4. Trailing commas before } or ]
+ */
+function repairJson(raw: string): string {
+  let s = raw;
+  // Smart quotes → straight quotes (only catches them outside content,
+  // but content-internal smart quotes shouldn't break JSON anyway since
+  // we'd escape only the boundary " marks)
+  s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  // Missing comma between array elements: `}\n  {` or `}\n{` etc.
+  s = s.replace(/\}(\s*\n\s*)\{/g, "},$1{");
+  // Missing comma between adjacent quoted strings on separate lines (object keys)
+  s = s.replace(/"(\s*\n\s*)"/g, '",$1"');
+  // Trailing commas before } or ]
+  s = s.replace(/,(\s*[\]\}])/g, "$1");
+  return s;
+}
+
 function parseContent(rawText: string): DailyGrindContent {
   const json = extractJsonObject(rawText);
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
-  } catch (err) {
-    throw new Error(
-      `writer: failed to parse JSON: ${err instanceof Error ? err.message : String(err)}\nfirst 200 chars: ${json.slice(0, 200)}`,
-    );
+  } catch (firstErr) {
+    // Try to repair common LLM JSON output errors, then parse again. This
+    // recovers writers that produced almost-valid JSON (missing comma,
+    // trailing comma, smart quotes) rather than failing the whole issue.
+    try {
+      parsed = JSON.parse(repairJson(json));
+    } catch (secondErr) {
+      throw new Error(
+        `writer: failed to parse JSON (even after repair): ${secondErr instanceof Error ? secondErr.message : String(secondErr)}\noriginal err: ${firstErr instanceof Error ? firstErr.message : String(firstErr)}\nfirst 200 chars: ${json.slice(0, 200)}`,
+      );
+    }
   }
   if (!parsed || typeof parsed !== "object") throw new Error("writer: model output not an object");
   const obj = parsed as Record<string, unknown>;
