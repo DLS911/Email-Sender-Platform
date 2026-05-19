@@ -59,6 +59,16 @@ export type GenerateResult = {
   researchItemCount?: number;
   researchDistinctSources?: number;
   researchSources?: string[];
+  // Full funnel breakdown so we can see exactly where Perplexity's items
+  // got dropped: raw count, citation count, drops by reason, survivors.
+  researchFunnel?: {
+    rawItemCount: number;
+    citationCount: number;
+    droppedMissingFields: number;
+    droppedBareDomain: number;
+    droppedDeadUrl: number;
+    survived: number;
+  };
 };
 
 function getServiceRoleClient(): SupabaseClient {
@@ -348,6 +358,9 @@ export async function runDailyGrindGenerate(
     const distinctSources = new Set(issue.research.items.map((r) => r.source));
     result.researchDistinctSources = distinctSources.size;
     result.researchSources = Array.from(distinctSources);
+    if (issue.meta.researchFunnel) {
+      result.researchFunnel = issue.meta.researchFunnel;
+    }
 
     try {
       const brain = await extractAndPersistConcepts({

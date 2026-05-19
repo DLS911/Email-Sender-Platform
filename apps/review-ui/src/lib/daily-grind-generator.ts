@@ -26,6 +26,15 @@ export type ResearchBundle = {
   items: ResearchItem[];
 };
 
+export type ResearchFunnel = {
+  rawItemCount: number;
+  citationCount: number;
+  droppedMissingFields: number;
+  droppedBareDomain: number;
+  droppedDeadUrl: number;
+  survived: number;
+};
+
 export type DailyGrindIssue = {
   content: DailyGrindContent;
   research: ResearchBundle;
@@ -40,6 +49,7 @@ export type DailyGrindIssue = {
     researchLatencyMs: number;
     writerLatencyMs: number;
     issueDate: string;
+    researchFunnel?: ResearchFunnel;
   };
 };
 
@@ -886,6 +896,7 @@ export async function generateDailyGrindIssue(opts: {
           outputTokens: perp.outputTokens,
           webSearches: perp.webSearches,
           latencyMs: perp.latencyMs,
+          funnel: perp.funnel,
         };
         break;
       } catch (err) {
@@ -968,6 +979,7 @@ export async function generateDailyGrindIssue(opts: {
       researchLatencyMs: research.latencyMs,
       writerLatencyMs: writer.latencyMs,
       issueDate: opts.issueDate,
+      ...("funnel" in research && research.funnel ? { researchFunnel: research.funnel } : {}),
     },
   };
 }

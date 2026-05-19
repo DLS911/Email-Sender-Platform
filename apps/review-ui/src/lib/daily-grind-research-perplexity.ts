@@ -226,7 +226,19 @@ async function urlIsLive(url: string, timeoutMs = 5000): Promise<boolean> {
   }
 }
 
-async function parseResearchItems(content: string, citations: string[]): Promise<ResearchItem[]> {
+type ParseResult = {
+  items: ResearchItem[];
+  funnel: {
+    rawItemCount: number;
+    citationCount: number;
+    droppedMissingFields: number;
+    droppedBareDomain: number;
+    droppedDeadUrl: number;
+    survived: number;
+  };
+};
+
+async function parseResearchItems(content: string, citations: string[]): Promise<ParseResult> {
   const cleaned = stripCodeFences(content);
   // String-aware brace matching: find the close brace that matches the first
   // open brace, ignoring braces inside string literals. Robust against
@@ -268,20 +280,33 @@ async function parseResearchItems(content: string, citations: string[]): Promise
   if (!Array.isArray(parsed.items)) {
     throw new Error("perplexity: missing items array");
   }
+  const rawItemCount = parsed.items.length;
+  let droppedMissingFields = 0;
+  let droppedBareDomain = 0;
+  let droppedDeadUrl = 0;
   const items: ResearchItem[] = [];
   for (const raw of parsed.items) {
-    if (!raw || typeof raw !== "object") continue;
+    if (!raw || typeof raw !== "object") {
+      droppedMissingFields++;
+      continue;
+    }
     const obj = raw as Record<string, unknown>;
     const category = typeof obj.category === "string" ? obj.category.trim() : "";
     const title = typeof obj.title === "string" ? obj.title.trim() : "";
     const url = typeof obj.url === "string" ? obj.url.trim() : "";
     const source = typeof obj.source === "string" ? obj.source.trim() : "";
     const summary = typeof obj.summary === "string" ? obj.summary.trim() : "";
-    if (!category || !title || !url || !source || !summary) continue;
+    if (!category || !title || !url || !source || !summary) {
+      droppedMissingFields++;
+      continue;
+    }
     // Drop bare-domain URLs (homepages, section pages) — they don't cite
     // the actual story. Reader clicks "Source: Foo News" and lands on the
     // homepage instead of the article. Quality bar: only article-deep URLs.
-    if (isBareDomainUrl(url)) continue;
+    if (isBareDomainUrl(url)) {
+      droppedBareDomain++;
+      continue;
+    }
     // Match the item's URL against Perplexity's citations with normalization.
     // If matched → use the canonical citation URL.
     // If not matched → HTTP HEAD verify. If live, accept the writer's URL.
@@ -290,13 +315,17 @@ async function parseResearchItems(content: string, citations: string[]): Promise
     let canonicalUrl: string;
     if (matchedCitation) {
       // Even the matched citation must be a real article URL, not a homepage
-      if (isBareDomainUrl(matchedCitation)) continue;
+      if (isBareDomainUrl(matchedCitation)) {
+        droppedBareDomain++;
+        continue;
+      }
       canonicalUrl = matchedCitation;
     } else {
       const live = await urlIsLive(url);
       if (live) {
         canonicalUrl = url;
       } else {
+        droppedDeadUrl++;
         continue;
       }
     }
@@ -322,7 +351,18 @@ async function parseResearchItems(content: string, citations: string[]): Promise
     }
     items.push(item);
   }
-  return items;
+  const funnel = {
+    rawItemCount,
+    citationCount: citations.length,
+    droppedMissingFields,
+    droppedBareDomain,
+    droppedDeadUrl,
+    survived: items.length,
+  };
+  console.log(
+    `[perplexity-research] funnel: raw=${rawItemCount} citations=${citations.length} droppedMissingFields=${droppedMissingFields} droppedBareDomain=${droppedBareDomain} droppedDeadUrl=${droppedDeadUrl} survived=${items.length}`,
+  );
+  return { items, funnel };
 }
 
 export type PerplexityResearchResult = {
@@ -333,6 +373,14 @@ export type PerplexityResearchResult = {
   latencyMs: number;
   costUsd: number;
   rawCitations: string[];
+  funnel?: {
+    rawItemCount: number;
+    citationCount: number;
+    droppedMissingFields: number;
+    droppedBareDomain: number;
+    droppedDeadUrl: number;
+    survived: number;
+  };
 };
 
 export async function runPerplexityResearch(opts: {
@@ -366,6 +414,11 @@ export async function runPerplexityResearch(opts: {
         { role: "user", content: userPrompt },
       ],
       temperature: 0,
+      // Explicit budget for 15-20 JSON items at ~150 tokens each = ~3K, with
+      // 5K of slack for any preamble Perplexity adds before the JSON. Without
+      // this, sonar-pro was capping silently and the items array came back
+      // truncated to 5 even though the system prompt asked for 15-20.
+      max_tokens: 8000,
       // Do NOT use search_recency_filter — empirical testing 2026-05-18
       // showed it returns garbage citations (gardening, food, USDA) for
       // financial advisor queries when set to "month". The model then
@@ -390,10 +443,12 @@ export async function runPerplexityResearch(opts: {
   }
 
   const citations = data.citations ?? [];
-  const items = await parseResearchItems(choice.message.content, citations);
+  const { items, funnel } = await parseResearchItems(choice.message.content, citations);
 
   if (items.length === 0) {
-    throw new Error("perplexity: no valid items survived URL-citation validation");
+    throw new Error(
+      `perplexity: no valid items survived URL-citation validation. funnel=${JSON.stringify(funnel)}`,
+    );
   }
 
   const costUsd = data.usage.cost?.total_cost ?? 0;
@@ -409,5 +464,6 @@ export async function runPerplexityResearch(opts: {
     latencyMs,
     costUsd,
     rawCitations: citations,
+    funnel,
   };
 }
