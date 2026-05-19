@@ -157,13 +157,19 @@ function isBareDomainUrl(u: string): boolean {
     const parsed = new URL(u);
     const path = parsed.pathname.replace(/\/+$/, "");
     if (path === "" || path === "/" || path === "/index.html") return true;
-    if (path.length < 15) return true;
     const segments = path.replace(/^\/+/, "").split("/").filter(Boolean);
-    if (segments.length === 1) {
-      const seg = segments[0]!;
-      if (!seg.includes("-") && seg.length < 25) return true;
-    }
-    return false;
+    if (segments.length === 0) return true;
+    const cleanedSegments = segments.map((s) =>
+      s.replace(/\.(html?|pdf|aspx?|php|jsp)$/i, ""),
+    );
+    const hasArticleLikeSegment = cleanedSegments.some((s) => {
+      if (s.includes("-")) return true;
+      if (s.length >= 10) return true;
+      if (/^\d{4,}$/.test(s)) return true;
+      return false;
+    });
+    if (hasArticleLikeSegment) return false;
+    return true;
   } catch {
     return true;
   }

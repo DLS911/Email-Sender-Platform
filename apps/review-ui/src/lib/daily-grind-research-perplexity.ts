@@ -66,7 +66,7 @@ Return ONLY this JSON object — no preamble, no markdown fences, no commentary 
 }
 
 # QUANTITY
-At least 5 items, ideally 6-10, spanning at least 3 different categories. Quality over quantity.`;
+Return 15-20 items spanning at least 4 different categories from at least 5 different publishers. The downstream pipeline filters aggressively (drops homepage URLs, drops items with non-cited URLs), so a small initial pool leaves the writer with no working material. More good items is always better than fewer — never pad with weak items, but if you have 15+ strong candidates, return all of them.`;
 
 type PerplexityResponse = {
   id: string;
@@ -127,7 +127,9 @@ ${opts.recentConcepts.map((c) => `- ${c}`).join("\n")}`,
   }
   parts.push(
     `\n# WHAT TO RETURN
-Find 8-12 fresh, real, recent (last 30-60 days) news items relevant to independent financial advisors. Each item MUST be from a DIFFERENT story (no two items pointing to the same article URL — vary your sources). Return the structured JSON specified in the system prompt. No preamble.`,
+Find 15-20 fresh, real, recent (last 30-60 days) news items relevant to independent financial advisors. Each item MUST be from a DIFFERENT story (no two items pointing to the same article URL — vary your sources, spread across at least 5 different publishers). Return the structured JSON specified in the system prompt. No preamble.
+
+VOLUME MATTERS: downstream filtering drops items with homepage URLs or non-citation links. Returning 8 items typically yields only 2-3 usable after filtering, which is not enough. Return 15-20 items so 6+ survive.`,
   );
   return parts.join("\n");
 }
@@ -146,30 +148,42 @@ function normalizeUrl(u: string): string {
 
 /**
  * Returns true if the URL is a bare site (homepage or top-level section) and
- * NOT a specific article URL. We drop these because they don't actually cite
- * the story — the reader clicks "Source: Investment News" and lands on the
- * homepage, not the piece. A real article URL almost always has a slug.
+ * NOT a specific article URL. A real article URL almost always ends with a
+ * slug — hyphen-separated words, a long unique token, or a numeric ID.
  *
- * Heuristics:
- * - Path empty, "/", or "/index.html"
- * - Path length under 15 chars (e.g. "/news", "/about") — no article slug
- * - Path has only 1 segment AND that segment has no hyphens (real article
- *   slugs are typically hyphen-separated word lists)
+ * Rules:
+ * - Path empty, "/", or "/index.html" → bare
+ * - Multi-segment paths with any segment containing a hyphen → keep
+ *   (e.g. /news/sec-fines-firm)
+ * - Multi-segment paths where deep enough that one segment looks article-like
+ *   (>= 10 chars OR numeric ID >= 4 digits) → keep
+ * - Single-segment paths require a hyphen or be very long
+ *
+ * The old version was too aggressive — dropped legitimate URLs like
+ * "https://news.example.com/finra-fines" (path length 12).
  */
 function isBareDomainUrl(u: string): boolean {
   try {
     const parsed = new URL(u);
     const path = parsed.pathname.replace(/\/+$/, "");
     if (path === "" || path === "/" || path === "/index.html") return true;
-    if (path.length < 15) return true;
-    // Strip leading slash, split on /
     const segments = path.replace(/^\/+/, "").split("/").filter(Boolean);
-    if (segments.length === 1) {
-      const seg = segments[0]!;
-      // Section pages like "/news", "/markets" — no slug
-      if (!seg.includes("-") && seg.length < 25) return true;
-    }
-    return false;
+    if (segments.length === 0) return true;
+    // Strip a trailing ".html" / ".htm" / ".pdf" from segments for analysis
+    const cleanedSegments = segments.map((s) =>
+      s.replace(/\.(html?|pdf|aspx?|php|jsp)$/i, ""),
+    );
+    // Any segment that looks article-like: has a hyphen, OR is long (10+
+    // chars), OR is a multi-digit numeric ID (4+ digits, common for CMS IDs).
+    const hasArticleLikeSegment = cleanedSegments.some((s) => {
+      if (s.includes("-")) return true;
+      if (s.length >= 10) return true;
+      if (/^\d{4,}$/.test(s)) return true;
+      return false;
+    });
+    if (hasArticleLikeSegment) return false;
+    // Otherwise it's a section/category path — bare
+    return true;
   } catch {
     return true;
   }
