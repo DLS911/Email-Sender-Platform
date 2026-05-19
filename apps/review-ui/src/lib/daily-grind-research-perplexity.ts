@@ -442,15 +442,15 @@ export async function runPerplexityResearch(opts: {
       ],
       temperature: 0,
       max_tokens: 8000,
-      // Lock search to advisor-industry domains. Without this, Perplexity
-      // returns results from off-topic sources matching keyword overlap
-      // (The Mary Sue, EBSCO Connect, FTC Consumer Advice). Empirical
-      // testing 2026-05-19.
-      search_domain_filter: ADVISOR_INDUSTRY_DOMAINS,
-      // Do NOT use search_recency_filter — empirical testing 2026-05-18
-      // showed it returns garbage citations (gardening, food, USDA) for
-      // financial advisor queries when set to "month". Recency bias is
-      // enforced via the prompt instead ("fresh items from last 30 days").
+      // Search-time domain filter removed (Jun 22 diagnostic): with 20
+      // domains locked, Perplexity could only find 4 citations and padded
+      // with 13 invented items. Now we let Perplexity search the full web,
+      // then filter the resulting citations to only the approved-publisher
+      // subset before we hand them to the parser. This gives breadth at
+      // search time, curation at output time.
+      // Do NOT use search_recency_filter — testing 2026-05-18 showed it
+      // returned gardening/food/USDA citations for advisor queries. Recency
+      // bias is enforced via the prompt ("fresh items from last 30 days").
       return_citations: true,
     }),
   });
@@ -468,7 +468,26 @@ export async function runPerplexityResearch(opts: {
     throw new Error("perplexity: empty response content");
   }
 
-  const citations = data.citations ?? [];
+  const rawCitations = data.citations ?? [];
+  // Post-filter citations to only approved advisor-industry domains. This
+  // gives Perplexity full-web breadth at search time but enforces source
+  // curation at output time — the opposite trade-off from search_domain_filter,
+  // and the one that actually works for our use case.
+  const approvedDomains = new Set(ADVISOR_INDUSTRY_DOMAINS);
+  const citations = rawCitations.filter((c) => {
+    try {
+      const host = new URL(c).hostname.replace(/^www\./, "");
+      // Match exact domain or any subdomain of an approved domain
+      return [...approvedDomains].some(
+        (d) => host === d || host.endsWith(`.${d}`),
+      );
+    } catch {
+      return false;
+    }
+  });
+  console.log(
+    `[perplexity-research] citation filter: raw=${rawCitations.length} approved=${citations.length}`,
+  );
   const { items, funnel } = await parseResearchItems(choice.message.content, citations);
 
   if (items.length === 0) {
