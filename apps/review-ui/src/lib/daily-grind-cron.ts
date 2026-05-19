@@ -64,6 +64,8 @@ export type GenerateResult = {
   researchFunnel?: {
     rawItemCount: number;
     citationCount: number;
+    rawCitationCount?: number;
+    rawCitationDomains?: string[];
     droppedMissingFields: number;
     droppedBareDomain: number;
     droppedDeadUrl: number;

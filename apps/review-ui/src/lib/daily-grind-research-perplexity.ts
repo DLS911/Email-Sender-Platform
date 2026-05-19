@@ -263,10 +263,12 @@ type ParseResult = {
   funnel: {
     rawItemCount: number;
     citationCount: number;
+    rawCitationCount?: number;
     droppedMissingFields: number;
     droppedBareDomain: number;
     droppedDeadUrl: number;
     survived: number;
+    rawCitationDomains?: string[];
   };
 };
 
@@ -474,10 +476,11 @@ export async function runPerplexityResearch(opts: {
   // curation at output time — the opposite trade-off from search_domain_filter,
   // and the one that actually works for our use case.
   const approvedDomains = new Set(ADVISOR_INDUSTRY_DOMAINS);
+  const rawCitationDomains: string[] = [];
   const citations = rawCitations.filter((c) => {
     try {
       const host = new URL(c).hostname.replace(/^www\./, "");
-      // Match exact domain or any subdomain of an approved domain
+      rawCitationDomains.push(host);
       return [...approvedDomains].some(
         (d) => host === d || host.endsWith(`.${d}`),
       );
@@ -486,9 +489,13 @@ export async function runPerplexityResearch(opts: {
     }
   });
   console.log(
-    `[perplexity-research] citation filter: raw=${rawCitations.length} approved=${citations.length}`,
+    `[perplexity-research] citation filter: raw=${rawCitations.length} approved=${citations.length} rawDomains=[${rawCitationDomains.join(", ")}]`,
   );
   const { items, funnel } = await parseResearchItems(choice.message.content, citations);
+  // Enrich funnel with raw counts so failure paths can be diagnosed without
+  // Vercel log access.
+  funnel.rawCitationCount = rawCitations.length;
+  funnel.rawCitationDomains = rawCitationDomains;
 
   if (items.length === 0) {
     throw new Error(

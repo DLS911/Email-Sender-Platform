@@ -29,6 +29,8 @@ export type ResearchBundle = {
 export type ResearchFunnel = {
   rawItemCount: number;
   citationCount: number;
+  rawCitationCount?: number;
+  rawCitationDomains?: string[];
   droppedMissingFields: number;
   droppedBareDomain: number;
   droppedDeadUrl: number;
