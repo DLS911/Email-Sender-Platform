@@ -873,6 +873,7 @@ export async function generateDailyGrindIssue(opts: {
     const perpOpts: Parameters<typeof runPerplexityResearch>[0] = {
       issueDate: opts.issueDate,
       recentTopics,
+      recentConcepts,
     };
     if (opts.topicHint) perpOpts.topicHint = opts.topicHint;
     // Retry up to 3 times. Failures mostly come from "items survived URL
@@ -929,6 +930,16 @@ export async function generateDailyGrindIssue(opts: {
     if (!research) {
       throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
     }
+  }
+  // Visibility: log research bundle stats so we can diagnose writer
+  // mode-collapse failures. If the bundle has <5 items or <3 distinct
+  // sources/urls, the writer is forced to reuse items in Worth Knowing.
+  {
+    const distinctSources = new Set(research.bundle.items.map((r) => r.source));
+    const distinctUrls = new Set(research.bundle.items.map((r) => r.url));
+    console.log(
+      `[daily-grind][research] items=${research.bundle.items.length} distinctSources=${distinctSources.size} distinctUrls=${distinctUrls.size} sources=[${Array.from(distinctSources).join(", ")}]`,
+    );
   }
   const writer = await runWriterPhase(
     client,

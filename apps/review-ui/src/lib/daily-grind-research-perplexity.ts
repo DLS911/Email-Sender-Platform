@@ -99,6 +99,7 @@ function stripCodeFences(text: string): string {
 function buildUserPrompt(opts: {
   issueDate: string;
   recentTopics: string[];
+  recentConcepts: string[];
   topicHint?: string;
 }): string {
   const parts: string[] = [];
@@ -110,11 +111,23 @@ function buildUserPrompt(opts: {
   }
   if (opts.recentTopics.length > 0) {
     parts.push(
-      `\nRecently covered headlines (find DIFFERENT angles — don't return items that just repeat these stories):\n${opts.recentTopics.map((t) => `- ${t}`).join("\n")}`,
+      `\n# RECENTLY COVERED HEADLINES — DO NOT SEARCH FOR THESE STORIES
+The newsletter has already covered these in the last 30 issues. Any item you return that retreads one of these stories will be DROPPED by the post-processor. Search around them, not toward them.
+
+${opts.recentTopics.map((t) => `- ${t}`).join("\n")}`,
+    );
+  }
+  if (opts.recentConcepts.length > 0) {
+    parts.push(
+      `\n# CONCEPTS ALREADY DISCUSSED IN RECENT ISSUES — DO NOT RETURN ITEMS THAT REHASH THESE
+These are the substantive ideas/themes the newsletter has covered. Find news on DIFFERENT concepts, not new angles on these. The writer will reject items that overlap with these concepts.
+
+${opts.recentConcepts.map((c) => `- ${c}`).join("\n")}`,
     );
   }
   parts.push(
-    `\nFind 6-10 fresh, real, recent (last 30-60 days) news items relevant to independent financial advisors. Return the structured JSON specified in the system prompt. No preamble.`,
+    `\n# WHAT TO RETURN
+Find 8-12 fresh, real, recent (last 30-60 days) news items relevant to independent financial advisors. Each item MUST be from a DIFFERENT story (no two items pointing to the same article URL — vary your sources). Return the structured JSON specified in the system prompt. No preamble.`,
   );
   return parts.join("\n");
 }
@@ -311,13 +324,19 @@ export type PerplexityResearchResult = {
 export async function runPerplexityResearch(opts: {
   issueDate: string;
   recentTopics: string[];
+  recentConcepts?: string[];
   topicHint?: string;
   apiKey?: string;
 }): Promise<PerplexityResearchResult> {
   const apiKey = opts.apiKey ?? process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("perplexity: PERPLEXITY_API_KEY missing");
 
-  const userPrompt = buildUserPrompt(opts);
+  const userPrompt = buildUserPrompt({
+    issueDate: opts.issueDate,
+    recentTopics: opts.recentTopics,
+    recentConcepts: opts.recentConcepts ?? [],
+    ...(opts.topicHint ? { topicHint: opts.topicHint } : {}),
+  });
   const start = Date.now();
 
   const response = await fetch(PERPLEXITY_ENDPOINT, {

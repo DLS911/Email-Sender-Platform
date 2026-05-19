@@ -52,6 +52,13 @@ export type GenerateResult = {
   latencyMs: number | null;
   brainConceptsPersisted: number | null;
   error: string | null;
+  // Research bundle stats — exposed so we can verify research is firing
+  // properly and supplying enough distinct sources for the writer. If
+  // researchItemCount is low or distinctSources < researchItemCount, that's
+  // the upstream cause of writer mode-collapse on Worth Knowing items.
+  researchItemCount?: number;
+  researchDistinctSources?: number;
+  researchSources?: string[];
 };
 
 function getServiceRoleClient(): SupabaseClient {
@@ -333,6 +340,14 @@ export async function runDailyGrindGenerate(
     result.headline = issue.content.headline;
     result.costUsd = issue.meta.totalCostUsd;
     result.latencyMs = Date.now() - start;
+    // Surface research stats so we can verify research is producing enough
+    // diverse items for the writer. If researchItemCount drops below ~5 or
+    // researchDistinctSources is tight, that's the upstream cause of writer
+    // mode-collapse.
+    result.researchItemCount = issue.research.items.length;
+    const distinctSources = new Set(issue.research.items.map((r) => r.source));
+    result.researchDistinctSources = distinctSources.size;
+    result.researchSources = Array.from(distinctSources);
 
     try {
       const brain = await extractAndPersistConcepts({
