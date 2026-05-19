@@ -65,8 +65,8 @@ Return ONLY this JSON object — no preamble, no markdown fences, no commentary 
   ]
 }
 
-# QUANTITY
-Return 15-20 items spanning at least 4 different categories from at least 5 different publishers. The downstream pipeline filters aggressively (drops homepage URLs, drops items with non-cited URLs), so a small initial pool leaves the writer with no working material. More good items is always better than fewer — never pad with weak items, but if you have 15+ strong candidates, return all of them.`;
+# QUANTITY POLICY
+Return one item per source you ACTUALLY searched. If you searched 8 sources, return 8 items. The downstream pipeline cross-references every URL against your citations list — items with URLs you didn't actually retrieve will be dropped as fabrications. Padding the response with invented items hurts the writer; quality search beats quantity output every time. Aim to search 8-15 distinct publishers per request so the writer has range to pick from.`;
 
 type PerplexityResponse = {
   id: string;
@@ -126,10 +126,14 @@ ${opts.recentConcepts.map((c) => `- ${c}`).join("\n")}`,
     );
   }
   parts.push(
-    `\n# WHAT TO RETURN
-Find 15-20 fresh, real, recent (last 30-60 days) news items relevant to independent financial advisors. Each item MUST be from a DIFFERENT story (no two items pointing to the same article URL — vary your sources, spread across at least 5 different publishers). Return the structured JSON specified in the system prompt. No preamble.
+    `\n# WHAT TO RETURN — CRITICAL
+Search for fresh news items (last 30-60 days) relevant to independent financial advisors. Then return ONE item per source you ACTUALLY retrieved during search. DO NOT invent items. DO NOT pad the list with plausible-looking entries for URLs you didn't actually search.
 
-VOLUME MATTERS: downstream filtering drops items with homepage URLs or non-citation links. Returning 8 items typically yields only 2-3 usable after filtering, which is not enough. Return 15-20 items so 6+ survive.`,
+If your search retrieved 5 article sources, return 5 items. If it retrieved 12, return 12. Each item's "url" field MUST be a URL you actually visited — every URL you return will be cross-referenced against your citations list. Items with URLs not in your citations will be dropped.
+
+Aim to search broadly: at least 8 different publishers, prioritizing ThinkAdvisor, WealthManagement, AdvisorHub, Investment News, Cerulli, Kitces, RIA Channel, FPA, ALM Publications, SEC.gov, FINRA, regulatory filings. The MORE sources you search, the MORE items survive — but every item must trace to a real search retrieval.
+
+Return the structured JSON specified in the system prompt. No preamble.`,
   );
   return parts.join("\n");
 }
@@ -307,28 +311,23 @@ async function parseResearchItems(content: string, citations: string[]): Promise
       droppedBareDomain++;
       continue;
     }
-    // Match the item's URL against Perplexity's citations with normalization.
-    // If matched → use the canonical citation URL.
-    // If not matched → HTTP HEAD verify. If live, accept the writer's URL.
-    // Else drop.
+    // STRICT: only accept items whose URL is in Perplexity's citations list.
+    // Empirical data (Jun 18 diagnostic): of 18 items returned, only 5 had
+    // matching citations — the other 13 had URLs Perplexity invented to pad
+    // the response. The HEAD-fallback was masking this: if a made-up URL
+    // happened to be live (different content), we'd accept it and ship a
+    // fake source. Now: no citation match = drop. Trust the search index,
+    // not the model's URL generation.
     const matchedCitation = urlMatchesCitation(url, citations);
-    let canonicalUrl: string;
-    if (matchedCitation) {
-      // Even the matched citation must be a real article URL, not a homepage
-      if (isBareDomainUrl(matchedCitation)) {
-        droppedBareDomain++;
-        continue;
-      }
-      canonicalUrl = matchedCitation;
-    } else {
-      const live = await urlIsLive(url);
-      if (live) {
-        canonicalUrl = url;
-      } else {
-        droppedDeadUrl++;
-        continue;
-      }
+    if (!matchedCitation) {
+      droppedDeadUrl++;
+      continue;
     }
+    if (isBareDomainUrl(matchedCitation)) {
+      droppedBareDomain++;
+      continue;
+    }
+    const canonicalUrl = matchedCitation;
     const item: ResearchItem = {
       category,
       title,
