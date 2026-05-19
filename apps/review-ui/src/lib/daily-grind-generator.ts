@@ -289,6 +289,21 @@ function validateAgainstResearch(items: WorthKnowingItem[], research: ResearchBu
       );
     }
   }
+  // Worth Knowing must cite 3 DISTINCT stories, not 3 angles of one story.
+  // If the writer reuses the same sourceUrl, every "Worth Knowing" item is
+  // really the same news — readers see three copies of the same source link
+  // and the section loses its point. Reject duplicates so the writer is
+  // forced to draw from 3 different research items.
+  const urlCounts = new Map<string, number>();
+  for (const item of items) {
+    urlCounts.set(item.sourceUrl, (urlCounts.get(item.sourceUrl) ?? 0) + 1);
+  }
+  const dupes = [...urlCounts.entries()].filter(([, n]) => n > 1).map(([u]) => u);
+  if (dupes.length > 0) {
+    throw new Error(
+      `writer: worthKnowing items must cite distinct stories. Duplicate sourceUrl(s): ${dupes.join(", ")}`,
+    );
+  }
 }
 
 function stripMyTakePrefix(raw: string): string {

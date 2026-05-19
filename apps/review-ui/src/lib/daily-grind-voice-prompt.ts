@@ -40,7 +40,10 @@ item has a verified URL and a publishing source.
 
 HARD RULES — violating these means the issue fails quality check:
 1. The Worth Knowing section MUST use EXACTLY 3 items drawn from the
-   research items provided. Do not invent items.
+   research items provided. Do not invent items. The 3 items MUST cite
+   3 DIFFERENT research items — never use the same sourceUrl twice.
+   Splitting one news story into 3 angles is REJECTED; you must select
+   3 distinct stories from the research bundle, one per Worth Knowing slot.
 2. For each Worth Knowing item, include the exact "url" from research as
    sourceUrl, and the "source" from research as sourceName.
 3. Any specific statistic in any section (Worth Knowing, The Number, First
