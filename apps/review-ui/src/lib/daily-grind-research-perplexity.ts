@@ -154,12 +154,24 @@ ${opts.recentConcepts.map((c) => `- ${c}`).join("\n")}`,
     );
   }
   parts.push(
-    `\n# WHAT TO RETURN — CRITICAL
-Search for fresh news items (last 30-60 days) relevant to independent financial advisors. Then return ONE item per source you ACTUALLY retrieved during search. DO NOT invent items. DO NOT pad the list with plausible-looking entries for URLs you didn't actually search.
+    `\n# SEARCH QUERIES — RUN THESE EXPLICITLY
+Do not search "news for financial advisors." That returns general news. Instead, run these specific queries against the web:
 
-If your search retrieved 5 article sources, return 5 items. If it retrieved 12, return 12. Each item's "url" field MUST be a URL you actually visited — every URL you return will be cross-referenced against your citations list. Items with URLs not in your citations will be dropped.
+1. "RIA M&A 2026" site:thinkadvisor.com OR site:wealthmanagement.com OR site:investmentnews.com OR site:riaintel.com
+2. "SEC enforcement action" registered investment adviser 2026 site:sec.gov OR site:thinkadvisor.com
+3. "Cerulli" OR "Kitces" advisor study 2026
+4. financial advisor practice management benchmarking site:fa-mag.com OR site:financial-planning.com OR site:advisorperspectives.com
+5. RIA custodian Schwab Fidelity LPL platform news 2026
+6. fiduciary fee compression study 2026
+7. FINRA enforcement broker dealer 2026 site:finra.org OR site:thinkadvisor.com
+8. advisor AI tools CRM compliance 2026 site:thinkadvisor.com OR site:wealthmanagement.com
 
-Aim to search broadly: at least 8 different publishers, prioritizing ThinkAdvisor, WealthManagement, AdvisorHub, Investment News, Cerulli, Kitces, RIA Channel, FPA, ALM Publications, SEC.gov, FINRA, regulatory filings. The MORE sources you search, the MORE items survive — but every item must trace to a real search retrieval.
+Run multiple queries. The more queries you run, the more advisor-industry citations you'll surface.
+
+# WHAT TO RETURN
+Return ONE item per source you ACTUALLY retrieved during search. Do NOT invent items. Do NOT pad the list with plausible-looking entries for URLs you didn't actually search.
+
+Every item's "url" field MUST be a URL from your citations list. Items with URLs not in your citations will be dropped.
 
 Return the structured JSON specified in the system prompt. No preamble.`,
   );
