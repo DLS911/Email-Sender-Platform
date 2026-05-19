@@ -289,21 +289,14 @@ function validateAgainstResearch(items: WorthKnowingItem[], research: ResearchBu
       );
     }
   }
-  // Worth Knowing must cite 3 DISTINCT stories, not 3 angles of one story.
-  // If the writer reuses the same sourceUrl, every "Worth Knowing" item is
-  // really the same news — readers see three copies of the same source link
-  // and the section loses its point. Reject duplicates so the writer is
-  // forced to draw from 3 different research items.
+}
+
+function findDuplicateSourceUrls(items: WorthKnowingItem[]): string[] {
   const urlCounts = new Map<string, number>();
   for (const item of items) {
     urlCounts.set(item.sourceUrl, (urlCounts.get(item.sourceUrl) ?? 0) + 1);
   }
-  const dupes = [...urlCounts.entries()].filter(([, n]) => n > 1).map(([u]) => u);
-  if (dupes.length > 0) {
-    throw new Error(
-      `writer: worthKnowing items must cite distinct stories. Duplicate sourceUrl(s): ${dupes.join(", ")}`,
-    );
-  }
+  return [...urlCounts.entries()].filter(([, n]) => n > 1).map(([u]) => u);
 }
 
 function stripMyTakePrefix(raw: string): string {
@@ -487,74 +480,29 @@ function verseConflictsWithRecent(picked: string, recent: string[]): boolean {
 function buildWriterUserPrompt(
   issueDate: string,
   research: ResearchBundle,
-  recentTopics: string[],
-  recentVerses: string[],
-  bannedVerses: string[],
-  recentConcepts: string[] = [],
+  _recentTopics: string[],
+  _recentVerses: string[],
+  _bannedVerses: string[],
+  _recentConcepts: string[] = [],
 ): string {
-  const parts: string[] = [];
-  parts.push(`Today is ${issueDate}. Write today's Daily Grind issue using the research below.`);
-  parts.push("\n# RESEARCH (use ONLY these items for Worth Knowing and any cited statistics):");
-  parts.push(JSON.stringify(research, null, 2));
-  if (recentTopics.length > 0) {
-    parts.push(
-      `\n# RECENT HEADLINES — STRUCTURAL ANTI-PATTERN MEMORY
-
-The following are the actual H1 headlines from the most recent Daily Grind issues. Today's headline MUST be structurally different from every one of these — not just topically different, structurally different.
-
-Look at the headlines below. If they share a grammatical pattern (e.g. starting with "The", ending in "-ing", a "Nobody's X" construction, a noun-noun-noun pile), do NOT match that pattern. Pick a DIFFERENT structural template from the system prompt's strong headline patterns.
-
-Recent headlines:
-${recentTopics.map((t) => `- ${t}`).join("\n")}
-
-Before you finalize today's headline:
-1. Read your draft headline aloud.
-2. Compare its STRUCTURE (not topic) against the list above.
-3. If it matches any structural pattern present in the list, REWRITE using a different template.
-4. Specifically: if your headline uses "Nobody's X" or any banned pattern from the system prompt, REWRITE.`,
-    );
-  }
-  if (recentConcepts.length > 0) {
-    parts.push(
-      `\n# CONCEPTS ALREADY COVERED IN RECENT ISSUES (do not rehash these — even if framed differently):\n${recentConcepts.map((c) => `- ${c}`).join("\n")}\n\nIf today's research overlaps with a concept above, pick a DIFFERENT angle on the topic or pick different research items. The reader has seen these ideas already.`,
-    );
-  }
-  const allBanned = [...new Set([...recentVerses, ...bannedVerses])];
-  if (allBanned.length > 0) {
-    parts.push(
-      `\n# BANNED ANCIENT TRUTH VERSES — HARD RULE
-If you pick any verse from the following list, the response will be REJECTED and you will be asked to regenerate. Pick a completely different verse, ideally from a different book (Ecclesiastes, Psalms, James) or a less-cited Proverbs chapter (e.g., Proverbs 3, 11, 14, 18, 27, 29).
-
-Banned verses for this issue:
-${allBanned.map((v) => `- ${v}`).join("\n")}
-
-Default avoidance regardless of list (these are the most-overused AI defaults):
-- Proverbs 21:5 ("plans of the diligent...")
-- Proverbs 24:27 ("prepare your work outside...")
-- Proverbs 16:9 ("the heart of man plans his way...")
-- Proverbs 16:3 ("commit your work to the LORD...")
-
-If your topic naturally fits one of those defaults, find a fresher verse that touches the same theme from a different angle.`,
-    );
-  }
-  parts.push(
-    `\n# OUTPUT NOTES:
-- For each Worth Knowing "myTake" field, write ONLY the take. Do NOT include the literal text "My take:" in the field value — the rendering layer adds that label automatically.
-- Confirm before returning: every Worth Knowing sourceUrl matches a research item URL exactly, and the ancientTruth.reference is NOT in the banned list above.
-
-# ANCIENT TRUTH VERSE SELECTION (this is the single most important variety lever)
-Before you write ancientTruth, name the theme of THIS issue in one phrase (mental note — don't put it in the output). Examples: "fee compression and unbundling AUM", "IRMAA timing risk on Roth conversions", "Reg S-P compliance deadline", "formal referral systems".
-
-Then pick a verse from the THEMATIC FAMILY that matches (see the system prompt's table). Do not pick a generic "planning" verse if the issue is about compliance — pick a watchfulness verse. Do not pick a "diligence" verse if the issue is about M&A wealth — pick a stewardship or hasty-riches verse.
-
-Rotate the source book across issues. If recent issues used Proverbs, lean toward Ecclesiastes, James, or Luke today. If the topic is wealth or fees, Ecclesiastes 5 or Luke 12 are often stronger than the obvious Proverbs pick.
-
-Vary the emotional register: cautionary verses for compliance/risk, opportunity verses for new strategies, rebuke verses for rants, patience verses for growth pieces.`,
-  );
-  parts.push(
-    `\nReturn ONLY the JSON object specified in the system prompt. No preamble, no markdown fences.`,
-  );
-  return parts.join("\n");
+  // Intentionally minimal. The voice modules in the system prompt teach
+  // Mark's voice in 39K tokens of careful writing; the writer's attention
+  // should go there, not toward defending against a long list of negative
+  // constraints. Headline patterns, verse repetition, URL duplication,
+  // banned vocabulary, em-dashes — every one of those is enforced
+  // post-process (regex check / Haiku rewrite / validator retry). Recent
+  // headlines and concepts are already passed to the research phase, so
+  // research returns fresh material instead of asking the writer to
+  // distance itself from old material. The writer just needs to write.
+  return [
+    `Today is ${issueDate}. Write today's Daily Grind in Mark's voice.`,
+    "",
+    "Research bundle (use these for Worth Knowing and any cited statistics; everything else draws on Mark's pattern recognition):",
+    "",
+    JSON.stringify(research, null, 2),
+    "",
+    "Return the JSON object specified in the system prompt. No preamble, no fences.",
+  ].join("\n");
 }
 
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
@@ -761,6 +709,54 @@ async function runWriterPhase(
   // them with proper punctuation so the rendered email is always clean.
   content = deepStripDashes(content);
   validateAgainstResearch(content.worthKnowing, research);
+
+  // Worth Knowing distinctness retry: if the writer cited the same story 2-3
+  // ways, do one targeted retry pointing at specific UNUSED research items.
+  // This used to throw and kill the issue; the new behavior keeps the writer
+  // free of negative-constraint noise in the main prompt while still
+  // guaranteeing 3 distinct stories ship.
+  const dupes = findDuplicateSourceUrls(content.worthKnowing);
+  if (dupes.length > 0) {
+    const usedUrls = new Set(content.worthKnowing.map((w) => w.sourceUrl));
+    const unused = research.items.filter((r) => !usedUrls.has(r.url));
+    if (unused.length >= 1) {
+      const retryPrompt = `${userPrompt}
+
+(Retry note: the previous draft used the same sourceUrl in multiple Worth Knowing slots. Each Worth Knowing item must point to a different research item. Suggested replacements drawn from research items you didn't use yet — pick any of these for the duplicated slot(s):
+${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n")})`;
+      const retryStart = Date.now();
+      const retry = await client.messages.create({
+        model: MODEL,
+        max_tokens: WRITER_MAX_TOKENS,
+        temperature: WRITER_TEMPERATURE,
+        system: [
+          {
+            type: "text",
+            text: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: retryPrompt }],
+      });
+      totalLatency += Date.now() - retryStart;
+      totalInput += retry.usage.input_tokens;
+      totalOutput += retry.usage.output_tokens;
+      const retryBlock = retry.content[0];
+      if (retryBlock && retryBlock.type === "text") {
+        try {
+          let retryContent = parseContent(retryBlock.text);
+          retryContent = deepStripDashes(retryContent);
+          validateAgainstResearch(retryContent.worthKnowing, research);
+          if (findDuplicateSourceUrls(retryContent.worthKnowing).length === 0) {
+            content = retryContent;
+          }
+        } catch {
+          // Retry parse failed — keep the original (with dupes). Better to
+          // ship the issue with one repeated URL than fail the whole send.
+        }
+      }
+    }
+  }
 
   // Headline pattern check: if the writer produced a headline matching one of
   // the banned formulas (e.g. "Nobody's X"), rewrite it via Haiku rather than

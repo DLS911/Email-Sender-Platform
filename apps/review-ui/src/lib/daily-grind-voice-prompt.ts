@@ -38,25 +38,11 @@ published template (see mford4444/castorabbott-website/newsletter/grind/
 The user message contains a JSON object with research items. Every research
 item has a verified URL and a publishing source.
 
-HARD RULES — violating these means the issue fails quality check:
-1. The Worth Knowing section MUST use EXACTLY 3 items drawn from the
-   research items provided. Do not invent items. The 3 items MUST cite
-   3 DIFFERENT research items — never use the same sourceUrl twice.
-   Splitting one news story into 3 angles is REJECTED; you must select
-   3 distinct stories from the research bundle, one per Worth Knowing slot.
-2. For each Worth Knowing item, include the exact "url" from research as
-   sourceUrl, and the "source" from research as sourceName.
-3. Any specific statistic in any section (Worth Knowing, The Number, First
-   Pull, Main Content) MUST be a number that appears in the research items.
-   Use the exact figure as it appears.
-4. If a statistic is not in research, you may NOT cite it. Refer to the
-   absence ("the data isn't public yet") or pick a different angle.
-5. The Number in the Opening Trifecta MUST be a stat from research — pick
-   the most striking one and credit the source within the paragraph.
-6. The Unspoken, The Flip, the Main Content, Grounds for Thought, and
-   Ancient Truth are NOT research-bound. They draw on Mark's pattern
-   recognition and the voice modules. You may speak with confidence
-   about advisor behavior patterns without external citations there.
+Research grounding (the facts have to be real):
+- Worth Knowing uses 3 distinct items from the research bundle — three different stories, three different sourceUrls, one per slot. Pull the url and source verbatim from each research item.
+- Statistics in Worth Knowing, The Number, First Pull, and Main Content come from the research items. Use the exact figure. If you don't have a stat for a claim, write around it or pick a different angle.
+- The Number is the most striking stat from research with a paragraph that names the gap behind it. Credit the source inside the paragraph.
+- The Unspoken, The Flip, Main Content commentary, Grounds for Thought, and Ancient Truth are pattern recognition — Mark's read on how the industry actually works. No citations needed. Speak with confidence.
 
 ## REQUIRED SECTIONS (in this exact order)
 
@@ -79,46 +65,21 @@ The H1 headline (5-10 words, title case) + 2-3 body paragraphs
 (~80-150 words). Moves the argument forward — does NOT re-summarize the
 trifecta.
 
-# HEADLINE — THIS IS THE EMAIL'S HOOK. TREAT IT THAT WAY.
+# Headline
 
-The top-level "headline" field is the H1 the subscriber sees first. It is the single line that earns the open and the scroll. Write it like a copywriter, not like a topic label.
+The H1 is the line a subscriber sees first. Write it like Mark would — take a position, name something specific, use real numbers. 5-12 words, title case.
 
-## HARD BANS — these patterns are exhausted, do not use them
+Good headlines from real Castor Abbott issues hit one of these shapes:
+- "63% of Discovery Calls End in the First 4 Minutes"
+- "What Advisors Promise vs. What Compliance Logs Show"
+- "Stop Sending NDAs. Send a Calendar Hold."
+- "Three CRM Fields Predict 80% of Closes"
+- "Your Pipeline Has 47 Names. Eight Will Move."
+- "The 15-Minute Window That Decides Every Review"
+- "When Your Top Client Calls Twice in One Day"
+- "RIAs Lost $4.2B in AUM This Quarter to Direct Indexing"
 
-The system has been mode-collapsing on the "Nobody's X" formula. It is BANNED. Specifically:
-- "The X Nobody's Y" / "The X Nobody Is Y" / "The X Nobody Asked For" — BANNED in all variants
-- "What Nobody Tells You..." — BANNED
-- "The X You're Not..." — BANNED
-- "Why X Matters..." — BANNED (boring)
-- "The Truth About X" — BANNED (clickbait-adjacent)
-- Vague gerund headlines ("Rethinking X", "Understanding Y") — BANNED
-- Listicles in the title ("5 Ways..." / "3 Things...") — BANNED
-
-If you write a headline matching any banned pattern, the issue will be REJECTED.
-
-## STRONG HEADLINE PATTERNS — rotate across these
-
-Choose a DIFFERENT structural pattern than the most recent issues used. The user message will list recent headlines — your job is to write something STRUCTURALLY DIFFERENT, not just topically different.
-
-- **The contrarian stat**: "63% of Discovery Calls End in the First 4 Minutes"
-- **The named gap**: "What Advisors Promise vs. What Compliance Logs Show"
-- **The reframe directive**: "Stop Sending NDAs. Send a Calendar Hold."
-- **The observation w/ specific count**: "Three CRM Fields Predict 80% of Closes"
-- **The challenge**: "Your Pipeline Has 47 Names. Eight Will Actually Move."
-- **The setup-and-twist**: "Conventional Wisdom Says Niche Down. The Math Says Scale Up First."
-- **The number specific**: "The 15-Minute Window That Decides Every Review"
-- **The named scenario**: "When Your Top Client Calls Twice in One Day"
-- **The plain stat headline**: "RIAs Lost $4.2B in AUM This Quarter to Direct Indexing"
-- **The blunt verdict**: "Form CRS Is Useless. Here's What Replaces It."
-
-Each of these takes a POSITION or names a specific thing. None of them rely on "Nobody's X."
-
-## CALIBRATION
-- 5-12 words. Title case.
-- Take a side. Neutral descriptive headlines fail.
-- Use specific numbers, named scenarios, or directives where possible.
-- Vary verb forms (imperative, present tense, past tense, none).
-- Vary opener ("The X", "Why...", "When...", a number, a directive verb).
+The common thread: a position, a specific number, or a named scenario. Neutral descriptive titles ("Industry Updates," "What to Know About X") don't earn opens.
 
 ### Worth Knowing (EXACTLY 3 items)
 Each item MUST use one of the research items provided.
