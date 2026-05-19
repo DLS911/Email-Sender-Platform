@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { DAILY_GRIND_VOICE_SYSTEM_PROMPT } from "./daily-grind-voice-prompt";
 import { RESEARCH_SYSTEM_PROMPT } from "./daily-grind-research-prompt";
 import { runPerplexityResearch } from "./daily-grind-research-perplexity";
+import { runGeminiResearch } from "./daily-grind-research-gemini";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -893,16 +894,47 @@ export async function generateDailyGrindIssue(opts: {
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
 
-  // Research phase: Anthropic web_search is now primary. Perplexity's sonar-pro
-  // doesn't crawl advisor publications (empirical: returned themarysue.com,
-  // cbsnews.com, abcnews.com even with explicit site: queries). Anthropic
-  // web_search hits Google directly and respects site: operators reliably.
-  //
-  // Env var RESEARCH_BACKEND can override: "perplexity" forces Perplexity,
-  // "anthropic" forces Anthropic (default).
-  const backend = (process.env.RESEARCH_BACKEND ?? "anthropic").toLowerCase();
+  // Research phase backend selection.
+  // - "gemini" (default): Gemini 2.5 Flash + Google Search grounding. Cheapest
+  //   option, hits Google's native index directly, respects site: operators.
+  // - "anthropic": Anthropic Sonnet 4.5 + web_search tool. Higher cost (~10x),
+  //   used as fallback or when explicitly requested.
+  // - "perplexity": only useful for Latte-style consumer content. Empirically
+  //   does not surface advisor industry publications for Daily Grind.
+  const backend = (process.env.RESEARCH_BACKEND ?? "gemini").toLowerCase();
   let research;
-  if (backend === "perplexity" && process.env.PERPLEXITY_API_KEY) {
+  if (backend === "gemini" && process.env.GOOGLE_API_KEY) {
+    const gemOpts: Parameters<typeof runGeminiResearch>[0] = {
+      issueDate: opts.issueDate,
+      recentTopics,
+      recentConcepts,
+    };
+    if (opts.topicHint) gemOpts.topicHint = opts.topicHint;
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const gem = await runGeminiResearch(gemOpts);
+        research = {
+          bundle: gem.bundle,
+          inputTokens: gem.inputTokens,
+          outputTokens: gem.outputTokens,
+          webSearches: gem.webSearches,
+          latencyMs: gem.latencyMs,
+          funnel: gem.funnel,
+        };
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt === 2) {
+          throw err instanceof Error ? err : new Error(String(err));
+        }
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+    }
+    if (!research) {
+      throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
+    }
+  } else if (backend === "perplexity" && process.env.PERPLEXITY_API_KEY) {
     const perpOpts: Parameters<typeof runPerplexityResearch>[0] = {
       issueDate: opts.issueDate,
       recentTopics,
