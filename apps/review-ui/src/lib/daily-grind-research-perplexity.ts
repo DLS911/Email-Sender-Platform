@@ -18,6 +18,39 @@ import type { ResearchBundle, ResearchItem } from "./daily-grind-generator";
 const PERPLEXITY_MODEL = "sonar-pro";
 const PERPLEXITY_ENDPOINT = "https://api.perplexity.ai/chat/completions";
 
+// Lock Perplexity's search to known advisor-industry domains. Without this
+// the model searches the open web and returns results matching the word
+// "research" or "advisor" from unrelated sources (The Mary Sue, EBSCO, FTC
+// Consumer). This list is the canonical set of publishers Mark trusts.
+// Update when new credible publishers emerge; never include vendor blogs or
+// SEO content farms.
+const ADVISOR_INDUSTRY_DOMAINS = [
+  "thinkadvisor.com",
+  "wealthmanagement.com",
+  "investmentnews.com",
+  "advisorhub.com",
+  "kitces.com",
+  "riaintel.com",
+  "fa-mag.com",
+  "financial-planning.com",
+  "barrons.com",
+  "wsj.com",
+  "morningstar.com",
+  "cerulli.com",
+  "fpa.org",
+  "napfa.org",
+  "sec.gov",
+  "finra.org",
+  "treasury.gov",
+  "irs.gov",
+  "planadviser.com",
+  "401kspecialistmag.com",
+  "rethinking65.com",
+  "horsesmouth.com",
+  "michaelkitces.com",
+  "advisorperspectives.com",
+];
+
 const RESEARCH_SYSTEM_PROMPT = `You are the research analyst for The Daily Grind, a weekday newsletter for independent financial advisors. Your job is to find REAL, RECENT, CITED news and data for today's issue. The model running you (Perplexity sonar-pro) already has live web search; use it to find genuinely current items.
 
 # WHAT MATTERS FOR THIS AUDIENCE
@@ -413,17 +446,16 @@ export async function runPerplexityResearch(opts: {
         { role: "user", content: userPrompt },
       ],
       temperature: 0,
-      // Explicit budget for 15-20 JSON items at ~150 tokens each = ~3K, with
-      // 5K of slack for any preamble Perplexity adds before the JSON. Without
-      // this, sonar-pro was capping silently and the items array came back
-      // truncated to 5 even though the system prompt asked for 15-20.
       max_tokens: 8000,
+      // Lock search to advisor-industry domains. Without this, Perplexity
+      // returns results from off-topic sources matching keyword overlap
+      // (The Mary Sue, EBSCO Connect, FTC Consumer Advice). Empirical
+      // testing 2026-05-19.
+      search_domain_filter: ADVISOR_INDUSTRY_DOMAINS,
       // Do NOT use search_recency_filter — empirical testing 2026-05-18
       // showed it returns garbage citations (gardening, food, USDA) for
-      // financial advisor queries when set to "month". The model then
-      // hallucinates plausible URLs from training. Without the filter,
-      // Perplexity returns real advisor-industry sources. Recency bias
-      // is enforced via the prompt instead ("fresh items from last 30 days").
+      // financial advisor queries when set to "month". Recency bias is
+      // enforced via the prompt instead ("fresh items from last 30 days").
       return_citations: true,
     }),
   });
