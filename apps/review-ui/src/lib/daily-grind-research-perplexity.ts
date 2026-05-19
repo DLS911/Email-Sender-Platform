@@ -21,9 +21,8 @@ const PERPLEXITY_ENDPOINT = "https://api.perplexity.ai/chat/completions";
 // Lock Perplexity's search to known advisor-industry domains. Without this
 // the model searches the open web and returns results matching the word
 // "research" or "advisor" from unrelated sources (The Mary Sue, EBSCO, FTC
-// Consumer). This list is the canonical set of publishers Mark trusts.
-// Update when new credible publishers emerge; never include vendor blogs or
-// SEO content farms.
+// Consumer). Perplexity API enforces a max of 20 domains; this is the
+// canonical set, prioritized by signal quality for Mark's audience.
 const ADVISOR_INDUSTRY_DOMAINS = [
   "thinkadvisor.com",
   "wealthmanagement.com",
@@ -38,17 +37,13 @@ const ADVISOR_INDUSTRY_DOMAINS = [
   "morningstar.com",
   "cerulli.com",
   "fpa.org",
-  "napfa.org",
   "sec.gov",
   "finra.org",
-  "treasury.gov",
   "irs.gov",
   "planadviser.com",
-  "401kspecialistmag.com",
   "rethinking65.com",
-  "horsesmouth.com",
-  "michaelkitces.com",
   "advisorperspectives.com",
+  "michaelkitces.com",
 ];
 
 const RESEARCH_SYSTEM_PROMPT = `You are the research analyst for The Daily Grind, a weekday newsletter for independent financial advisors. Your job is to find REAL, RECENT, CITED news and data for today's issue. The model running you (Perplexity sonar-pro) already has live web search; use it to find genuinely current items.
