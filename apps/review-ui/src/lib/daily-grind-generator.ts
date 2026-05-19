@@ -214,6 +214,7 @@ async function runResearchPhase(
   client: Anthropic,
   issueDate: string,
   recentTopics: string[],
+  recentConcepts: string[],
   topicHint?: string,
 ): Promise<ResearchResult> {
   const userPromptParts: string[] = [];
@@ -228,8 +229,26 @@ async function runResearchPhase(
       `\nRecently covered headlines (find DIFFERENT angles — don't search for these same topics):\n${recentTopics.map((t) => `- ${t}`).join("\n")}`,
     );
   }
+  if (recentConcepts.length > 0) {
+    userPromptParts.push(
+      `\nConcepts the newsletter has already discussed in recent issues (don't return items that just rehash these):\n${recentConcepts.map((c) => `- ${c}`).join("\n")}`,
+    );
+  }
   userPromptParts.push(
-    `\nUse the web_search tool to find fresh, real, recent (last 30-60 days) news and data relevant to independent financial advisors. Return the structured JSON specified in the system prompt.`,
+    `\nUse the web_search tool to run these specific queries against the advisor industry press. Do NOT search general consumer news. Run multiple queries and gather citations from each:
+
+1. site:thinkadvisor.com OR site:wealthmanagement.com OR site:investmentnews.com — most recent RIA M&A activity
+2. site:sec.gov OR site:finra.org — recent enforcement actions against registered investment advisers or broker-dealers
+3. site:kitces.com OR site:michaelkitces.com — recent practice management or planning research
+4. site:advisorperspectives.com OR site:fa-mag.com OR site:financial-planning.com — fee compression, practice benchmarking, growth studies
+5. site:planadviser.com — retirement plan / fiduciary updates
+6. site:rethinking65.com OR site:advisorhub.com — recent industry trends, breakaway broker movement
+7. site:riaintel.com — RIA aggregator activity, custodian platform news
+8. recent Cerulli OR Morningstar advisor industry study (any of: site:morningstar.com, site:cerulli.com)
+
+Each search should hit a different angle. Aim for 8-12 distinct cited articles total from the advisor industry press, NOT from general news outlets like CBS, ABC, NBC, Reuters, AP, or random blogs. Quality bar: every cited URL must be a deep article page (with slug), never a homepage or section page.
+
+Return the structured JSON specified in the system prompt. No preamble.`,
   );
 
   const start = Date.now();
@@ -874,20 +893,22 @@ export async function generateDailyGrindIssue(opts: {
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
 
-  // Research phase: prefer Perplexity (mature, structured citations, cheap),
-  // fall back to Anthropic web_search if PERPLEXITY_API_KEY not configured.
+  // Research phase: Anthropic web_search is now primary. Perplexity's sonar-pro
+  // doesn't crawl advisor publications (empirical: returned themarysue.com,
+  // cbsnews.com, abcnews.com even with explicit site: queries). Anthropic
+  // web_search hits Google directly and respects site: operators reliably.
+  //
+  // Env var RESEARCH_BACKEND can override: "perplexity" forces Perplexity,
+  // "anthropic" forces Anthropic (default).
+  const backend = (process.env.RESEARCH_BACKEND ?? "anthropic").toLowerCase();
   let research;
-  if (process.env.PERPLEXITY_API_KEY) {
+  if (backend === "perplexity" && process.env.PERPLEXITY_API_KEY) {
     const perpOpts: Parameters<typeof runPerplexityResearch>[0] = {
       issueDate: opts.issueDate,
       recentTopics,
       recentConcepts,
     };
     if (opts.topicHint) perpOpts.topicHint = opts.topicHint;
-    // Retry up to 3 times. Failures mostly come from "items survived URL
-    // citation validation: 0" — Perplexity occasionally returns items
-    // whose URLs don't match its own citations list, and after normalization
-    // we drop them. Retry usually fixes this.
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -913,8 +934,9 @@ export async function generateDailyGrindIssue(opts: {
       throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
     }
   } else {
-    // Legacy fallback: Anthropic web_search. Kept so the system still works
-    // if PERPLEXITY_API_KEY is missing from Vercel.
+    // Primary: Anthropic web_search. Hits Google search directly, supports
+    // site: operators, returns real advisor industry sources for the queries
+    // we hand it.
     const transientHints = [
       "no JSON object",
       "web_search",
@@ -926,7 +948,13 @@ export async function generateDailyGrindIssue(opts: {
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        research = await runResearchPhase(client, opts.issueDate, recentTopics, opts.topicHint);
+        research = await runResearchPhase(
+          client,
+          opts.issueDate,
+          recentTopics,
+          recentConcepts,
+          opts.topicHint,
+        );
         break;
       } catch (err) {
         lastErr = err;
