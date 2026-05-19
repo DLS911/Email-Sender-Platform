@@ -30,6 +30,7 @@ async function handle(req: Request): Promise<NextResponse> {
   const skipCache = url.searchParams.get("nocache") === "1";
   const topicHint = url.searchParams.get("topicHint") ?? undefined;
   const action = url.searchParams.get("action") ?? "send";
+  const overrideIssueDate = url.searchParams.get("overrideIssueDate") ?? undefined;
 
   // action=full → legacy combined flow (generate + send) for manual fires.
   // action=send (default) → fast send-only path, used by the hourly cron.
@@ -61,7 +62,10 @@ async function handle(req: Request): Promise<NextResponse> {
       return NextResponse.json(result);
     }
 
-    const result = await runDailyGrindSend({ force });
+    const result = await runDailyGrindSend({
+      force,
+      ...(overrideIssueDate ? { overrideIssueDate } : {}),
+    });
     logger.info("cron.daily_grind.complete", {
       mode: "send-only",
       subscribers_checked: result.subscribersChecked,

@@ -397,9 +397,10 @@ export async function runDailyGrindGenerate(
  * Force flag bypasses time-of-day + already-sent gates for manual fires.
  */
 export async function runDailyGrindSend(
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; overrideIssueDate?: string } = {},
 ): Promise<CronResult> {
   const force = opts.force ?? false;
+  const overrideIssueDate = opts.overrideIssueDate;
   const db = getServiceRoleClient();
   const nowUtc = new Date();
 
@@ -449,10 +450,14 @@ export async function runDailyGrindSend(
 
   for (const row of due) {
     try {
-      const fresh = await loadCachedIssue(db, row.localDate);
+      // overrideIssueDate (when set via cron query param) lets us preview a
+      // specific issue date instead of today's. Used for testing new issues
+      // before they hit their natural schedule.
+      const lookupDate = overrideIssueDate ?? row.localDate;
+      const fresh = await loadCachedIssue(db, lookupDate);
       let rendered: { html: string; text: string; subject: string };
       let usedFallback = false;
-      let actualIssueDate = row.localDate;
+      let actualIssueDate = lookupDate;
 
       if (fresh && fresh.sections && typeof fresh.sections === "object") {
         rendered = {
