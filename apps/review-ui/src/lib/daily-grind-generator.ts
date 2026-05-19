@@ -774,6 +774,66 @@ async function runWriterPhase(
   // occasionally despite the rules. This belt-and-suspenders pass replaces
   // them with proper punctuation so the rendered email is always clean.
   content = deepStripDashes(content);
+
+  // Validate Worth Knowing URLs against research bundle. If the writer
+  // hallucinated a URL not in research, do one targeted retry pointing at
+  // the specific items that are actually available. Same recovery pattern
+  // as the duplicate-URL case — better to ship a corrected issue than fail.
+  const researchUrlSet = new Set(research.items.map((r) => r.url));
+  const invalidUrlIndices = content.worthKnowing
+    .map((w, i) => (researchUrlSet.has(w.sourceUrl) ? -1 : i))
+    .filter((i) => i >= 0);
+  if (invalidUrlIndices.length > 0) {
+    const goodUrls = new Set(
+      content.worthKnowing
+        .filter((w) => researchUrlSet.has(w.sourceUrl))
+        .map((w) => w.sourceUrl),
+    );
+    const unused = research.items.filter((r) => !goodUrls.has(r.url));
+    if (unused.length >= invalidUrlIndices.length) {
+      const retryPrompt = `${userPrompt}
+
+(Retry note: the previous draft cited ${invalidUrlIndices.length} URL${invalidUrlIndices.length > 1 ? "s" : ""} that don't appear in the research bundle (invented sources). Every Worth Knowing item's sourceUrl must EXACTLY MATCH one of the URLs in the research array above. Available research items you haven't used yet:
+${unused.slice(0, 8).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n")}
+
+Pick from those for the Worth Knowing slots. Use the URL verbatim.)`;
+      const retryStart = Date.now();
+      const retry = await client.messages.create({
+        model: MODEL,
+        max_tokens: WRITER_MAX_TOKENS,
+        temperature: WRITER_TEMPERATURE,
+        system: [
+          {
+            type: "text",
+            text: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: retryPrompt }],
+      });
+      totalLatency += Date.now() - retryStart;
+      totalInput += retry.usage.input_tokens;
+      totalOutput += retry.usage.output_tokens;
+      const retryBlock = retry.content[0];
+      if (retryBlock && retryBlock.type === "text") {
+        try {
+          let retryContent = parseContent(retryBlock.text);
+          retryContent = deepStripDashes(retryContent);
+          // Only accept retry if it produces a valid bundle
+          const retryUnknownUrls = retryContent.worthKnowing.filter(
+            (w) => !researchUrlSet.has(w.sourceUrl),
+          );
+          if (retryUnknownUrls.length === 0) {
+            content = retryContent;
+          }
+        } catch {
+          // Retry failed — fall through to the validate call below which
+          // will throw with the original invalid-URL error.
+        }
+      }
+    }
+  }
+  // Final validation — if still invalid, this throws (an unrecoverable case).
   validateAgainstResearch(content.worthKnowing, research);
 
   // Worth Knowing distinctness retry: if the writer cited the same story 2-3
