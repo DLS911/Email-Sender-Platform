@@ -304,7 +304,7 @@ async function sendOne(
 ): Promise<string> {
   const fromAddress = process.env.RESEND_FROM_ADDRESS ?? "latte@send.castorabbott.com";
   const result = await resend.emails.send({
-    from: `Mark at Castor Abbott <${fromAddress}>`,
+    from: `Mark <${fromAddress}>`,
     to: [recipient.email],
     subject: rendered.subject,
     html: rendered.html,
