@@ -989,13 +989,18 @@ export async function generateDailyGrindIssue(opts: {
   const recentConcepts = opts.recentConcepts ?? [];
 
   // Research phase backend selection.
-  // - "gemini" (default): Gemini 2.5 Flash + Google Search grounding. Cheapest
-  //   option, hits Google's native index directly, respects site: operators.
-  // - "anthropic": Anthropic Sonnet 4.5 + web_search tool. Higher cost (~10x),
-  //   used as fallback or when explicitly requested.
-  // - "perplexity": only useful for Latte-style consumer content. Empirically
-  //   does not surface advisor industry publications for Daily Grind.
-  const backend = (process.env.RESEARCH_BACKEND ?? "gemini").toLowerCase();
+  // - "anthropic" (DEFAULT): Anthropic Sonnet 4.5 + web_search tool. ~$0.50/call.
+  //   Read-the-content-inline architecture means citations are reliable and
+  //   URLs are real article URLs (not redirect proxies). 5/5 success rate
+  //   in empirical testing 2026-05-19.
+  // - "gemini": Gemini 2.5 Flash + Google Search grounding. Cheaper (~$0.05)
+  //   but topic-dependent — Gemini sometimes returns vertex redirect URLs in
+  //   item.url instead of real article URLs, causing strict-domain-filter
+  //   drops. 1 in 5 usable bundles in empirical testing. Kept as opt-in
+  //   experiment but NOT default.
+  // - "perplexity": only useful for Latte-style consumer content. Does not
+  //   surface advisor industry publications for Daily Grind.
+  const backend = (process.env.RESEARCH_BACKEND ?? "anthropic").toLowerCase();
   let research;
   if (backend === "gemini" && process.env.GOOGLE_API_KEY) {
     const gemOpts: Parameters<typeof runGeminiResearch>[0] = {
