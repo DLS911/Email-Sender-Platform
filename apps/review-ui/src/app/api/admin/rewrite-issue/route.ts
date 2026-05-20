@@ -209,7 +209,13 @@ Return the rewritten JSON object only.`;
       html: rendered.html,
       text_body: rendered.text,
       model: MODEL,
-      meta: { source: "rewrite-issue", source_date: issueDate, tone: "more-contrarian" },
+      generation_meta: {
+        source: "rewrite-issue",
+        sourceDate: issueDate,
+        tone: "more-contrarian",
+        rewriteInputTokens: response.usage.input_tokens,
+        rewriteOutputTokens: response.usage.output_tokens,
+      },
     },
     { onConflict: "issue_date" },
   );
