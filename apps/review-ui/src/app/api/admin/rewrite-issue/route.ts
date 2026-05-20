@@ -199,6 +199,7 @@ Return the rewritten JSON object only.`;
     webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
   });
 
+  const latencyMs = Date.now() - start;
   const { error: upsertErr } = await db.from("daily_grind_issues").upsert(
     {
       issue_date: writeDate,
@@ -209,6 +210,10 @@ Return the rewritten JSON object only.`;
       html: rendered.html,
       text_body: rendered.text,
       model: MODEL,
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      cost_usd: 0,
+      latency_ms: latencyMs,
       generation_meta: {
         source: "rewrite-issue",
         sourceDate: issueDate,
@@ -223,7 +228,6 @@ Return the rewritten JSON object only.`;
     return NextResponse.json({ error: `upsert: ${upsertErr.message}` }, { status: 500 });
   }
 
-  const latencyMs = Date.now() - start;
   return NextResponse.json({
     ok: true,
     sourceDate: issueDate,
