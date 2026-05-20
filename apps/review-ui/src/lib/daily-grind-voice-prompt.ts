@@ -255,3 +255,86 @@ export function getDailyGrindVoiceSystemPrompt(contentType?: string): string {
 // Backward-compat export — the unconditional full voice + structural spec.
 // Callers that don't know the content type up front can use this directly.
 export const DAILY_GRIND_VOICE_SYSTEM_PROMPT = getDailyGrindVoiceSystemPrompt();
+
+/**
+ * Canonical few-shot examples drawn verbatim from the published Castor Abbott
+ * archive (mford4444/castorabbott-website/newsletter/grind/*.html). These are
+ * Mark-approved, production-shipped issues that the writer must imitate.
+ *
+ * Each example shows ONE section at the voice register Mark expects. The
+ * writer prompt embeds these per-section so the writer has concrete patterns
+ * to draw on instead of just abstract voice modules.
+ */
+export const CANONICAL_EXAMPLES = {
+  // The Unspoken — visceral, second-person, scene-anchored, dollar punchline
+  unspoken: [
+    {
+      theme: "centers of influence (12 CPAs, lunch in 2022)",
+      text: `You have a 'centers of influence' strategy. You identified twelve CPAs and three estate attorneys who would be 'perfect referral partners.' You took one to lunch in 2022. They ordered the lobster. You talked about everything except business. They said 'we should definitely do this again.' You have not spoken since. Their contact is still in your CRM tagged 'HOT COI.' You see them at a charity event, make aggressive eye contact, and pretend to take a phone call. That lunch cost you $187 and exactly zero referrals.`,
+    },
+    {
+      theme: "client who calls every market headline (the dog)",
+      text: `You have a client who calls you about every market headline. Every. Single. One. CNBC mentions volatility, your phone rings. Fed hints at anything, your phone rings. Some guy on Twitter posts a chart, your phone rings. You've started screening calls. You've rehearsed the 'stay the course' speech so many times you could do it in your sleep. You probably have. Your spouse has heard it. Your kids have heard it. The dog has heard it. (The dog seems unconvinced about your long-term equity allocation.)`,
+    },
+  ],
+
+  // First Pull — sets up the argument with narrative tension, not stat dumps
+  firstPullOpener: [
+    {
+      theme: "two-character narrative (15-min ritual)",
+      text: `You walk into a prospect meeting. You know your process, your fees, your differentiators. You're ready to present. One problem: you know nothing about them. Meanwhile, the advisor down the street spent 15 minutes on LinkedIn before the call. She noticed the prospect just got promoted. She saw he commented on an article about succession planning. She knows his daughter plays college volleyball because he posted about it last week. Guess who wins that meeting?`,
+    },
+    {
+      theme: "naming the conventional wisdom (niche trap)",
+      text: `Every conference speaker for the last decade has preached the same gospel: find your niche. Serve dentists. Own the tech executive market. Become the divorce specialist. The logic sounds airtight. Specialize, differentiate, dominate. Here's what nobody mentions at those conferences: the math doesn't work for most practices.`,
+    },
+  ],
+
+  // The Flip Reality — 12-20 words, sharp reframe, takes a position
+  flipReality: [
+    `Know their situation cold. Your value proposition is irrelevant until they believe you understand their problem.`,
+    `When everyone owns a niche, the advisor who can serve the whole family becomes the rare one.`,
+    `Always be diagnosing. The close happens naturally when the diagnosis is accurate. Force a close on a bad diagnosis and you inherit a problem client.`,
+  ],
+
+  // Worth Knowing my-take — judgment, not summary. Reframes the news in Mark's voice.
+  myTake: [
+    `This isn't about being 'personal.' It's about proving you're a professional who prepares. Prospects smell a template from three emails away.`,
+    `This is what happens when your only differentiator is price. Smaller firms competing on cost against Vanguard and Schwab is a race to irrelevance. Compete on depth of relationship and planning complexity, or get squeezed out.`,
+    `More households isn't productivity. It's dilution. The advisors growing profitably are getting more selective about who they serve, not less. Capacity without quality is just burnout with better spreadsheets.`,
+    `Having LinkedIn is not a strategy. Having a 15-minute ritual before every meeting is. The gap between 'I use it' and 'I have a system' is where conversions live.`,
+  ],
+
+  // Grounds for Thought — one italic sentence, 12-30 words, non-obvious
+  groundsForThought: [
+    `Prospects don't remember your pitch. They remember whether you bothered to learn their name before asking for their business.`,
+    `It doesn't get easier. You get better.`,
+    `The practice you're building to keep is worth less every year you don't sell it.`,
+  ],
+
+  // Ancient Truth application — concrete metaphor + direct application, NOT preachy
+  ancientTruthApplication: [
+    {
+      verse: `Prepare your work outside; get everything ready for yourself in the field, and after that build your house. — Proverbs 24:27`,
+      application: `The farmer who prepares the field before planting reaps the harvest. The advisor who prepares before the meeting earns the client.`,
+    },
+    {
+      verse: `The prudent sees danger and hides himself, but the simple go on and suffer for it. — Proverbs 27:12`,
+      application: `Advisors who over-specialize in a single demographic risk being blindsided when that niche becomes saturated or obsolete. The prudent build flexibility into their positioning.`,
+    },
+  ],
+
+  // P.S. — one specific question that invites a real reply (not generic)
+  ps: [
+    `I'm building tools for advisors. One question: What's the one task that eats your time but shouldn't? Hit reply. I read every one.`,
+  ],
+
+  // Closing line patterns — landing, no hedging, no apology
+  closingLandings: [
+    `It doesn't get easier. You get better.`,
+    `Most advisors won't do this. That's not a bug. That's why it works for the few who do.`,
+    `The advisors who figure this out keep their best clients. The ones who don't, lose them.`,
+    `Build the kind of practice you'd refer your own family to. Or don't. The market sorts the rest.`,
+    `If you wouldn't say it on a sales call, don't put it in your follow-up email.`,
+  ],
+};

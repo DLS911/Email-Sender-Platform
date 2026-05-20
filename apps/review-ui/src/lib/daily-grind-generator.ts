@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { DAILY_GRIND_VOICE_SYSTEM_PROMPT } from "./daily-grind-voice-prompt";
+import {
+  CANONICAL_EXAMPLES,
+  getDailyGrindVoiceSystemPrompt,
+} from "./daily-grind-voice-prompt";
 import { RESEARCH_SYSTEM_PROMPT } from "./daily-grind-research-prompt";
 import { runPerplexityResearch } from "./daily-grind-research-perplexity";
 import { runGeminiResearch } from "./daily-grind-research-gemini";
@@ -555,34 +558,313 @@ function verseConflictsWithRecent(picked: string, recent: string[]): boolean {
 function buildWriterUserPrompt(
   issueDate: string,
   research: ResearchBundle,
+  contentType: DailyGrindContentType,
   _recentTopics: string[],
   _recentVerses: string[],
   _bannedVerses: string[],
   _recentConcepts: string[] = [],
 ): string {
-  // Intentionally minimal. The voice modules in the system prompt teach
-  // Mark's voice in 39K tokens of careful writing; the writer's attention
-  // should go there, not toward defending against a long list of negative
-  // constraints. Headline patterns, verse repetition, URL duplication,
-  // banned vocabulary, em-dashes — every one of those is enforced
-  // post-process (regex check / Haiku rewrite / validator retry). Recent
-  // headlines and concepts are already passed to the research phase, so
-  // research returns fresh material instead of asking the writer to
-  // distance itself from old material. The writer just needs to write.
-  return [
-    `Today is ${issueDate}. Write today's Daily Grind in Mark's voice.`,
-    "",
-    "Research bundle (use these for Worth Knowing and any cited statistics; everything else draws on Mark's pattern recognition):",
-    "",
-    JSON.stringify(research, null, 2),
-    "",
-    "Return the JSON object specified in the system prompt. No preamble, no fences.",
-  ].join("\n");
+  // Heavy per-issue activation. Voice modules teach Mark's voice broadly in
+  // the system prompt; this user prompt PRIMES specific sections with the
+  // canonical archive examples so the writer has concrete patterns to imitate
+  // instead of defaulting to competent-but-generic financial-analyst prose.
+  const sections: string[] = [];
+
+  sections.push(
+    `Today is ${issueDate}. Write today's Daily Grind in Mark's voice.\n\nContent type for this issue: ${contentType.toUpperCase()}. Use the ${contentType} structure exactly — Main Content must follow the structure spec for ${contentType} in the system prompt, not any other content type.`,
+  );
+
+  sections.push(
+    `# RESEARCH BUNDLE\n\nUse these for Worth Knowing and any cited statistics. Everything else (The Unspoken, The Flip, Main Content commentary, Grounds for Thought, Ancient Truth) draws on Mark's pattern recognition — no citations needed there.\n\n${JSON.stringify(research, null, 2)}`,
+  );
+
+  // The Unspoken — show the writer EXACTLY what production-shipped looks like
+  sections.push(
+    `# THE UNSPOKEN — write at this caliber\n\nThese are real published Castor Abbott Unspokens. Notice:\n- Specific named counts (twelve CPAs, three CPAs, eighteen months)\n- A SCENE (lunch, charity event, phone call, dog)\n- Dollar-amount punchline tied to the failure ($187, $847)\n- Wry self-recognition (reader laughs and winces)\n\nExample 1 (theme: ${CANONICAL_EXAMPLES.unspoken[0]!.theme}):\n"${CANONICAL_EXAMPLES.unspoken[0]!.text}"\n\nExample 2 (theme: ${CANONICAL_EXAMPLES.unspoken[1]!.theme}):\n"${CANONICAL_EXAMPLES.unspoken[1]!.text}"\n\nProduce work at this level. The Unspoken is a SHORT STORY with a financial backdrop, not a financial analysis with personality bolted on.`,
+  );
+
+  // First Pull — show the opening pattern (narrative tension, not stat dump)
+  sections.push(
+    `# FIRST PULL — write at this caliber\n\nOpening paragraphs from real Castor Abbott First Pulls. Notice each opens with either (a) a 2-character contrast/narrative, or (b) naming conventional wisdom about to be flipped. Neither opens with a stat dump.\n\nExample 1 (${CANONICAL_EXAMPLES.firstPullOpener[0]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[0]!.text}"\n\nExample 2 (${CANONICAL_EXAMPLES.firstPullOpener[1]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[1]!.text}"\n\nYour First Pull should ARGUE or NARRATE, not summarize.`,
+  );
+
+  // The Flip Reality — 12-20 words, sharp reframe
+  sections.push(
+    `# THE FLIP REALITY — keep it 12-20 words\n\nReal Mark Flip Realities are compressed reframes, not analytical explanations:\n${CANONICAL_EXAMPLES.flipReality.map((f) => `- "${f}"`).join("\n")}\n\nIf yours runs over 25 words, you're explaining instead of reframing. Cut it.`,
+  );
+
+  // Worth Knowing my-take — judgment, not summary
+  sections.push(
+    `# WORTH KNOWING myTake — judgment, not summary\n\nReal Mark my-takes don't summarize the article. They REFRAME it as a position on what advisors are doing wrong or right:\n${CANONICAL_EXAMPLES.myTake.map((m) => `- "${m}"`).join("\n")}\n\nEach myTake should NAME a specific failure mode or contrarian read. 20-40 words.`,
+  );
+
+  // Grounds for Thought
+  sections.push(
+    `# GROUNDS FOR THOUGHT — one italic sentence, non-obvious\n\nExamples:\n${CANONICAL_EXAMPLES.groundsForThought.map((g) => `- "${g}"`).join("\n")}`,
+  );
+
+  // Ancient Truth application — concrete metaphor, not preachy
+  sections.push(
+    `# ANCIENT TRUTH application — concrete, NOT preachy\n\nExample 1:\nVerse: "${CANONICAL_EXAMPLES.ancientTruthApplication[0]!.verse}"\nApplication: "${CANONICAL_EXAMPLES.ancientTruthApplication[0]!.application}"\n\nExample 2:\nVerse: "${CANONICAL_EXAMPLES.ancientTruthApplication[1]!.verse}"\nApplication: "${CANONICAL_EXAMPLES.ancientTruthApplication[1]!.application}"\n\nNotice: a concrete metaphor (farmer / blindsided) + direct application to advisor practice. Two sentences. No "as believers..." preaching.`,
+  );
+
+  // Closing landings + P.S. format
+  sections.push(
+    `# CLOSING LANDINGS — Main Content closing must land somewhere NEW\n\nReal closes from the archive (notice: zero hedging, no softening, no apology, lands a position):\n${CANONICAL_EXAMPLES.closingLandings.map((c) => `- "${c}"`).join("\n")}\n\nThe Closing must NOT restate The Number. Land somewhere new — a directive, a fresh framing, a twist.`,
+  );
+
+  // The activation reminder — final check the writer runs through
+  sections.push(
+    `# BEFORE YOU RETURN — voice activation checklist\n\n1. The Unspoken has a physical scene + dollar punchline (not just stats)\n2. Each section adds a NEW angle — no single theme word appears across 3+ sections\n3. The Flip Reality is 12-20 words\n4. First Pull opens with narrative/argument, not a stat dump\n5. At least 3 sentences in the body run under 8 words for rhythm\n6. The Closing lands somewhere The Number didn't already cover\n7. Ancient Truth uses a concrete metaphor — not "as believers" or "trust in His plan"\n\nReturn the JSON object specified in the system prompt. No preamble, no fences.`,
+  );
+
+  return sections.join("\n\n");
 }
 
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 const VERSE_SWAP_MAX_TOKENS = 800;
 const HEADLINE_REWRITE_MAX_TOKENS = 300;
+const CONTENT_TYPE_PICKER_MAX_TOKENS = 200;
+const VOICE_REVIEW_MAX_TOKENS = 500;
+
+/**
+ * Pick the best content-type for today's issue BEFORE the writer runs.
+ * Lets us load only the relevant content-type voice module into the system
+ * prompt instead of all 5 at once. ~$0.002 per call.
+ */
+async function pickContentType(
+  client: Anthropic,
+  research: ResearchBundle,
+  recentTopics: string[],
+): Promise<{ contentType: DailyGrindContentType; reason: string; inputTokens: number; outputTokens: number; latencyMs: number }> {
+  const userPrompt = `Pick the best content type for today's Daily Grind issue, based on the research bundle.
+
+Research items available:
+${research.items.map((i) => `- ${i.category}: ${i.title} (${i.source})`).join("\n")}
+
+Recently covered headlines (avoid same content type as the last 1-2):
+${recentTopics.slice(0, 5).map((t) => `- ${t}`).join("\n") || "(none)"}
+
+Content type options:
+- tactic: specific implementable move ("how to do X right now"). Best when research has a concrete operational angle.
+- take: contrarian position challenging conventional wisdom. Best when research lets you flip an accepted norm.
+- story: narrative about a specific advisor scenario. Best when research suggests a character/situation arc.
+- rant: heated piece naming bad industry behavior. Best when research exposes harm/exploitation.
+- special: technical deep-dive (compliance, ops, tax, regulatory). Best when research is procedural / requires precision.
+
+Return ONLY this JSON:
+{ "contentType": "tactic" | "take" | "story" | "rant" | "special", "reason": "1 short sentence" }`;
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: CONTENT_TYPE_PICKER_MAX_TOKENS,
+    temperature: 0.3,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    throw new Error("content_type_picker: missing text block");
+  }
+  let parsed: Record<string, unknown> | undefined;
+  try {
+    const json = extractJsonObject(block.text);
+    parsed = JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    // Default to "take" if parsing fails — most flexible content type
+  }
+  const raw = typeof parsed?.contentType === "string" ? parsed.contentType.toLowerCase() : "take";
+  const valid: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special"];
+  const contentType: DailyGrindContentType = (valid.includes(raw as DailyGrindContentType)
+    ? raw
+    : "take") as DailyGrindContentType;
+  const reason = typeof parsed?.reason === "string" ? parsed.reason : "fallback default";
+  return {
+    contentType,
+    reason,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+  };
+}
+
+/**
+ * Post-generation voice review pass. Scans the generated content for
+ * hollowness markers Mark flagged in real feedback:
+ *  - The Unspoken lacks scene/dollar-anchor (just stats, no story)
+ *  - One theme word repeated across 3+ sections (mode-collapse)
+ *  - The Closing restates The Number with no new angle
+ *  - Sentence rhythm uniform (no short punch lines)
+ *
+ * Returns a pass/fail + specific defects. If failed, caller runs the
+ * rewrite-to-sharpen pass. ~$0.005 per call.
+ */
+async function voiceReview(
+  client: Anthropic,
+  content: DailyGrindContent,
+): Promise<{
+  passed: boolean;
+  score: number;
+  defects: string[];
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = `Review this Daily Grind issue against Mark's voice bar. Mark's hallmarks: scene-anchored Unspoken with dollar punchline, sharp 12-20 word Flip reframe, First Pull with narrative tension (not stat dump), each section adds a NEW angle (no theme-word repetition), Closing lands somewhere The Number didn't already say, sentence rhythm varies (short punches + longer development).
+
+ISSUE TO REVIEW:
+- Headline: ${content.headline}
+- The Number: ${content.openingTrifecta.theNumber.stat} — ${content.openingTrifecta.theNumber.description.slice(0, 200)}
+- The Unspoken: ${content.openingTrifecta.theUnspoken}
+- The Flip Reality: ${content.openingTrifecta.theFlip.reality}
+- First Pull para 1: ${content.firstPull.paragraphs[0]}
+- Main Content closing: ${content.mainContent.closing}
+- Grounds for Thought: ${content.groundsForThought}
+
+Check for these specific defects:
+1. hollow_unspoken: Unspoken has stats/analysis but NO physical scene (no lunch, no scene-detail, no dollar punchline tied to a specific moment)
+2. theme_repetition: same theme word (e.g. "the gap") appears across 3+ sections
+3. closing_repeats_number: Closing restates the same claim as The Number with no new angle
+4. flip_too_long: The Flip Reality is over 25 words OR sounds analytical instead of punchy
+5. no_position: First Pull para 1 is a stat dump with no narrative or argument
+6. uniform_rhythm: all sentences in the same length range (no short punch lines under 8 words)
+
+Return ONLY this JSON:
+{
+  "score": <1-10>,
+  "passed": <true if score >= 7 AND no critical defects>,
+  "defects": [<list of defect keys from above that fired>]
+}`;
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: VOICE_REVIEW_MAX_TOKENS,
+    temperature: 0.1,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return {
+      passed: false,
+      score: 0,
+      defects: ["review_failed_no_text"],
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  let parsed: Record<string, unknown> | undefined;
+  try {
+    parsed = JSON.parse(extractJsonObject(block.text)) as Record<string, unknown>;
+  } catch {
+    return {
+      passed: false,
+      score: 0,
+      defects: ["review_parse_failed"],
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  const score = typeof parsed.score === "number" ? parsed.score : 0;
+  const passed = parsed.passed === true;
+  const defects = Array.isArray(parsed.defects)
+    ? parsed.defects.filter((d): d is string => typeof d === "string")
+    : [];
+  return {
+    passed,
+    score,
+    defects,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+  };
+}
+
+/**
+ * If voice review fails, run a Sonnet rewrite pass to sharpen the content
+ * in Mark's voice. Reuses the same prompt logic as the admin rewrite endpoint
+ * but in-pipeline. ~$0.05 per call. Triggered only when voiceReview flags defects.
+ */
+const VOICE_SHARPEN_SYSTEM = `You sharpen an existing Daily Grind issue in Mark's voice. Mark's voice is direct, contrarian, scene-anchored, specific. The reader is an independent financial advisor.
+
+Preserve EXACTLY:
+- All facts, numbers, statistics
+- All sourceUrls and source names in worthKnowing
+- The ancientTruth verse and reference (keep the verse text and book reference identical)
+- The contentType
+- The JSON schema
+
+Sharpen these specific defects (only address the ones in the defects list provided):
+- hollow_unspoken: Rewrite the Unspoken to include a SPECIFIC SCENE — a named lunch order, a CRM tag, a charity-event moment, a physical detail — plus a dollar-amount punchline tied to that scene. Mark's Unspokens look like the lobster lunch in 2022 / the COI named "HOT COI" / the dog hearing the same speech.
+- theme_repetition: Find the theme word/phrase repeated across 3+ sections and rewrite the lower-priority instances with fresh language. Each section should add a NEW angle, not restate the thesis.
+- closing_repeats_number: Rewrite the Main Content closing to land somewhere the Number paragraph didn't already say — a directive, a new twist, or a fresh framing.
+- flip_too_long: Compress The Flip Reality to 12-20 words. One sharp reframe.
+- no_position: Rewrite First Pull para 1 to either (a) name conventional wisdom and signal the flip, or (b) tell a 2-character narrative with contrast. Not a stat dump.
+- uniform_rhythm: Add at least 3 sentences under 8 words somewhere in the body for impact.
+
+Do NOT:
+- Add em dashes (use commas, periods, "...")
+- Use AI vocabulary (crucial, robust, comprehensive, delve, leverage)
+- Hedge ("of course this depends," "your mileage may vary")
+
+Return the FULL revised JSON object with the same schema. No preamble, no fences.`;
+
+async function voiceSharpenRewrite(
+  client: Anthropic,
+  content: DailyGrindContent,
+  defects: string[],
+): Promise<{
+  content: DailyGrindContent | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = `Defects to address: ${defects.join(", ")}
+
+Original issue JSON:
+${JSON.stringify(content, null, 2)}
+
+Return the revised JSON only.`;
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: WRITER_MAX_TOKENS,
+    temperature: 0.55,
+    system: VOICE_SHARPEN_SYSTEM,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return {
+      content: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  try {
+    const revised = parseContent(block.text);
+    return {
+      content: deepStripDashes(revised),
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  } catch {
+    return {
+      content: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+}
 
 // Patterns the writer keeps mode-collapsing onto. If a generated headline
 // matches any of these, we rewrite via Haiku rather than ship a weak hook.
@@ -738,6 +1020,7 @@ async function runWriterPhase(
   recentTopics: string[],
   recentVerses: string[],
   recentConcepts: string[],
+  contentType: DailyGrindContentType,
   pipeline: PipelineStageRecord[] = [],
 ): Promise<{
   content: DailyGrindContent;
@@ -748,23 +1031,28 @@ async function runWriterPhase(
   const userPrompt = buildWriterUserPrompt(
     issueDate,
     research,
+    contentType,
     recentTopics,
     recentVerses,
     [],
     recentConcepts,
   );
 
+  // Load ONLY the content-type-specific voice module via getDailyGrindVoiceSystemPrompt(contentType).
+  // Previously the const DAILY_GRIND_VOICE_SYSTEM_PROMPT was used, which
+  // composed ALL 5 content-type modules into a single ~51K-token prompt.
+  // That left the writer guessing which structure to use. Now the writer sees
+  // only the relevant content-type spec for this issue.
+  const contentTypeVoicePrompt = getDailyGrindVoiceSystemPrompt(contentType);
   const start = Date.now();
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: WRITER_MAX_TOKENS,
     temperature: WRITER_TEMPERATURE,
-    // Cache the large voice modules block. 5-min TTL — cache hits save
-    // 90% on input tokens for any closely-timed retries or batch runs.
     system: [
       {
         type: "text",
-        text: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+        text: contentTypeVoicePrompt,
         cache_control: { type: "ephemeral" },
       },
     ],
@@ -822,7 +1110,7 @@ Pick from those for the Worth Knowing slots. Use the URL verbatim.)`;
         system: [
           {
             type: "text",
-            text: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+            text: contentTypeVoicePrompt,
             cache_control: { type: "ephemeral" },
           },
         ],
@@ -891,7 +1179,7 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         system: [
           {
             type: "text",
-            text: DAILY_GRIND_VOICE_SYSTEM_PROMPT,
+            text: contentTypeVoicePrompt,
             cache_control: { type: "ephemeral" },
           },
         ],
@@ -1224,6 +1512,36 @@ export async function generateDailyGrindIssue(opts: {
       },
     });
   }
+  // STAGE: content-type picker — decide before writer runs so the system
+  // prompt loads only the relevant content-type spec.
+  const pickStart = Date.now();
+  let chosenContentType: DailyGrindContentType = "take";
+  let contentTypeReason = "default fallback";
+  let contentTypePickerCost = { input: 0, output: 0, latency: 0 };
+  try {
+    const picked = await pickContentType(client, research.bundle, recentTopics);
+    chosenContentType = picked.contentType;
+    contentTypeReason = picked.reason;
+    contentTypePickerCost = {
+      input: picked.inputTokens,
+      output: picked.outputTokens,
+      latency: picked.latencyMs,
+    };
+    pipeline.push({
+      name: "content_type_picker",
+      status: "success",
+      latencyMs: Date.now() - pickStart,
+      notes: `picked ${chosenContentType}: ${contentTypeReason}`,
+    });
+  } catch (err) {
+    pipeline.push({
+      name: "content_type_picker",
+      status: "warning",
+      latencyMs: Date.now() - pickStart,
+      notes: `picker failed, defaulting to "take": ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   const writerStart = Date.now();
   const writer = await runWriterPhase(
     client,
@@ -1232,29 +1550,86 @@ export async function generateDailyGrindIssue(opts: {
     recentTopics,
     recentVerses,
     recentConcepts,
+    chosenContentType,
     pipeline,
   );
   pipeline.push({
     name: "writer",
     status: "success",
     latencyMs: Date.now() - writerStart,
-    notes: `headline="${writer.content.headline}"`,
+    notes: `headline="${writer.content.headline}", contentType=${chosenContentType}`,
     data: {
       inputTokens: writer.inputTokens,
       outputTokens: writer.outputTokens,
     },
   });
 
+  // STAGE: voice review + conditional sharpen rewrite
+  // Cheap Haiku scoring pass catches hollow-voice drift the writer's
+  // post-process validators don't see (the Unspoken without a scene, theme
+  // mode-collapse across sections, closing that restates The Number). If
+  // the review flags defects, run one Sonnet rewrite to sharpen.
+  let finalContent = writer.content;
+  let voiceReviewCost = { input: 0, output: 0, latency: 0 };
+  let sharpenCost = { input: 0, output: 0, latency: 0 };
+  try {
+    const reviewStart = Date.now();
+    const review = await voiceReview(client, finalContent);
+    voiceReviewCost = {
+      input: review.inputTokens,
+      output: review.outputTokens,
+      latency: review.latencyMs,
+    };
+    pipeline.push({
+      name: "voice_review",
+      status: review.passed ? "success" : "warning",
+      latencyMs: Date.now() - reviewStart,
+      notes: `score=${review.score}/10, defects=[${review.defects.join(", ") || "none"}]`,
+    });
+
+    if (!review.passed && review.defects.length > 0) {
+      const sharpenStart = Date.now();
+      const sharpened = await voiceSharpenRewrite(client, finalContent, review.defects);
+      sharpenCost = {
+        input: sharpened.inputTokens,
+        output: sharpened.outputTokens,
+        latency: sharpened.latencyMs,
+      };
+      if (sharpened.content) {
+        finalContent = sharpened.content;
+        pipeline.push({
+          name: "voice_sharpen",
+          status: "retried",
+          latencyMs: Date.now() - sharpenStart,
+          notes: `addressed defects: ${review.defects.join(", ")}`,
+        });
+      } else {
+        pipeline.push({
+          name: "voice_sharpen",
+          status: "warning",
+          latencyMs: Date.now() - sharpenStart,
+          notes: `sharpen attempted but parse failed, shipping original`,
+        });
+      }
+    }
+  } catch (err) {
+    pipeline.push({
+      name: "voice_review",
+      status: "warning",
+      notes: `review skipped due to error: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   const totalCost = estimateCostUsd(
     research.inputTokens,
     research.outputTokens,
     research.webSearches,
-    writer.inputTokens,
-    writer.outputTokens,
+    writer.inputTokens + contentTypePickerCost.input + voiceReviewCost.input + sharpenCost.input,
+    writer.outputTokens + contentTypePickerCost.output + voiceReviewCost.output + sharpenCost.output,
   );
 
   return {
-    content: writer.content,
+    content: finalContent,
     research: research.bundle,
     pipeline,
     meta: {
@@ -1266,7 +1641,8 @@ export async function generateDailyGrindIssue(opts: {
       writerOutputTokens: writer.outputTokens,
       totalCostUsd: totalCost,
       researchLatencyMs: research.latencyMs,
-      writerLatencyMs: writer.latencyMs,
+      writerLatencyMs:
+        writer.latencyMs + contentTypePickerCost.latency + voiceReviewCost.latency + sharpenCost.latency,
       issueDate: opts.issueDate,
       ...("funnel" in research && research.funnel ? { researchFunnel: research.funnel } : {}),
     },
