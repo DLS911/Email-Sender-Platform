@@ -42,6 +42,14 @@ export type CronResult = {
   issueDate: string | null;
 };
 
+export type PipelineStage = {
+  name: string;
+  status: "success" | "skipped" | "failed" | "retried" | "warning";
+  latencyMs?: number;
+  notes?: string;
+  data?: Record<string, unknown>;
+};
+
 export type GenerateResult = {
   triggeredAtUtc: string;
   targetDate: string;
@@ -52,6 +60,12 @@ export type GenerateResult = {
   latencyMs: number | null;
   brainConceptsPersisted: number | null;
   error: string | null;
+  // Pipeline reporting: one entry per stage of the generation process so we
+  // can see whether each step ran, was skipped, was retried, or failed.
+  // Stages: cache_check, memory_load, research, writer, validate_research,
+  // worth_knowing_url_retry, worth_knowing_dupe_retry, headline_check,
+  // verse_swap, html_render, persist, brain_extract.
+  pipeline?: PipelineStage[];
   // Research bundle stats — exposed so we can verify research is firing
   // properly and supplying enough distinct sources for the writer. If
   // researchItemCount is low or distinctSources < researchItemCount, that's
@@ -306,23 +320,48 @@ export async function runDailyGrindGenerate(
     error: null,
   };
 
+  const pipeline: PipelineStage[] = [];
+  result.pipeline = pipeline;
+
   try {
     const db = getServiceRoleClient();
 
+    // Stage: cache_check
+    const cacheStart = Date.now();
     if (!opts.regenerate) {
       const existing = await loadCachedIssue(db, targetDate);
       if (existing) {
+        pipeline.push({
+          name: "cache_check",
+          status: "success",
+          latencyMs: Date.now() - cacheStart,
+          notes: `cache hit, reusing existing issue (skipping all downstream stages)`,
+        });
         result.reusedExisting = true;
         result.headline = existing.headline;
         return result;
       }
     }
+    pipeline.push({
+      name: "cache_check",
+      status: "success",
+      latencyMs: Date.now() - cacheStart,
+      notes: opts.regenerate ? "regenerate=1, bypassing cache" : "cache miss, proceeding to generation",
+    });
 
+    // Stage: memory_load
+    const memStart = Date.now();
     const [recentHeadlines, recentVerses, recentConcepts] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
       loadRecentConceptSummaries(db, 80),
     ]);
+    pipeline.push({
+      name: "memory_load",
+      status: "success",
+      latencyMs: Date.now() - memStart,
+      notes: `headlines=${recentHeadlines.length}, verses=${recentVerses.length}, concepts=${recentConcepts.length}`,
+    });
 
     const start = Date.now();
     const issue = await generateDailyGrindIssue(
@@ -341,12 +380,34 @@ export async function runDailyGrindGenerate(
             recentConcepts,
           },
     );
+    // Merge inner-pipeline records (research, writer, validators, retries)
+    // into the cron-level pipeline so the full chain is visible in one array.
+    for (const stage of issue.pipeline) {
+      pipeline.push(stage as PipelineStage);
+    }
+
+    // Stage: html_render
+    const renderStart = Date.now();
     const renderedOutput = renderDailyGrindHtml(issue.content, {
       issueDate: targetDate,
       unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",
       webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
     });
+    pipeline.push({
+      name: "html_render",
+      status: "success",
+      latencyMs: Date.now() - renderStart,
+    });
+
+    // Stage: persist
+    const persistStart = Date.now();
     await persistIssue(db, targetDate, issue, renderedOutput);
+    pipeline.push({
+      name: "persist",
+      status: "success",
+      latencyMs: Date.now() - persistStart,
+      notes: `wrote daily_grind_issues row for ${targetDate}`,
+    });
 
     result.generated = true;
     result.headline = issue.content.headline;
@@ -364,6 +425,8 @@ export async function runDailyGrindGenerate(
       result.researchFunnel = issue.meta.researchFunnel;
     }
 
+    // Stage: brain_extract
+    const brainStart = Date.now();
     try {
       const brain = await extractAndPersistConcepts({
         db,
@@ -371,8 +434,21 @@ export async function runDailyGrindGenerate(
         issueDate: targetDate,
       });
       result.brainConceptsPersisted = brain.conceptsPersisted;
+      pipeline.push({
+        name: "brain_extract",
+        status: "success",
+        latencyMs: Date.now() - brainStart,
+        notes: `extracted ${brain.conceptsPersisted} concept(s) for future memory`,
+      });
     } catch (err) {
-      console.error("brain.extract_failed", err instanceof Error ? err.message : String(err));
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("brain.extract_failed", errMsg);
+      pipeline.push({
+        name: "brain_extract",
+        status: "failed",
+        latencyMs: Date.now() - brainStart,
+        notes: `error: ${errMsg.slice(0, 200)}`,
+      });
     }
 
     return result;

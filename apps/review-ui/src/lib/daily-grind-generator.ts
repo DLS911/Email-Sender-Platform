@@ -38,9 +38,18 @@ export type ResearchFunnel = {
   survived: number;
 };
 
+export type PipelineStageRecord = {
+  name: string;
+  status: "success" | "skipped" | "failed" | "retried" | "warning";
+  latencyMs?: number;
+  notes?: string;
+  data?: Record<string, unknown>;
+};
+
 export type DailyGrindIssue = {
   content: DailyGrindContent;
   research: ResearchBundle;
+  pipeline: PipelineStageRecord[];
   meta: {
     model: string;
     researchInputTokens: number;
@@ -729,6 +738,7 @@ async function runWriterPhase(
   recentTopics: string[],
   recentVerses: string[],
   recentConcepts: string[],
+  pipeline: PipelineStageRecord[] = [],
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
@@ -783,6 +793,13 @@ async function runWriterPhase(
   const invalidUrlIndices = content.worthKnowing
     .map((w, i) => (researchUrlSet.has(w.sourceUrl) ? -1 : i))
     .filter((i) => i >= 0);
+  if (invalidUrlIndices.length === 0) {
+    pipeline.push({
+      name: "worth_knowing_url_check",
+      status: "success",
+      notes: "all 3 sourceUrls match research items",
+    });
+  }
   if (invalidUrlIndices.length > 0) {
     const goodUrls = new Set(
       content.worthKnowing
@@ -815,6 +832,7 @@ Pick from those for the Worth Knowing slots. Use the URL verbatim.)`;
       totalInput += retry.usage.input_tokens;
       totalOutput += retry.usage.output_tokens;
       const retryBlock = retry.content[0];
+      let retrySucceeded = false;
       if (retryBlock && retryBlock.type === "text") {
         try {
           let retryContent = parseContent(retryBlock.text);
@@ -825,12 +843,20 @@ Pick from those for the Worth Knowing slots. Use the URL verbatim.)`;
           );
           if (retryUnknownUrls.length === 0) {
             content = retryContent;
+            retrySucceeded = true;
           }
         } catch {
           // Retry failed — fall through to the validate call below which
           // will throw with the original invalid-URL error.
         }
       }
+      pipeline.push({
+        name: "worth_knowing_url_check",
+        status: retrySucceeded ? "retried" : "warning",
+        notes: retrySucceeded
+          ? `writer hallucinated ${invalidUrlIndices.length} URL(s); retry produced valid bundle`
+          : `writer hallucinated ${invalidUrlIndices.length} URL(s); retry did not recover`,
+      });
     }
   }
   // Final validation — if still invalid, this throws (an unrecoverable case).
@@ -842,6 +868,13 @@ Pick from those for the Worth Knowing slots. Use the URL verbatim.)`;
   // free of negative-constraint noise in the main prompt while still
   // guaranteeing 3 distinct stories ship.
   const dupes = findDuplicateSourceUrls(content.worthKnowing);
+  if (dupes.length === 0) {
+    pipeline.push({
+      name: "worth_knowing_distinctness",
+      status: "success",
+      notes: "all 3 sourceUrls distinct",
+    });
+  }
   if (dupes.length > 0) {
     const usedUrls = new Set(content.worthKnowing.map((w) => w.sourceUrl));
     const unused = research.items.filter((r) => !usedUrls.has(r.url));
@@ -868,6 +901,7 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
       totalInput += retry.usage.input_tokens;
       totalOutput += retry.usage.output_tokens;
       const retryBlock = retry.content[0];
+      let dupeRetrySucceeded = false;
       if (retryBlock && retryBlock.type === "text") {
         try {
           let retryContent = parseContent(retryBlock.text);
@@ -875,12 +909,20 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
           validateAgainstResearch(retryContent.worthKnowing, research);
           if (findDuplicateSourceUrls(retryContent.worthKnowing).length === 0) {
             content = retryContent;
+            dupeRetrySucceeded = true;
           }
         } catch {
           // Retry parse failed — keep the original (with dupes). Better to
           // ship the issue with one repeated URL than fail the whole send.
         }
       }
+      pipeline.push({
+        name: "worth_knowing_distinctness",
+        status: dupeRetrySucceeded ? "retried" : "warning",
+        notes: dupeRetrySucceeded
+          ? `writer used ${dupes.length} duplicate URL(s); retry produced distinct bundle`
+          : `writer used ${dupes.length} duplicate URL(s); retry did not recover, shipping with duplicates`,
+      });
     }
   }
 
@@ -889,11 +931,21 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
   // ship a weak/repetitive hook. Up to 3 attempts before we accept whatever
   // we have to avoid a generation failure on a recoverable issue.
   const headlineBan = headlineBanMatch(content.headline);
+  if (!headlineBan) {
+    pipeline.push({
+      name: "headline_check",
+      status: "success",
+      notes: `headline does not match any banned pattern: "${content.headline}"`,
+    });
+  }
   if (headlineBan) {
     const contextSummary = content.firstPull.paragraphs[0] ?? content.headline;
+    const originalHeadline = content.headline;
     let rewritten: string | null = null;
     let bannedPattern = headlineBan;
+    let headlineAttempts = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
+      headlineAttempts++;
       const result = await rewriteBannedHeadline(
         client,
         issueDate,
@@ -914,15 +966,37 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
     }
     if (rewritten) {
       content = deepStripDashes({ ...content, headline: rewritten });
+      pipeline.push({
+        name: "headline_check",
+        status: "retried",
+        notes: `original "${originalHeadline}" matched ${headlineBan.name}; Haiku rewrite (${headlineAttempts} attempts) → "${rewritten}"`,
+      });
+    } else {
+      pipeline.push({
+        name: "headline_check",
+        status: "warning",
+        notes: `original "${originalHeadline}" matched ${headlineBan.name}; ${headlineAttempts} rewrites also matched, shipping original`,
+      });
     }
     // If all 3 rewrites still matched a banned pattern, ship the original
     // rather than fail the issue — at least the rest of the content is good.
   }
 
   if (
+    recentVerses.length === 0 ||
+    !verseConflictsWithRecent(content.ancientTruth.reference, recentVerses)
+  ) {
+    pipeline.push({
+      name: "verse_swap",
+      status: "skipped",
+      notes: `verse "${content.ancientTruth.reference}" not in ban list (${recentVerses.length} recent verses tracked)`,
+    });
+  }
+  if (
     recentVerses.length > 0 &&
     verseConflictsWithRecent(content.ancientTruth.reference, recentVerses)
   ) {
+    const originalVerse = content.ancientTruth.reference;
     const banned = [...recentVerses, content.ancientTruth.reference];
     // Escalate temperature on each retry to shake Haiku out of mode-collapse
     // when the ban list is large. From attempt 3 onward, also force a
@@ -959,7 +1033,17 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
       console.warn(
         `[daily-grind] verse swap exhausted after ${temps.length} attempts — shipping original verse "${content.ancientTruth.reference}". Banned candidates: ${banned.join(", ")}`,
       );
+      pipeline.push({
+        name: "verse_swap",
+        status: "warning",
+        notes: `"${originalVerse}" in ban list; ${temps.length} Haiku swaps also picked banned verses, shipping original`,
+      });
     } else {
+      pipeline.push({
+        name: "verse_swap",
+        status: "retried",
+        notes: `"${originalVerse}" in ban list → Haiku picked "${swap.reference}"`,
+      });
       content.ancientTruth = deepStripDashes({
         verse: swap.verse,
         reference: swap.reference,
@@ -987,6 +1071,7 @@ export async function generateDailyGrindIssue(opts: {
   const recentTopics = opts.recentTopics ?? [];
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
+  const pipeline: PipelineStageRecord[] = [];
 
   // Research phase backend selection.
   // - "anthropic" (DEFAULT): Anthropic Sonnet 4.5 + web_search tool. ~$0.50/call.
@@ -1126,7 +1211,20 @@ export async function generateDailyGrindIssue(opts: {
     console.log(
       `[daily-grind][research] items=${research.bundle.items.length} distinctSources=${distinctSources.size} distinctUrls=${distinctUrls.size} sources=[${Array.from(distinctSources).join(", ")}]`,
     );
+    pipeline.push({
+      name: "research",
+      status: "success",
+      latencyMs: research.latencyMs,
+      notes: `backend=${backend}, items=${research.bundle.items.length}, distinctSources=${distinctSources.size}`,
+      data: {
+        backend,
+        itemCount: research.bundle.items.length,
+        distinctSources: distinctSources.size,
+        sources: Array.from(distinctSources),
+      },
+    });
   }
+  const writerStart = Date.now();
   const writer = await runWriterPhase(
     client,
     opts.issueDate,
@@ -1134,7 +1232,18 @@ export async function generateDailyGrindIssue(opts: {
     recentTopics,
     recentVerses,
     recentConcepts,
+    pipeline,
   );
+  pipeline.push({
+    name: "writer",
+    status: "success",
+    latencyMs: Date.now() - writerStart,
+    notes: `headline="${writer.content.headline}"`,
+    data: {
+      inputTokens: writer.inputTokens,
+      outputTokens: writer.outputTokens,
+    },
+  });
 
   const totalCost = estimateCostUsd(
     research.inputTokens,
@@ -1147,6 +1256,7 @@ export async function generateDailyGrindIssue(opts: {
   return {
     content: writer.content,
     research: research.bundle,
+    pipeline,
     meta: {
       model: MODEL,
       researchInputTokens: research.inputTokens,
