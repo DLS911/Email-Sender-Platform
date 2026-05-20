@@ -318,9 +318,12 @@ export async function runGeminiResearch(opts: {
       droppedBareDomain++;
       continue;
     }
-    // Validate URL is from approved advisor domain (or matches a grounding citation)
-    const inGrounding = rawCitations.some((c) => c === url || c.includes(url) || url.includes(c));
-    if (!isApprovedDomain(url) && !inGrounding) {
+    // STRICT: items must come from approved advisor publications, period.
+    // The previous "OR in groundingMetadata" fallback let in tech vendors
+    // and consulting blogs (Atlant Security, E-N Computers, SoftPak) when
+    // Gemini's grounding pulled them — same off-topic problem Perplexity
+    // had with The Mary Sue / CBS News. No exceptions: approved domain or drop.
+    if (!isApprovedDomain(url)) {
       droppedDeadUrl++;
       continue;
     }

@@ -1004,7 +1004,7 @@ export async function generateDailyGrindIssue(opts: {
       recentConcepts,
     };
     if (opts.topicHint) gemOpts.topicHint = opts.topicHint;
-    let lastErr: unknown = null;
+    let lastGemErr: unknown = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const gem = await runGeminiResearch(gemOpts);
@@ -1018,15 +1018,33 @@ export async function generateDailyGrindIssue(opts: {
         };
         break;
       } catch (err) {
-        lastErr = err;
-        if (attempt === 2) {
-          throw err instanceof Error ? err : new Error(String(err));
-        }
-        await new Promise((r) => setTimeout(r, 5000));
+        lastGemErr = err;
+        await new Promise((r) => setTimeout(r, 3000));
       }
     }
+    // Anthropic fallback: if Gemini failed both attempts, fall through to
+    // Anthropic web_search rather than throw. Anthropic is more expensive
+    // but produces real advisor sources reliably.
     if (!research) {
-      throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
+      console.warn(
+        `[daily-grind] Gemini research exhausted (2 attempts), falling back to Anthropic web_search. Last error: ${lastGemErr instanceof Error ? lastGemErr.message : String(lastGemErr)}`,
+      );
+      try {
+        research = await runResearchPhase(
+          client,
+          opts.issueDate,
+          recentTopics,
+          recentConcepts,
+          opts.topicHint,
+        );
+      } catch (anthropicErr) {
+        const gemMsg = lastGemErr instanceof Error ? lastGemErr.message : String(lastGemErr);
+        const antMsg =
+          anthropicErr instanceof Error ? anthropicErr.message : String(anthropicErr);
+        throw new Error(
+          `research: both Gemini and Anthropic fallback failed. Gemini: ${gemMsg}. Anthropic: ${antMsg}`,
+        );
+      }
     }
   } else if (backend === "perplexity" && process.env.PERPLEXITY_API_KEY) {
     const perpOpts: Parameters<typeof runPerplexityResearch>[0] = {
