@@ -243,7 +243,11 @@ export async function runGeminiResearch(opts: {
       tools: [{ google_search: {} }],
       generationConfig: {
         temperature: 0,
-        maxOutputTokens: 8000,
+        // Bumped from 8000 → 32000. Stress test of 5 calls (Jun 29 – Jul 6)
+        // showed ALL 5 truncated mid-URL. Gemini 2.5 Flash supports up to
+        // 65K output, so 32K gives ample headroom for grounded reasoning
+        // (search results in context) + 10+ items of structured JSON output.
+        maxOutputTokens: 32000,
       },
     }),
   });
