@@ -14,6 +14,7 @@ import {
 import { buildDraftWeekdayPrompt } from "./pipeline-blocks/draft-weekday";
 import { buildStylePassPrompt } from "./pipeline-blocks/style-pass";
 import { buildEditorPassPrompt } from "./pipeline-blocks/editor-pass";
+import { buildFactCheckPrompt } from "./pipeline-blocks/fact-check";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -1098,6 +1099,97 @@ Return the revised draft as a JSON object with the same schema. No preamble, no 
   }
 }
 
+/**
+ * Fact check — spec'd verification of every factual claim against the
+ * original research. Catches cross-contamination, stat mismatches, unsourced
+ * claims, anonymization failures. ~$0.03 per call. Sonnet-based since it
+ * needs to reason about whether a claim is supported by research.
+ */
+async function runFactCheck(
+  client: Anthropic,
+  content: DailyGrindContent,
+  research: ResearchBundle,
+  issueDate: string,
+): Promise<{
+  verdict: "pass" | "fix_required" | "reject";
+  summary: string;
+  verifiedClaims: number;
+  issues: Array<{
+    section: string;
+    claimInDraft: string;
+    issueType: string;
+    severity: string;
+    fix: string;
+  }>;
+  fixedDraft: DailyGrindContent | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  // Use structured research if present, else the legacy items[] list
+  const researchPayload = research.structured ?? { items: research.items };
+
+  const userPrompt = buildFactCheckPrompt({
+    brandId: "castor_abbott",
+    edition: "weekday",
+    issueDate,
+    finalDraftJson: JSON.stringify(content, null, 2),
+    originalResearchJson: JSON.stringify(researchPayload, null, 2),
+  });
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 8000,
+    temperature: 0.1,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    throw new Error("fact_check: missing text block");
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(extractJsonObject(block.text)) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(
+      `fact_check: failed to parse JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const verdictRaw = typeof parsed.verdict === "string" ? parsed.verdict : "pass";
+  const verdict: "pass" | "fix_required" | "reject" = ["pass", "fix_required", "reject"].includes(
+    verdictRaw,
+  )
+    ? (verdictRaw as "pass" | "fix_required" | "reject")
+    : "pass";
+
+  const fixedDraft =
+    parsed.fixedDraft && typeof parsed.fixedDraft === "object"
+      ? (parsed.fixedDraft as DailyGrindContent)
+      : null;
+
+  return {
+    verdict,
+    summary: typeof parsed.summary === "string" ? parsed.summary : "",
+    verifiedClaims: typeof parsed.verifiedClaims === "number" ? parsed.verifiedClaims : 0,
+    issues: Array.isArray(parsed.issues)
+      ? (parsed.issues as Array<{
+          section: string;
+          claimInDraft: string;
+          issueType: string;
+          severity: string;
+          fix: string;
+        }>)
+      : [],
+    fixedDraft,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+  };
+}
+
 async function voiceReview(
   client: Anthropic,
   content: DailyGrindContent,
@@ -1777,6 +1869,54 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
       });
       break;
     }
+  }
+
+  // STAGE: fact_check — verify every factual claim against original research.
+  // Catches stat mismatches, cross-contamination, unsourced claims,
+  // anonymization failures. Three verdicts:
+  //  - pass: ship as-is
+  //  - fix_required: use the fixedDraft auto-correction
+  //  - reject: ship with warning (we don't loop back to writer; ship with flag)
+  const factCheckStart = Date.now();
+  try {
+    const factResult = await runFactCheck(client, content, research, issueDate);
+    totalLatency += factResult.latencyMs;
+    totalInput += factResult.inputTokens;
+    totalOutput += factResult.outputTokens;
+
+    if (factResult.verdict === "fix_required" && factResult.fixedDraft) {
+      content = deepStripDashes(factResult.fixedDraft);
+      pipeline.push({
+        name: "fact_check",
+        status: "retried",
+        latencyMs: Date.now() - factCheckStart,
+        notes: `verdict=fix_required, ${factResult.issues.length} issue(s) auto-corrected. ${factResult.summary}`,
+        data: { verdict: factResult.verdict, issueCount: factResult.issues.length },
+      });
+    } else if (factResult.verdict === "reject") {
+      pipeline.push({
+        name: "fact_check",
+        status: "warning",
+        latencyMs: Date.now() - factCheckStart,
+        notes: `verdict=reject (${factResult.issues.length} high-severity issues), shipping with warning. ${factResult.summary}`,
+        data: { verdict: factResult.verdict, issueCount: factResult.issues.length, issues: factResult.issues },
+      });
+    } else {
+      pipeline.push({
+        name: "fact_check",
+        status: "success",
+        latencyMs: Date.now() - factCheckStart,
+        notes: `verdict=pass, ${factResult.verifiedClaims} claims verified. ${factResult.summary}`,
+        data: { verdict: factResult.verdict, verifiedClaims: factResult.verifiedClaims },
+      });
+    }
+  } catch (err) {
+    pipeline.push({
+      name: "fact_check",
+      status: "warning",
+      latencyMs: Date.now() - factCheckStart,
+      notes: `fact_check failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
   }
 
   // Headline pattern check: if the writer produced a headline matching one of
