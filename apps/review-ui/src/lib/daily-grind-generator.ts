@@ -1121,12 +1121,22 @@ ISSUE TO REVIEW:
 - Grounds for Thought: ${content.groundsForThought}
 
 Check for these specific defects:
-1. hollow_unspoken: Unspoken has stats/analysis but NO physical scene (no lunch, no scene-detail, no dollar punchline tied to a specific moment)
-2. theme_repetition: same theme word (e.g. "the gap") appears across 3+ sections
-3. closing_repeats_number: Closing restates the same claim as The Number with no new angle
-4. flip_too_long: The Flip Reality is over 25 words OR sounds analytical instead of punchy
-5. no_position: First Pull para 1 is a stat dump with no narrative or argument
-6. uniform_rhythm: all sentences in the same length range (no short punch lines under 8 words)
+
+1. unspoken_timeline: The Unspoken is a TIMELINE of business events ("then you did X, then you did Y, then you did Z") instead of ONE specific moment with physical action. AI-ish failure mode. Canonical Unspokens drop into ONE moment (a single lunch, a single phone-screening habit, a single conference conversation) and STAY there. They do NOT chronicle a sequence of business changes.
+
+2. unspoken_no_character_action: The Unspoken has no HUMAN DOING something physical. Canonical examples have: ordering the lobster, aggressive eye contact at a charity event, pretending to take a phone call, screening calls, rehearsing the "stay the course" speech. If the only verb in the Unspoken is "you built / you documented / you added / you launched" — that's state-of-affairs writing, not narrative.
+
+3. unspoken_no_quotable_line: No single sentence in the Unspoken would survive being read alone. Canonical examples have: "The dog seems unconvinced about your long-term equity allocation." / "Their contact is still in your CRM tagged 'HOT COI'." / "$187 and exactly zero referrals." A reader should be able to screenshot one line.
+
+4. theme_repetition: same theme word (e.g. "the gap") appears across 3+ sections.
+
+5. closing_repeats_number: Closing restates the same claim as The Number with no new angle.
+
+6. flip_too_long: The Flip Reality is over 25 words OR sounds analytical instead of punchy.
+
+7. no_position: First Pull para 1 is a stat dump with no narrative or argument.
+
+8. uniform_rhythm: all sentences in the same length range (no short punch lines under 8 words).
 
 Return ONLY this JSON:
 {
@@ -1197,11 +1207,23 @@ Preserve EXACTLY:
 - The JSON schema
 
 Sharpen these specific defects (only address the ones in the defects list provided):
-- hollow_unspoken: Rewrite the Unspoken to include a SPECIFIC SCENE — a named lunch order, a CRM tag, a charity-event moment, a physical detail — plus a dollar-amount punchline tied to that scene. Mark's Unspokens look like the lobster lunch in 2022 / the COI named "HOT COI" / the dog hearing the same speech.
-- theme_repetition: Find the theme word/phrase repeated across 3+ sections and rewrite the lower-priority instances with fresh language. Each section should add a NEW angle, not restate the thesis.
-- closing_repeats_number: Rewrite the Main Content closing to land somewhere the Number paragraph didn't already say — a directive, a new twist, or a fresh framing.
+
+- unspoken_timeline: The Unspoken is a TIMELINE of business events ("then you did X, then Y, then Z") instead of ONE specific moment. REWRITE: pick ONE specific moment from the topic (a single lunch / a single phone call / a single conference bar conversation / a single file-opening scene with WHO ELSE was there) and stay in it. Do NOT chronicle a sequence of business changes. The Unspoken is a SHORT STORY of one scene, not a recap of how the firm got here.
+
+- unspoken_no_character_action: The Unspoken has no HUMAN doing something physical. REWRITE: add a character action. Examples from Mark's canonical: ordering the lobster, aggressive eye contact at a charity event, pretending to take a phone call, screening calls, rehearsing the "stay the course" speech so many times you could do it in your sleep. The verbs should be PHYSICAL not institutional ("you ordered" / "you nodded" / "you avoided" — NOT "you built" / "you documented" / "you added").
+
+- unspoken_no_quotable_line: No single sentence in the Unspoken would survive being read alone. REWRITE: add one line of absurd or comic specificity that could be screenshot and shared. Examples: "(The dog seems unconvinced about your long-term equity allocation.)" / "Their contact is still in your CRM tagged 'HOT COI.'" / "You could've bought a nice watch. At least the watch would tell you something useful."
+
+- hollow_unspoken: Combines the above three — the Unspoken lacks scene, action, and quotable line.
+
+- theme_repetition: Find the theme word/phrase repeated across 3+ sections and rewrite the lower-priority instances with fresh language.
+
+- closing_repeats_number: Rewrite the Main Content closing to land somewhere the Number paragraph didn't already say.
+
 - flip_too_long: Compress The Flip Reality to 12-20 words. One sharp reframe.
+
 - no_position: Rewrite First Pull para 1 to either (a) name conventional wisdom and signal the flip, or (b) tell a 2-character narrative with contrast. Not a stat dump.
+
 - uniform_rhythm: Add at least 3 sentences under 8 words somewhere in the body for impact.
 
 Do NOT:

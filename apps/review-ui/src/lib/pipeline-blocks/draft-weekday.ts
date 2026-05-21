@@ -176,8 +176,8 @@ Mark is NOT a practicing financial advisor. The voice references "the advisors I
   // Canonical few-shot examples for each section (from the published archive)
   sections.push(
     formatSection(
-      "The Unspoken — match this caliber",
-      `Two real published Unspokens. Notice: specific named counts, a SCENE (lunch / charity event / dog), dollar-amount punchline tied to the failure, wry self-recognition.
+      "The Unspoken — write at this caliber (READ THE ARCHITECTURE CAREFULLY)",
+      `Two real published Unspokens. The architecture is not "scene anchor + dollar punchline." Look at what they ACTUALLY do:
 
 Example 1 (${CANONICAL_EXAMPLES.unspoken[0]!.theme}):
 "${CANONICAL_EXAMPLES.unspoken[0]!.text}"
@@ -185,7 +185,44 @@ Example 1 (${CANONICAL_EXAMPLES.unspoken[0]!.theme}):
 Example 2 (${CANONICAL_EXAMPLES.unspoken[1]!.theme}):
 "${CANONICAL_EXAMPLES.unspoken[1]!.text}"
 
-The Unspoken is a SHORT STORY with a financial backdrop, not a financial analysis with personality bolted on. 80-130 words. Single italic paragraph.`,
+## THE UNSPOKEN ARCHITECTURE (study before writing)
+
+1. **One sentence of strategy or situation.** "You have a 'centers of influence' strategy." / "You have a client who calls you about every market headline." That's the SETUP.
+
+2. **Drop into ONE specific moment.** Not a timeline. Not "then you did X, then Y, then Z." Pick ONE specific instance and stay in it.
+   - Example 1 picks ONE lunch ("you took one to lunch in 2022")
+   - Example 2 picks ONE recurring habit ("every market headline → phone rings")
+
+3. **Build physical/character texture INSIDE that moment.** A human DOING something, not a state of affairs.
+   - Example 1: "they ordered the lobster," "make aggressive eye contact and pretend to take a phone call"
+   - Example 2: "you've rehearsed the speech," "your spouse has heard it. Your kids have heard it. The dog has heard it."
+
+4. **One line of absurd or comic specificity that's quotable out of context.**
+   - Example 1: "Their contact is still in your CRM tagged 'HOT COI'"
+   - Example 2: "(The dog seems unconvinced about your long-term equity allocation.)"
+
+5. **Dollar/cost punchline tied to the moment.**
+   - Example 1: "That lunch cost you $187 and exactly zero referrals."
+   - Example 2: (implicit cost via the screening/rehearsing time)
+
+## WHAT THE UNSPOKEN IS NOT
+
+- NOT a timeline of business events (then you hired three advisors, then you launched a podcast, then you changed your fee structure...)
+- NOT an analysis of state-of-affairs (your compliance program describes the firm that existed eighteen months ago...)
+- NOT institutional artifacts inventory (page four says X, page nine describes Y...)
+- NOT an abstract metaphor stuck on a timeline (you're reading about a ghost firm)
+
+If you find yourself writing "Then you did X. Then you did Y. Then you did Z." — STOP. That's a timeline, not an Unspoken. Restart with a SINGLE specific moment.
+
+## STRUCTURAL CHECK BEFORE YOU FINALIZE
+
+Read your Unspoken back. Ask:
+- Is there a HUMAN DOING something physical? (ordering, screening, eye contact, conversation)
+- Is there ONE specific moment I'm in, not a sequence of business events?
+- Is there a quotable line that could survive being read alone?
+- Does it make a reader LAUGH while WINCING?
+
+If any answer is no, rewrite. 80-130 words. Single italic paragraph.`,
     ),
   );
 
