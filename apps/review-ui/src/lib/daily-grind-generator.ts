@@ -15,6 +15,12 @@ import { buildDraftWeekdayPrompt } from "./pipeline-blocks/draft-weekday";
 import { buildStylePassPrompt } from "./pipeline-blocks/style-pass";
 import { buildEditorPassPrompt } from "./pipeline-blocks/editor-pass";
 import { buildFactCheckPrompt } from "./pipeline-blocks/fact-check";
+import {
+  buildPersonaEvaluatePrompt,
+  type PersonaEvaluation,
+} from "./pipeline-blocks/persona-evaluate";
+import { PERSONAS } from "./pipeline-blocks/personas";
+import { scoreAggregate, type ScoreAggregateResult } from "./pipeline-blocks/score-aggregate";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -1190,6 +1196,130 @@ async function runFactCheck(
   };
 }
 
+/**
+ * Single-persona evaluation. Uses Haiku for cost (~$0.005 per call).
+ * 10 of these run in parallel via runPersonaPanel.
+ */
+async function runPersonaEvaluate(
+  client: Anthropic,
+  content: DailyGrindContent,
+  contentType: DailyGrindContentType,
+  issueDate: string,
+  personaSlug: string,
+  personaSystemPrompt: string,
+): Promise<{
+  evaluation: PersonaEvaluation | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = buildPersonaEvaluatePrompt({
+    brandId: "castor_abbott",
+    edition: "weekday",
+    issueDate,
+    contentType,
+    personaSlug: personaSlug as PersonaEvaluation["personaSlug"],
+    factCheckedDraftJson: JSON.stringify(content, null, 2),
+  });
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: 2000,
+    temperature: 0.4,
+    system: personaSystemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return {
+      evaluation: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  try {
+    const parsed = JSON.parse(extractJsonObject(block.text)) as PersonaEvaluation;
+    return {
+      evaluation: parsed,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  } catch {
+    return {
+      evaluation: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+}
+
+/**
+ * Run all 10 persona evaluations in parallel. Failed individual evaluations
+ * are filtered out; the score aggregator works on whatever survived.
+ * Total cost: ~$0.05-0.10 (10 × Haiku calls).
+ */
+async function runPersonaPanel(
+  client: Anthropic,
+  content: DailyGrindContent,
+  contentType: DailyGrindContentType,
+  issueDate: string,
+): Promise<{
+  evaluations: PersonaEvaluation[];
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  maxLatencyMs: number;
+  failedCount: number;
+}> {
+  const results = await Promise.all(
+    PERSONAS.map((persona) =>
+      runPersonaEvaluate(
+        client,
+        content,
+        contentType,
+        issueDate,
+        persona.slug,
+        persona.systemPrompt,
+      ).catch((err) => ({
+        evaluation: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        latencyMs: 0,
+        error: err instanceof Error ? err.message : String(err),
+      })),
+    ),
+  );
+
+  const evaluations: PersonaEvaluation[] = [];
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let maxLatencyMs = 0;
+  let failedCount = 0;
+
+  for (const r of results) {
+    totalInputTokens += r.inputTokens;
+    totalOutputTokens += r.outputTokens;
+    maxLatencyMs = Math.max(maxLatencyMs, r.latencyMs);
+    if (r.evaluation) {
+      evaluations.push(r.evaluation);
+    } else {
+      failedCount++;
+    }
+  }
+
+  return {
+    evaluations,
+    totalInputTokens,
+    totalOutputTokens,
+    maxLatencyMs,
+    failedCount,
+  };
+}
+
 async function voiceReview(
   client: Anthropic,
   content: DailyGrindContent,
@@ -1916,6 +2046,71 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
       status: "warning",
       latencyMs: Date.now() - factCheckStart,
       notes: `fact_check failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
+  // STAGE: persona_panel — 10 calibrated audience personas read the issue in
+  // parallel. Each produces open/read/click/reply/forward/unsubscribe
+  // probabilities + love rating + voice fit + flags + persona-voice reaction.
+  // ~$0.05-0.10 total (10 Haiku calls). Score aggregator computes pass/fail.
+  let panelResult: ScoreAggregateResult | null = null;
+  const panelStart = Date.now();
+  try {
+    const panel = await runPersonaPanel(client, content, contentType, issueDate);
+    totalLatency += panel.maxLatencyMs;
+    totalInput += panel.totalInputTokens;
+    totalOutput += panel.totalOutputTokens;
+
+    if (panel.evaluations.length === 0) {
+      pipeline.push({
+        name: "persona_panel",
+        status: "failed",
+        latencyMs: Date.now() - panelStart,
+        notes: `all 10 persona evaluations failed`,
+      });
+    } else {
+      panelResult = scoreAggregate(panel.evaluations, contentType);
+      pipeline.push({
+        name: "persona_panel",
+        status: panel.failedCount === 0 ? "success" : "warning",
+        latencyMs: Date.now() - panelStart,
+        notes: `${panel.evaluations.length}/10 personas evaluated (${panel.failedCount} failed). ${panelResult.summary}`,
+        data: {
+          evaluations: panel.evaluations.length,
+          failed: panel.failedCount,
+          loveRate: panelResult.metrics.loveRate,
+          shareRate: panelResult.metrics.shareRate,
+          weightedUnsubscribeProb: panelResult.metrics.weightedUnsubscribeProb,
+          voiceFitAvg: panelResult.metrics.voiceFitAvg,
+        },
+      });
+
+      const verdictStatus: PipelineStageRecord["status"] =
+        panelResult.verdict === "pass"
+          ? "success"
+          : panelResult.verdict === "pass_with_concerns"
+            ? "warning"
+            : "warning"; // ship even on fail (per spec: "If still fails, logs warning but publishes")
+      pipeline.push({
+        name: "score_aggregate",
+        status: verdictStatus,
+        notes: `verdict=${panelResult.verdict}. ${panelResult.hardStops.length > 0 ? `Hard stops: ${panelResult.hardStops.join("; ")}` : "no hard stops"}`,
+        data: {
+          verdict: panelResult.verdict,
+          metrics: panelResult.metrics,
+          benchmarks: panelResult.benchmarks,
+          benchmarkResults: panelResult.benchmarkResults,
+          hardStops: panelResult.hardStops,
+          perPersona: panelResult.perPersonaSummary,
+        },
+      });
+    }
+  } catch (err) {
+    pipeline.push({
+      name: "persona_panel",
+      status: "warning",
+      latencyMs: Date.now() - panelStart,
+      notes: `persona_panel error: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
 
