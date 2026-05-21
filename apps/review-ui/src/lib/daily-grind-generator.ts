@@ -12,6 +12,7 @@ import {
   type StructuredResearchOutput,
 } from "./pipeline-blocks/research-weekday";
 import { buildDraftWeekdayPrompt } from "./pipeline-blocks/draft-weekday";
+import { buildStylePassPrompt } from "./pipeline-blocks/style-pass";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -861,6 +862,76 @@ async function runTopicProposer(
  * Returns a pass/fail + specific defects. If failed, caller runs the
  * rewrite-to-sharpen pass. ~$0.005 per call.
  */
+
+/**
+ * Style pass — narrow surface-level polish using the spec'd prompt from
+ * apps/pipeline/.../style_pass.ts. Catches em dashes, banned phrases,
+ * rhythm issues, hedge softening. Does NOT rewrite for substance.
+ *
+ * Uses Haiku for cost efficiency. ~$0.01 per call. Runs immediately after
+ * the writer phase and before the validators / voice review.
+ */
+async function runStylePass(
+  client: Anthropic,
+  content: DailyGrindContent,
+  contentType: DailyGrindContentType,
+  issueDate: string,
+): Promise<{
+  content: DailyGrindContent;
+  emDashesRemoved: number;
+  bannedPhrasesReplaced: string[];
+  hedgesRemoved: number;
+  summary: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = buildStylePassPrompt({
+    brandId: "castor_abbott",
+    edition: "weekday",
+    issueDate,
+    draftJson: JSON.stringify(content, null, 2),
+    contentType,
+  });
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: 8000,
+    temperature: 0.2,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    throw new Error("style_pass: missing text block");
+  }
+
+  // Parse the styled draft (same shape as input, plus styleNotes)
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(extractJsonObject(block.text)) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(
+      `style_pass: failed to parse JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const styleNotes = parsed.styleNotes as Record<string, unknown> | undefined;
+  delete parsed.styleNotes; // remove from content payload — we keep stats separately
+  const styledContent = parsed as unknown as DailyGrindContent;
+
+  return {
+    content: deepStripDashes(styledContent),
+    emDashesRemoved: (styleNotes?.emDashesRemoved as number) ?? 0,
+    bannedPhrasesReplaced: (styleNotes?.bannedPhrasesReplaced as string[]) ?? [],
+    hedgesRemoved: (styleNotes?.hedgesRemoved as number) ?? 0,
+    summary: (styleNotes?.summary as string) ?? "no summary",
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+  };
+}
+
 async function voiceReview(
   client: Anthropic,
   content: DailyGrindContent,
@@ -1250,6 +1321,36 @@ async function runWriterPhase(
   // occasionally despite the rules. This belt-and-suspenders pass replaces
   // them with proper punctuation so the rendered email is always clean.
   content = deepStripDashes(content);
+
+  // STAGE: style_pass — spec'd narrow polish (em dash + banned phrases +
+  // hedge softening + rhythm). Haiku-based, ~$0.01 per call. Surgical:
+  // doesn't rewrite substance, only surface-level violations.
+  const styleStart = Date.now();
+  try {
+    const styled = await runStylePass(client, content, contentType, issueDate);
+    content = styled.content;
+    totalLatency += Date.now() - styleStart;
+    totalInput += styled.inputTokens;
+    totalOutput += styled.outputTokens;
+    pipeline.push({
+      name: "style_pass",
+      status: "success",
+      latencyMs: Date.now() - styleStart,
+      notes: `em-dashes removed: ${styled.emDashesRemoved}, banned phrases: ${styled.bannedPhrasesReplaced.length}, hedges: ${styled.hedgesRemoved}. ${styled.summary}`,
+      data: {
+        emDashesRemoved: styled.emDashesRemoved,
+        bannedPhrasesReplaced: styled.bannedPhrasesReplaced,
+        hedgesRemoved: styled.hedgesRemoved,
+      },
+    });
+  } catch (err) {
+    pipeline.push({
+      name: "style_pass",
+      status: "warning",
+      latencyMs: Date.now() - styleStart,
+      notes: `style_pass failed, shipping unstyled draft: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
 
   // Validate Worth Knowing URLs against research bundle. If the writer
   // hallucinated a URL not in research, do one targeted retry pointing at
