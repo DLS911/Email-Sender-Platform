@@ -7,6 +7,10 @@ import { RESEARCH_SYSTEM_PROMPT } from "./daily-grind-research-prompt";
 import { runPerplexityResearch } from "./daily-grind-research-perplexity";
 import { runGeminiResearch } from "./daily-grind-research-gemini";
 import { buildTopicProposerPrompt } from "./pipeline-blocks/topic-proposer";
+import {
+  buildResearchWeekdayPrompt,
+  type StructuredResearchOutput,
+} from "./pipeline-blocks/research-weekday";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -29,6 +33,12 @@ export type ResearchItem = {
 export type ResearchBundle = {
   researchedOn: string;
   items: ResearchItem[];
+  // Structured research from the spec'd research_weekday block.
+  // When present, the writer sees the full structured shape (primaryFindings,
+  // frameworkAlignments, scriptsOrLanguage, worthKnowingItems, proverbCandidates,
+  // researchNotes) instead of just a flat items list. items[] is derived
+  // from worthKnowingItems[] as an adapter for legacy validators.
+  structured?: StructuredResearchOutput;
 };
 
 export type ResearchFunnel = {
@@ -223,6 +233,117 @@ type ResearchResult = {
   webSearches: number;
   latencyMs: number;
 };
+
+/**
+ * Run the spec'd weekday research block. Uses Anthropic web_search with the
+ * structured prompt from pipeline-blocks/research-weekday.ts. Returns the
+ * full structured output (primaryFindings + frameworkAlignments +
+ * scriptsOrLanguage + worthKnowingItems + proverbCandidates + researchNotes)
+ * AND a legacy ResearchBundle.items[] adapter for backward-compat with
+ * existing post-process validators.
+ */
+async function runStructuredResearchWeekday(
+  client: Anthropic,
+  issueDate: string,
+  proposal: {
+    contentType: string;
+    topic: string;
+    angle: string;
+    frameworkReferences: string[];
+  },
+  recentTopics: string[],
+): Promise<ResearchResult> {
+  const userPrompt = buildResearchWeekdayPrompt({
+    brandId: "castor_abbott",
+    issueDate,
+    approvedTopic: proposal,
+    recentlyUsedSources: [],
+    factCheckHistory: recentTopics,
+  });
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 8000,
+    temperature: RESEARCH_TEMPERATURE,
+    system: `You are the research analyst for The Daily Grind, a weekday newsletter for independent financial advisors. You have access to the web_search tool — use it to find real, cited, recent material on the approved topic.
+
+Be specific: dollar amounts, percentages, specific scripts, real publication names. Avoid generic claims.
+
+Return only the JSON output specified in the user message.`,
+    tools: [
+      {
+        type: "web_search_20260209",
+        name: "web_search",
+        max_uses: WEB_SEARCH_MAX_USES,
+        allowed_callers: ["direct"],
+      },
+    ],
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+
+  let webSearches = 0;
+  let textOutput = "";
+  for (const block of response.content) {
+    if (block.type === "server_tool_use" && block.name === "web_search") {
+      webSearches++;
+    } else if (block.type === "text") {
+      textOutput += block.text;
+    }
+  }
+  if (!textOutput) {
+    throw new Error("research_weekday: no text block in response");
+  }
+
+  // Parse the structured output
+  const jsonText = extractJsonObject(textOutput);
+  let structured: StructuredResearchOutput;
+  try {
+    structured = JSON.parse(jsonText) as StructuredResearchOutput;
+  } catch (err) {
+    throw new Error(
+      `research_weekday: failed to parse JSON: ${err instanceof Error ? err.message : String(err)}\nfirst 300 chars: ${jsonText.slice(0, 300)}`,
+    );
+  }
+
+  // Validate structure
+  if (!Array.isArray(structured.worthKnowingItems) || structured.worthKnowingItems.length < 3) {
+    throw new Error(
+      `research_weekday: need at least 3 worthKnowingItems, got ${structured.worthKnowingItems?.length ?? 0}`,
+    );
+  }
+
+  // Adapter: derive legacy items[] from worthKnowingItems[] so the existing
+  // post-process validators (URL match, distinctness) keep working.
+  const items: ResearchItem[] = structured.worthKnowingItems.map((w) => {
+    const item: ResearchItem = {
+      category: "Industry",
+      title: w.headline,
+      url: w.url,
+      source: w.source,
+      summary: w.summary,
+    };
+    if (w.stat) {
+      item.keyStats = [{ number: w.stat, label: w.relevance }];
+    }
+    return item;
+  });
+
+  const bundle: ResearchBundle = {
+    researchedOn: issueDate,
+    items,
+    structured,
+  };
+
+  return {
+    bundle,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    webSearches,
+    latencyMs,
+  };
+}
 
 async function runResearchPhase(
   client: Anthropic,
@@ -1491,13 +1612,20 @@ export async function generateDailyGrindIssue(opts: {
         `[daily-grind] Gemini research exhausted (2 attempts), falling back to Anthropic web_search. Last error: ${lastGemErr instanceof Error ? lastGemErr.message : String(lastGemErr)}`,
       );
       try {
-        research = await runResearchPhase(
-          client,
-          opts.issueDate,
-          recentTopics,
-          recentConcepts,
-          researchTopicHint,
-        );
+        research = proposal
+          ? await runStructuredResearchWeekday(
+              client,
+              opts.issueDate,
+              proposal,
+              recentTopics,
+            )
+          : await runResearchPhase(
+              client,
+              opts.issueDate,
+              recentTopics,
+              recentConcepts,
+              researchTopicHint,
+            );
       } catch (anthropicErr) {
         const gemMsg = lastGemErr instanceof Error ? lastGemErr.message : String(lastGemErr);
         const antMsg =
@@ -1539,9 +1667,10 @@ export async function generateDailyGrindIssue(opts: {
       throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
     }
   } else {
-    // Primary: Anthropic web_search. Hits Google search directly, supports
-    // site: operators, returns real advisor industry sources for the queries
-    // we hand it.
+    // Primary: Anthropic web_search. When we have a topic_proposer proposal,
+    // use the spec'd structured research_weekday block which produces
+    // primaryFindings + frameworkAlignments + scriptsOrLanguage + worth-knowing
+    // + proverb candidates. Otherwise fall back to the legacy flat research.
     const transientHints = [
       "no JSON object",
       "web_search",
@@ -1549,17 +1678,25 @@ export async function generateDailyGrindIssue(opts: {
       "technical limitation",
       "items array is empty",
       "items must be at least",
+      "worthKnowingItems",
     ];
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        research = await runResearchPhase(
-          client,
-          opts.issueDate,
-          recentTopics,
-          recentConcepts,
-          researchTopicHint,
-        );
+        research = proposal
+          ? await runStructuredResearchWeekday(
+              client,
+              opts.issueDate,
+              proposal,
+              recentTopics,
+            )
+          : await runResearchPhase(
+              client,
+              opts.issueDate,
+              recentTopics,
+              recentConcepts,
+              researchTopicHint,
+            );
         break;
       } catch (err) {
         lastErr = err;
