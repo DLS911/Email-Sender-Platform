@@ -115,7 +115,28 @@ export function buildTopicProposerPrompt(input: TopicProposerInput): string {
 4. Reference any framework that the topic naturally engages with (Trust Stacking, GAP, Physician Model, contrarian positions, etc.)
 5. Avoid blocked concepts entirely
 
-Variety matters. If the last three issues were all Tactics, lean toward Take, Story, Special, Rant, or Ancient Truth. If the last three Cover Stories were all destination-driven, lean toward Tactical Weekend, Logistics Hack, or Activity Mastery.
+## Topic Variety — read carefully
+
+Variety matters at THREE levels, not just one:
+
+**Level 1: Same exact topic.** Obviously don't repeat. (Easy.)
+
+**Level 2: Adjacent topic in the same theme cluster.** If yesterday was about "discovery call preparation," today should NOT be about "research before client meetings." Both are in the same prospecting-prep cluster. Pick a DIFFERENT cluster (compliance / pricing / team / tax / M&A / referral mechanics / fee structure / client communication / etc.).
+
+**Level 3: Same content-type sequence.** If the last three issues were all Tactics, lean toward Take / Story / Special / Rant for variety.
+
+## Adjacent-cluster examples to AVOID
+
+If recent issues touched ANY of these, pick a different cluster:
+- "prospecting research" / "pre-meeting prep" / "LinkedIn intel" / "discovery call prep" — all ONE cluster
+- "M&A due diligence" / "earnout structure" / "buyer vetting" / "valuation multiples" — all ONE cluster
+- "compliance documentation" / "WSP drift" / "SEC exam prep" / "audit readiness" — all ONE cluster
+- "fee compression" / "free planning" / "pricing structure" / "AUM vs flat fee" — all ONE cluster
+- "referral mechanics" / "centers of influence" / "COI strategy" — all ONE cluster
+
+## Cluster check (REQUIRED before proposing)
+
+Look at the most recent 5 issues' headlines and the blocked concepts. Identify which CLUSTER each touches. Then propose a topic from a DIFFERENT cluster.
 
 Return your proposal as JSON with this exact shape:
 
@@ -125,7 +146,9 @@ Return your proposal as JSON with this exact shape:
   "topic": "<specific topic in 8-15 words>",
   "angle": "<the specific take or treatment in 1-2 sentences>",
   "frameworkReferences": ["<framework module slugs that this topic engages>"],
-  "rationale": "<1-2 sentences on why this topic now, given recent context>"
+  "rationale": "<1-2 sentences on why this topic now, given recent context>",
+  "recentClusters": "<1 sentence naming the clusters the last 3-5 issues covered>",
+  "thisIssueCluster": "<1 sentence naming the cluster this proposal belongs to — must be DIFFERENT from any in recentClusters>"
 }
 
 Return ONLY the JSON object. No preamble, no commentary, no markdown fences.`,
