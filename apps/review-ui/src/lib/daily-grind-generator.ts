@@ -11,6 +11,7 @@ import {
   buildResearchWeekdayPrompt,
   type StructuredResearchOutput,
 } from "./pipeline-blocks/research-weekday";
+import { buildDraftWeekdayPrompt } from "./pipeline-blocks/draft-weekday";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -1182,21 +1183,38 @@ async function runWriterPhase(
   recentConcepts: string[],
   contentType: DailyGrindContentType,
   pipeline: PipelineStageRecord[] = [],
+  proposal?: {
+    contentType: string;
+    topic: string;
+    angle: string;
+    frameworkReferences: string[];
+  },
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
 }> {
-  const userPrompt = buildWriterUserPrompt(
-    issueDate,
-    research,
-    contentType,
-    recentTopics,
-    recentVerses,
-    [],
-    recentConcepts,
-  );
+  // If we have a topic proposal AND structured research, use the spec'd
+  // draft_weekday prompt (per-type structure + production rules + canonical
+  // few-shot examples + structured research with primaryFindings etc).
+  // Otherwise fall back to the legacy buildWriterUserPrompt path.
+  const useStructuredDraft = proposal && research.structured;
+  const userPrompt = useStructuredDraft
+    ? buildDraftWeekdayPrompt({
+        issueDate,
+        approvedTopic: proposal,
+        structuredResearch: research.structured!,
+      })
+    : buildWriterUserPrompt(
+        issueDate,
+        research,
+        contentType,
+        recentTopics,
+        recentVerses,
+        [],
+        recentConcepts,
+      );
 
   // Load ONLY the content-type-specific voice module via getDailyGrindVoiceSystemPrompt(contentType).
   // Previously the const DAILY_GRIND_VOICE_SYSTEM_PROMPT was used, which
@@ -1748,6 +1766,7 @@ export async function generateDailyGrindIssue(opts: {
     recentConcepts,
     lockedContentType,
     pipeline,
+    proposal ?? undefined,
   );
   pipeline.push({
     name: "writer",
