@@ -1675,6 +1675,7 @@ async function runWriterPhase(
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
+  panelResult: ScoreAggregateResult | null;
 }> {
   // If we have a topic proposal AND structured research, use the spec'd
   // draft_weekday prompt (per-type structure + production rules + canonical
@@ -2240,7 +2241,13 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
     }
   }
 
-  return { content, inputTokens: totalInput, outputTokens: totalOutput, latencyMs: totalLatency };
+  return {
+    content,
+    inputTokens: totalInput,
+    outputTokens: totalOutput,
+    latencyMs: totalLatency,
+    panelResult,
+  };
 }
 
 // ─── Public ─────────────────────────────────────────────────────────────────
@@ -2502,14 +2509,24 @@ export async function generateDailyGrindIssue(opts: {
   });
 
   // STAGE: voice review + conditional sharpen rewrite
-  // Cheap Haiku scoring pass catches hollow-voice drift the writer's
-  // post-process validators don't see (the Unspoken without a scene, theme
-  // mode-collapse across sections, closing that restates The Number). If
-  // the review flags defects, run one Sonnet rewrite to sharpen.
+  // CONDITIONAL: skip when persona_panel passed cleanly. The voice review +
+  // sharpen pair was the original safety net before editor_pass and
+  // persona_panel were wired. Now those are doing the substantive review +
+  // audience evaluation. Skip voice_review/sharpen when persona_panel
+  // verdict is "pass" to save 25-55s and avoid hitting the 300s function
+  // timeout. Still runs when persona_panel had concerns or wasn't able to
+  // produce a verdict.
   let finalContent = writer.content;
   let voiceReviewCost = { input: 0, output: 0, latency: 0 };
   let sharpenCost = { input: 0, output: 0, latency: 0 };
-  try {
+  const personaPassed = writer.panelResult?.verdict === "pass";
+  if (personaPassed) {
+    pipeline.push({
+      name: "voice_review",
+      status: "skipped",
+      notes: `persona_panel verdict=pass — skipping voice review/sharpen to save budget`,
+    });
+  } else try {
     const reviewStart = Date.now();
     const review = await voiceReview(client, finalContent);
     voiceReviewCost = {
