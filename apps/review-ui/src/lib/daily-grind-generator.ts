@@ -25,6 +25,10 @@ import {
   buildAssembleHtmlPrompt,
   type AssembleHtmlOutput,
 } from "./pipeline-blocks/assemble-html";
+import {
+  buildIssueSummaryPrompt,
+  type IssueSummary,
+} from "./pipeline-blocks/issue-summary";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -90,6 +94,7 @@ export type DailyGrindIssue = {
     writerLatencyMs: number;
     issueDate: string;
     researchFunnel?: ResearchFunnel;
+    issueSummary?: IssueSummary;
   };
 };
 
@@ -776,6 +781,17 @@ async function runTopicProposer(
   issueDate: string,
   recentHeadlines: string[],
   blockedConcepts: string[],
+  recentIssueSummaries: Array<{
+    publishedAt: string;
+    contentType: string;
+    topic: string;
+    cluster?: string;
+    mainAngle?: string;
+    keyTakes?: string[];
+    scenesUsed?: string;
+    frameworksApplied?: string[];
+    freshAfter?: string;
+  }> = [],
 ): Promise<{
   contentType: DailyGrindContentType;
   topic: string;
@@ -786,14 +802,31 @@ async function runTopicProposer(
   outputTokens: number;
   latencyMs: number;
 }> {
-  // Map recent headlines into the proposer's RecentIssue shape. We don't
-  // have contentType per headline in the cron's brain memory, so default
-  // to "unknown" — the proposer still uses the headline text for variety.
-  const recentIssues = recentHeadlines.slice(0, 30).map((h) => ({
-    publishedAt: new Date().toISOString(),
-    contentType: "unknown",
-    topic: h,
-  }));
+  // Build RecentIssue list. Prefer structured summaries when available
+  // (carries cluster/angle/keyTakes/scenes/frameworks) — fall back to
+  // headline-only for older issues that pre-date the issue_summary block.
+  const summaryByTopic = new Map(recentIssueSummaries.map((s) => [s.topic, s]));
+  const recentIssues = recentHeadlines.slice(0, 30).map((h) => {
+    const summary = summaryByTopic.get(h);
+    if (summary) {
+      return {
+        publishedAt: summary.publishedAt,
+        contentType: summary.contentType,
+        topic: summary.topic,
+        ...(summary.cluster ? { cluster: summary.cluster } : {}),
+        ...(summary.mainAngle ? { mainAngle: summary.mainAngle } : {}),
+        ...(summary.keyTakes ? { keyTakes: summary.keyTakes } : {}),
+        ...(summary.scenesUsed ? { scenesUsed: summary.scenesUsed } : {}),
+        ...(summary.frameworksApplied ? { frameworksApplied: summary.frameworksApplied } : {}),
+        ...(summary.freshAfter ? { freshAfter: summary.freshAfter } : {}),
+      };
+    }
+    return {
+      publishedAt: new Date().toISOString(),
+      contentType: "unknown",
+      topic: h,
+    };
+  });
 
   const userPrompt = buildTopicProposerPrompt({
     brandId: "castor_abbott",
@@ -1382,6 +1415,67 @@ async function runAssembleHtml(
   } catch {
     return {
       result: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+}
+
+/**
+ * Issue summary — runs at the very end of generation. Writes a structured
+ * AI-readable summary of what the issue covered (topic, cluster, angle,
+ * scenes, frameworks, sources, fresh-after window, revisit trigger).
+ *
+ * The topic_proposer reads these summaries when picking the next issue.
+ * This is how the system actually KNOWS what's been done, not just sees
+ * recent headlines. Haiku (~$0.005).
+ */
+async function runIssueSummary(
+  client: Anthropic,
+  content: DailyGrindContent,
+  contentType: DailyGrindContentType,
+  issueDate: string,
+): Promise<{
+  summary: IssueSummary | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = buildIssueSummaryPrompt({
+    issueDate,
+    contentType,
+    finalDraftJson: JSON.stringify(content, null, 2),
+  });
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: 1500,
+    temperature: 0.2,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return {
+      summary: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  try {
+    const parsed = JSON.parse(extractJsonObject(block.text)) as IssueSummary;
+    return {
+      summary: parsed,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  } catch {
+    return {
+      summary: null,
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
       latencyMs,
@@ -2326,6 +2420,17 @@ export async function generateDailyGrindIssue(opts: {
   recentTopics?: string[];
   recentVerses?: string[];
   recentConcepts?: string[];
+  recentIssueSummaries?: Array<{
+    publishedAt: string;
+    contentType: string;
+    topic: string;
+    cluster?: string;
+    mainAngle?: string;
+    keyTakes?: string[];
+    scenesUsed?: string;
+    frameworksApplied?: string[];
+    freshAfter?: string;
+  }>;
   topicHint?: string;
   apiKey?: string;
 }): Promise<DailyGrindIssue> {
@@ -2335,6 +2440,7 @@ export async function generateDailyGrindIssue(opts: {
   const recentTopics = opts.recentTopics ?? [];
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
+  const recentIssueSummaries = opts.recentIssueSummaries ?? [];
   const pipeline: PipelineStageRecord[] = [];
 
   // STAGE: topic_proposer — picks contentType + topic + angle + framework
@@ -2350,6 +2456,7 @@ export async function generateDailyGrindIssue(opts: {
       opts.issueDate,
       recentTopics,
       recentConcepts,
+      recentIssueSummaries,
     );
     pipeline.push({
       name: "topic_proposer",
@@ -2701,12 +2808,51 @@ export async function generateDailyGrindIssue(opts: {
     });
   }
 
+  // STAGE: issue_summary — write AI-readable record of what this issue did,
+  // for future topic_proposer calls to read. This is the "brain reads its
+  // own work" mechanism — the system actually knows what's been covered.
+  const summaryStart = Date.now();
+  let issueSummaryResult: IssueSummary | null = null;
+  let summaryCost = { input: 0, output: 0, latency: 0 };
+  try {
+    const summary = await runIssueSummary(client, finalContent, lockedContentType, opts.issueDate);
+    summaryCost = {
+      input: summary.inputTokens,
+      output: summary.outputTokens,
+      latency: summary.latencyMs,
+    };
+    if (summary.summary) {
+      issueSummaryResult = summary.summary;
+      pipeline.push({
+        name: "issue_summary",
+        status: "success",
+        latencyMs: Date.now() - summaryStart,
+        notes: `cluster=${summary.summary.cluster}, topicSlug=${summary.summary.topicSlug}, freshAfter=${summary.summary.freshAfter}`,
+        data: summary.summary as unknown as Record<string, unknown>,
+      });
+    } else {
+      pipeline.push({
+        name: "issue_summary",
+        status: "warning",
+        latencyMs: Date.now() - summaryStart,
+        notes: `issue_summary parse failed`,
+      });
+    }
+  } catch (err) {
+    pipeline.push({
+      name: "issue_summary",
+      status: "warning",
+      latencyMs: Date.now() - summaryStart,
+      notes: `issue_summary error: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   const totalCost = estimateCostUsd(
     research.inputTokens,
     research.outputTokens,
     research.webSearches,
-    writer.inputTokens + contentTypePickerCost.input + voiceReviewCost.input + sharpenCost.input + assembleCost.input,
-    writer.outputTokens + contentTypePickerCost.output + voiceReviewCost.output + sharpenCost.output + assembleCost.output,
+    writer.inputTokens + contentTypePickerCost.input + voiceReviewCost.input + sharpenCost.input + assembleCost.input + summaryCost.input,
+    writer.outputTokens + contentTypePickerCost.output + voiceReviewCost.output + sharpenCost.output + assembleCost.output + summaryCost.output,
   );
 
   return {
@@ -2723,9 +2869,10 @@ export async function generateDailyGrindIssue(opts: {
       totalCostUsd: totalCost,
       researchLatencyMs: research.latencyMs,
       writerLatencyMs:
-        writer.latencyMs + contentTypePickerCost.latency + voiceReviewCost.latency + sharpenCost.latency + assembleCost.latency,
+        writer.latencyMs + contentTypePickerCost.latency + voiceReviewCost.latency + sharpenCost.latency + assembleCost.latency + summaryCost.latency,
       issueDate: opts.issueDate,
       ...("funnel" in research && research.funnel ? { researchFunnel: research.funnel } : {}),
+      ...(issueSummaryResult ? { issueSummary: issueSummaryResult } : {}),
     },
   };
 }

@@ -193,6 +193,92 @@ async function loadRecentHeadlines(db: SupabaseClient, limit = 30): Promise<stri
   return ((data ?? []) as Array<{ headline: string }>).map((row) => row.headline);
 }
 
+/**
+ * Load the structured AI-readable summaries for recent issues. These are
+ * written by the issue_summary block at the end of generation and stored
+ * in generation_meta.issueSummary. The topic_proposer reads them to
+ * actually know what's been argued — not just see recent headlines.
+ *
+ * Returns most-recent-first. Issues that pre-date the issue_summary block
+ * are skipped (their generation_meta has no issueSummary key).
+ */
+async function loadRecentIssueSummaries(
+  db: SupabaseClient,
+  limit = 15,
+): Promise<
+  Array<{
+    publishedAt: string;
+    contentType: string;
+    topic: string;
+    cluster?: string;
+    mainAngle?: string;
+    keyTakes?: string[];
+    scenesUsed?: string;
+    frameworksApplied?: string[];
+    freshAfter?: string;
+  }>
+> {
+  const { data, error } = await db
+    .from("daily_grind_issues")
+    .select("issue_date, headline, generation_meta")
+    .order("issue_date", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  const out: Array<{
+    publishedAt: string;
+    contentType: string;
+    topic: string;
+    cluster?: string;
+    mainAngle?: string;
+    keyTakes?: string[];
+    scenesUsed?: string;
+    frameworksApplied?: string[];
+    freshAfter?: string;
+  }> = [];
+  for (const row of (data ?? []) as Array<{
+    issue_date: string;
+    headline: string;
+    generation_meta: unknown;
+  }>) {
+    const meta = row.generation_meta;
+    if (!meta || typeof meta !== "object" || Array.isArray(meta)) continue;
+    const m = meta as Record<string, unknown>;
+    const contentType = typeof m.contentType === "string" ? m.contentType : "unknown";
+    const summary = m.issueSummary;
+    if (summary && typeof summary === "object" && !Array.isArray(summary)) {
+      const s = summary as Record<string, unknown>;
+      out.push({
+        publishedAt: `${row.issue_date}T00:00:00Z`,
+        contentType,
+        topic: row.headline,
+        ...(typeof s.cluster === "string" ? { cluster: s.cluster } : {}),
+        ...(typeof s.mainAngle === "string" ? { mainAngle: s.mainAngle } : {}),
+        ...(Array.isArray(s.keyTakes)
+          ? { keyTakes: (s.keyTakes as unknown[]).filter((x): x is string => typeof x === "string") }
+          : {}),
+        ...(typeof s.scenesUsed === "string" ? { scenesUsed: s.scenesUsed } : {}),
+        ...(Array.isArray(s.frameworksApplied)
+          ? {
+              frameworksApplied: (s.frameworksApplied as unknown[]).filter(
+                (x): x is string => typeof x === "string",
+              ),
+            }
+          : {}),
+        ...(typeof s.freshAfter === "string" ? { freshAfter: s.freshAfter } : {}),
+      });
+    } else {
+      // Pre-summary issues — still useful to surface as a headline-only entry
+      // so the proposer sees them in the recent list.
+      out.push({
+        publishedAt: `${row.issue_date}T00:00:00Z`,
+        contentType,
+        topic: row.headline,
+      });
+    }
+  }
+  return out;
+}
+
 async function loadRecentVerses(db: SupabaseClient, limit = 125): Promise<string[]> {
   const { data, error } = await db
     .from("daily_grind_issues")
@@ -248,6 +334,7 @@ async function persistIssue(
         writerLatencyMs: issue.meta.writerLatencyMs,
         researchItemCount: issue.research.items.length,
         researchSources: issue.research.items.map((r) => ({ source: r.source, url: r.url })),
+        ...(issue.meta.issueSummary ? { issueSummary: issue.meta.issueSummary } : {}),
       },
     },
     { onConflict: "issue_date" },
@@ -351,16 +438,18 @@ export async function runDailyGrindGenerate(
 
     // Stage: memory_load
     const memStart = Date.now();
-    const [recentHeadlines, recentVerses, recentConcepts] = await Promise.all([
+    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
       loadRecentConceptSummaries(db, 80),
+      loadRecentIssueSummaries(db, 15),
     ]);
+    const summariesWithData = recentIssueSummaries.filter((s) => s.cluster || s.mainAngle).length;
     pipeline.push({
       name: "memory_load",
       status: "success",
       latencyMs: Date.now() - memStart,
-      notes: `headlines=${recentHeadlines.length}, verses=${recentVerses.length}, concepts=${recentConcepts.length}`,
+      notes: `headlines=${recentHeadlines.length}, verses=${recentVerses.length}, concepts=${recentConcepts.length}, issueSummaries=${summariesWithData}/${recentIssueSummaries.length}`,
     });
 
     const start = Date.now();
@@ -371,6 +460,7 @@ export async function runDailyGrindGenerate(
             recentTopics: recentHeadlines,
             recentVerses,
             recentConcepts,
+            recentIssueSummaries,
             topicHint: opts.topicHint,
           }
         : {
@@ -378,6 +468,7 @@ export async function runDailyGrindGenerate(
             recentTopics: recentHeadlines,
             recentVerses,
             recentConcepts,
+            recentIssueSummaries,
           },
     );
     // Merge inner-pipeline records (research, writer, validators, retries)
@@ -657,10 +748,11 @@ export async function runDailyGrindCron(
       preheader: cached.preheader,
     };
   } else {
-    const [recentHeadlines, recentVerses, recentConcepts] = await Promise.all([
+    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
       loadRecentConceptSummaries(db, 80),
+      loadRecentIssueSummaries(db, 15),
     ]);
     const issue = await generateDailyGrindIssue(
       opts.topicHint
@@ -669,6 +761,7 @@ export async function runDailyGrindCron(
             recentTopics: recentHeadlines,
             recentVerses,
             recentConcepts,
+            recentIssueSummaries,
             topicHint: opts.topicHint,
           }
         : {
@@ -676,6 +769,7 @@ export async function runDailyGrindCron(
             recentTopics: recentHeadlines,
             recentVerses,
             recentConcepts,
+            recentIssueSummaries,
           },
     );
     result.issueGenerated = true;

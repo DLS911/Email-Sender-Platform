@@ -18,6 +18,18 @@ export type RecentIssue = {
   contentType: string;
   topic: string;
   formatStyle?: string;
+  /** Cluster this issue belongs to (from issue_summary). */
+  cluster?: string;
+  /** Core argument/angle of the issue (from issue_summary). */
+  mainAngle?: string;
+  /** Specific positions the issue argued (from issue_summary). */
+  keyTakes?: string[];
+  /** Scene + character archetypes used in the Unspoken (from issue_summary). */
+  scenesUsed?: string;
+  /** Frameworks the issue applied (from issue_summary). */
+  frameworksApplied?: string[];
+  /** Don't-revisit-before window (from issue_summary), e.g. "30 days". */
+  freshAfter?: string;
 };
 
 export type EditorialCalendarHint = {
@@ -72,11 +84,44 @@ export function buildTopicProposerPrompt(input: TopicProposerInput): string {
   );
 
   if (input.recentIssues.length > 0) {
+    // Two views: (1) the headline list (quick scan), (2) the structured
+    // summaries (deep read). The proposer needs BOTH — the list shows the
+    // cluster pattern at a glance; the summaries show what was actually
+    // argued so the proposer can reason about whether a topic would be a
+    // re-tread or a genuinely fresh angle.
     const recentList = input.recentIssues.slice(0, 30).map((issue) => {
       const fmt = issue.formatStyle ? ` [${issue.formatStyle}]` : "";
-      return `${issue.publishedAt.slice(0, 10)} — ${issue.contentType}${fmt}: ${issue.topic}`;
+      const clusterTag = issue.cluster ? ` {cluster: ${issue.cluster}}` : "";
+      return `${issue.publishedAt.slice(0, 10)} — ${issue.contentType}${fmt}: ${issue.topic}${clusterTag}`;
     });
     sections.push(formatSection("Recent Issues (most recent first)", formatBulletList(recentList)));
+
+    const withSummaries = input.recentIssues.filter(
+      (i) => i.mainAngle || i.cluster || (i.keyTakes && i.keyTakes.length > 0),
+    );
+    if (withSummaries.length > 0) {
+      const summaryBlocks = withSummaries.slice(0, 15).map((issue) => {
+        const lines: string[] = [];
+        lines.push(`### ${issue.publishedAt.slice(0, 10)} — ${issue.topic}`);
+        if (issue.cluster) lines.push(`**Cluster:** ${issue.cluster}`);
+        if (issue.mainAngle) lines.push(`**Angle:** ${issue.mainAngle}`);
+        if (issue.keyTakes && issue.keyTakes.length > 0) {
+          lines.push(`**Key takes:**\n${issue.keyTakes.map((t) => `- ${t}`).join("\n")}`);
+        }
+        if (issue.scenesUsed) lines.push(`**Scene used:** ${issue.scenesUsed}`);
+        if (issue.frameworksApplied && issue.frameworksApplied.length > 0) {
+          lines.push(`**Frameworks:** ${issue.frameworksApplied.join(", ")}`);
+        }
+        if (issue.freshAfter) lines.push(`**Don't revisit before:** ${issue.freshAfter}`);
+        return lines.join("\n");
+      });
+      sections.push(
+        formatSection(
+          "Past Issue Summaries (read these — this is what's actually been argued)",
+          summaryBlocks.join("\n\n"),
+        ),
+      );
+    }
   }
 
   if (input.calendarHint) {
@@ -136,7 +181,11 @@ If recent issues touched ANY of these, pick a different cluster:
 
 ## Cluster check (REQUIRED before proposing)
 
-Look at the most recent 5 issues' headlines and the blocked concepts. Identify which CLUSTER each touches. Then propose a topic from a DIFFERENT cluster.
+Look at the most recent 5 issues' headlines AND their Past Issue Summaries (cluster + angle + key takes). Identify which CLUSTER each touches. Then propose a topic from a DIFFERENT cluster.
+
+**The summaries are not optional reading.** Two issues can have very different headlines and still be the same argument re-skinned. If a past summary's "Angle" or "Key takes" overlaps with what you're about to propose — even if your headline sounds different — that's a re-tread. Pick something else.
+
+**Override condition:** If breaking news in this morning's research makes a recent cluster genuinely worth revisiting (e.g., SEC enforcement action specifically against M&A integrations a week after we ran an M&A cluster issue), you MAY return to that cluster — but only if you can name a NEW angle the past summaries didn't cover, and you state that explicitly in your rationale. Default is to pick a fresh cluster.
 
 Return your proposal as JSON with this exact shape:
 
