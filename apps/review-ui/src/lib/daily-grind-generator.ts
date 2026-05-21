@@ -21,6 +21,10 @@ import {
 } from "./pipeline-blocks/persona-evaluate";
 import { PERSONAS } from "./pipeline-blocks/personas";
 import { scoreAggregate, type ScoreAggregateResult } from "./pipeline-blocks/score-aggregate";
+import {
+  buildAssembleHtmlPrompt,
+  type AssembleHtmlOutput,
+} from "./pipeline-blocks/assemble-html";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -1320,6 +1324,71 @@ async function runPersonaPanel(
   };
 }
 
+/**
+ * Assemble HTML — generates inbox-optimized subject line + preview text.
+ * Body HTML rendering itself is deterministic (handled by renderDailyGrindHtml);
+ * this block focuses on the inbox-presentation layer only.
+ *
+ * Uses Haiku (~$0.005). Runs at the end of runWriterPhase so it has access
+ * to the final-final content.
+ */
+async function runAssembleHtml(
+  client: Anthropic,
+  content: DailyGrindContent,
+  contentType: DailyGrindContentType,
+  issueDate: string,
+  recentSubjectLines: string[],
+): Promise<{
+  result: AssembleHtmlOutput | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = buildAssembleHtmlPrompt({
+    brandId: "castor_abbott",
+    edition: "weekday",
+    issueDate,
+    contentType,
+    finalDraftJson: JSON.stringify(content, null, 2),
+    recentSubjectLines,
+    baselineOpenRate: 0.42, // Solo Operator baseline; representative of segment
+  });
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: 800,
+    temperature: 0.5,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return {
+      result: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  try {
+    const parsed = JSON.parse(extractJsonObject(block.text)) as AssembleHtmlOutput;
+    return {
+      result: parsed,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  } catch {
+    return {
+      result: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+}
+
 async function voiceReview(
   client: Anthropic,
   content: DailyGrindContent,
@@ -2574,12 +2643,70 @@ export async function generateDailyGrindIssue(opts: {
     });
   }
 
+  // STAGE: assemble_html — final spec'd block. Generates inbox-optimized
+  // subject line (35-65 chars) + preview text (60-110 chars). Currently
+  // the writer produces headline + preheader directly; this stage replaces
+  // them with versions tuned for inbox open rates.
+  const assembleStart = Date.now();
+  let assembleCost = { input: 0, output: 0, latency: 0 };
+  try {
+    const assembleResult = await runAssembleHtml(
+      client,
+      finalContent,
+      lockedContentType,
+      opts.issueDate,
+      recentTopics, // recentTopics = recent headlines = recent subject lines, equivalent for this purpose
+    );
+    assembleCost = {
+      input: assembleResult.inputTokens,
+      output: assembleResult.outputTokens,
+      latency: assembleResult.latencyMs,
+    };
+    if (assembleResult.result) {
+      const { subjectLine, previewText, characterCounts } = assembleResult.result;
+      // Override headline + preheader with the optimized inbox versions.
+      // The H1 in the body uses the same field, so this aligns the body H1
+      // with the inbox subject for consistency.
+      finalContent = {
+        ...finalContent,
+        headline: subjectLine,
+        preheader: previewText,
+      };
+      pipeline.push({
+        name: "assemble_html",
+        status: "success",
+        latencyMs: Date.now() - assembleStart,
+        notes: `subject (${characterCounts?.subjectLineChars ?? subjectLine.length} chars): "${subjectLine}". preview (${characterCounts?.previewTextChars ?? previewText.length} chars).`,
+        data: {
+          subjectLine,
+          previewText,
+          subjectLineChars: characterCounts?.subjectLineChars ?? subjectLine.length,
+          previewTextChars: characterCounts?.previewTextChars ?? previewText.length,
+        },
+      });
+    } else {
+      pipeline.push({
+        name: "assemble_html",
+        status: "warning",
+        latencyMs: Date.now() - assembleStart,
+        notes: `assemble_html parse failed, shipping writer's original headline + preheader`,
+      });
+    }
+  } catch (err) {
+    pipeline.push({
+      name: "assemble_html",
+      status: "warning",
+      latencyMs: Date.now() - assembleStart,
+      notes: `assemble_html error: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   const totalCost = estimateCostUsd(
     research.inputTokens,
     research.outputTokens,
     research.webSearches,
-    writer.inputTokens + contentTypePickerCost.input + voiceReviewCost.input + sharpenCost.input,
-    writer.outputTokens + contentTypePickerCost.output + voiceReviewCost.output + sharpenCost.output,
+    writer.inputTokens + contentTypePickerCost.input + voiceReviewCost.input + sharpenCost.input + assembleCost.input,
+    writer.outputTokens + contentTypePickerCost.output + voiceReviewCost.output + sharpenCost.output + assembleCost.output,
   );
 
   return {
@@ -2596,7 +2723,7 @@ export async function generateDailyGrindIssue(opts: {
       totalCostUsd: totalCost,
       researchLatencyMs: research.latencyMs,
       writerLatencyMs:
-        writer.latencyMs + contentTypePickerCost.latency + voiceReviewCost.latency + sharpenCost.latency,
+        writer.latencyMs + contentTypePickerCost.latency + voiceReviewCost.latency + sharpenCost.latency + assembleCost.latency,
       issueDate: opts.issueDate,
       ...("funnel" in research && research.funnel ? { researchFunnel: research.funnel } : {}),
     },
