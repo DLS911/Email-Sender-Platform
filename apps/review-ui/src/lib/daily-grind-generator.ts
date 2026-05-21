@@ -6,6 +6,7 @@ import {
 import { RESEARCH_SYSTEM_PROMPT } from "./daily-grind-research-prompt";
 import { runPerplexityResearch } from "./daily-grind-research-perplexity";
 import { runGeminiResearch } from "./daily-grind-research-gemini";
+import { buildTopicProposerPrompt } from "./pipeline-blocks/topic-proposer";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -628,61 +629,99 @@ const CONTENT_TYPE_PICKER_MAX_TOKENS = 200;
 const VOICE_REVIEW_MAX_TOKENS = 500;
 
 /**
- * Pick the best content-type for today's issue BEFORE the writer runs.
- * Lets us load only the relevant content-type voice module into the system
- * prompt instead of all 5 at once. ~$0.002 per call.
+ * Topic Proposer — uses the spec'd prompt from apps/pipeline/.../topic_proposer.ts.
+ *
+ * Runs BEFORE research so the topic decision drives research, not the
+ * reverse. Outputs: contentType + topic + angle + framework references +
+ * rationale. Replaces the previous pickContentType which only picked the
+ * type after-the-fact based on whatever research came back.
  */
-async function pickContentType(
+async function runTopicProposer(
   client: Anthropic,
-  research: ResearchBundle,
-  recentTopics: string[],
-): Promise<{ contentType: DailyGrindContentType; reason: string; inputTokens: number; outputTokens: number; latencyMs: number }> {
-  const userPrompt = `Pick the best content type for today's Daily Grind issue, based on the research bundle.
+  issueDate: string,
+  recentHeadlines: string[],
+  blockedConcepts: string[],
+): Promise<{
+  contentType: DailyGrindContentType;
+  topic: string;
+  angle: string;
+  frameworkReferences: string[];
+  rationale: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  // Map recent headlines into the proposer's RecentIssue shape. We don't
+  // have contentType per headline in the cron's brain memory, so default
+  // to "unknown" — the proposer still uses the headline text for variety.
+  const recentIssues = recentHeadlines.slice(0, 30).map((h) => ({
+    publishedAt: new Date().toISOString(),
+    contentType: "unknown",
+    topic: h,
+  }));
 
-Research items available:
-${research.items.map((i) => `- ${i.category}: ${i.title} (${i.source})`).join("\n")}
+  const userPrompt = buildTopicProposerPrompt({
+    brandId: "castor_abbott",
+    edition: "weekday",
+    issueDate,
+    recentIssues,
+    blockedConcepts,
+  });
 
-Recently covered headlines (avoid same content type as the last 1-2):
-${recentTopics.slice(0, 5).map((t) => `- ${t}`).join("\n") || "(none)"}
-
-Content type options:
-- tactic: specific implementable move ("how to do X right now"). Best when research has a concrete operational angle.
-- take: contrarian position challenging conventional wisdom. Best when research lets you flip an accepted norm.
-- story: narrative about a specific advisor scenario. Best when research suggests a character/situation arc.
-- rant: heated piece naming bad industry behavior. Best when research exposes harm/exploitation.
-- special: technical deep-dive (compliance, ops, tax, regulatory). Best when research is procedural / requires precision.
-
-Return ONLY this JSON:
-{ "contentType": "tactic" | "take" | "story" | "rant" | "special", "reason": "1 short sentence" }`;
+  // Day-of-week affinity per the spec content_pipeline.spec.md:
+  // Mon=Tactic, Tue=Take, Wed=Tactic, Thu=Story or Special, Fri=Tactic+Digital Grind.
+  // The proposer prompt sees this as a calendar hint to bias selection.
+  const issueDow = new Date(issueDate + "T12:00:00Z").getUTCDay();
+  const dowHints: Record<number, string> = {
+    1: "Mondays favor Tactic (specific implementable move)",
+    2: "Tuesdays favor Take (contrarian position)",
+    3: "Wednesdays favor Tactic (different angle than Monday)",
+    4: "Thursdays alternate Story (narrative) or Special (technical deep-dive)",
+    5: "Fridays favor Tactic plus a Digital Grind angle",
+  };
+  const dowHint = dowHints[issueDow];
+  const fullPrompt = dowHint
+    ? `${userPrompt}\n\n## Day-of-Week Affinity\n${dowHint}`
+    : userPrompt;
 
   const start = Date.now();
   const response = await client.messages.create({
     model: HAIKU_MODEL,
-    max_tokens: CONTENT_TYPE_PICKER_MAX_TOKENS,
-    temperature: 0.3,
-    messages: [{ role: "user", content: userPrompt }],
+    max_tokens: 600,
+    temperature: 0.4,
+    messages: [{ role: "user", content: fullPrompt }],
   });
   const latencyMs = Date.now() - start;
   const block = response.content[0];
   if (!block || block.type !== "text") {
-    throw new Error("content_type_picker: missing text block");
+    throw new Error("topic_proposer: missing text block");
   }
+
   let parsed: Record<string, unknown> | undefined;
   try {
     const json = extractJsonObject(block.text);
     parsed = JSON.parse(json) as Record<string, unknown>;
   } catch {
-    // Default to "take" if parsing fails — most flexible content type
+    // fallback handled below
   }
+  const validTypes: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special"];
   const raw = typeof parsed?.contentType === "string" ? parsed.contentType.toLowerCase() : "take";
-  const valid: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special"];
-  const contentType: DailyGrindContentType = (valid.includes(raw as DailyGrindContentType)
+  const contentType: DailyGrindContentType = (validTypes.includes(raw as DailyGrindContentType)
     ? raw
     : "take") as DailyGrindContentType;
-  const reason = typeof parsed?.reason === "string" ? parsed.reason : "fallback default";
+  const topic = typeof parsed?.topic === "string" ? parsed.topic : "Advisor practice operations";
+  const angle = typeof parsed?.angle === "string" ? parsed.angle : "Operational discipline drives outcomes";
+  const frameworkReferences = Array.isArray(parsed?.frameworkReferences)
+    ? (parsed.frameworkReferences as unknown[]).filter((f): f is string => typeof f === "string")
+    : [];
+  const rationale = typeof parsed?.rationale === "string" ? parsed.rationale : "fallback default";
+
   return {
     contentType,
-    reason,
+    topic,
+    angle,
+    frameworkReferences,
+    rationale,
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
     latencyMs,
@@ -1361,6 +1400,50 @@ export async function generateDailyGrindIssue(opts: {
   const recentConcepts = opts.recentConcepts ?? [];
   const pipeline: PipelineStageRecord[] = [];
 
+  // STAGE: topic_proposer — picks contentType + topic + angle + framework
+  // BEFORE research. Replaces the old after-research pickContentType.
+  // Uses the spec'd prompt from apps/pipeline/.../topic_proposer.ts.
+  // Day-of-week affinity is built into the prompt: Mon=Tactic, Tue=Take,
+  // Wed=Tactic, Thu=Story/Special, Fri=Tactic+Digital Grind.
+  const proposerStart = Date.now();
+  let proposal: Awaited<ReturnType<typeof runTopicProposer>> | null = null;
+  try {
+    proposal = await runTopicProposer(
+      client,
+      opts.issueDate,
+      recentTopics,
+      recentConcepts,
+    );
+    pipeline.push({
+      name: "topic_proposer",
+      status: "success",
+      latencyMs: Date.now() - proposerStart,
+      notes: `${proposal.contentType.toUpperCase()}: ${proposal.topic}. Angle: ${proposal.angle}`,
+      data: {
+        contentType: proposal.contentType,
+        topic: proposal.topic,
+        angle: proposal.angle,
+        frameworkReferences: proposal.frameworkReferences,
+        rationale: proposal.rationale,
+      },
+    });
+  } catch (err) {
+    pipeline.push({
+      name: "topic_proposer",
+      status: "warning",
+      latencyMs: Date.now() - proposerStart,
+      notes: `proposer failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
+  // Use the proposer's topic + angle as research bias. Pass as topicHint
+  // so research goes looking for content supporting THIS angle instead
+  // of generic news.
+  const researchTopicHint = proposal
+    ? `${proposal.topic} — angle: ${proposal.angle}`
+    : opts.topicHint;
+  const lockedContentType: DailyGrindContentType = proposal?.contentType ?? "take";
+
   // Research phase backend selection.
   // - "anthropic" (DEFAULT): Anthropic Sonnet 4.5 + web_search tool. ~$0.50/call.
   //   Read-the-content-inline architecture means citations are reliable and
@@ -1381,7 +1464,7 @@ export async function generateDailyGrindIssue(opts: {
       recentTopics,
       recentConcepts,
     };
-    if (opts.topicHint) gemOpts.topicHint = opts.topicHint;
+    if (researchTopicHint) gemOpts.topicHint = researchTopicHint;
     let lastGemErr: unknown = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -1413,7 +1496,7 @@ export async function generateDailyGrindIssue(opts: {
           opts.issueDate,
           recentTopics,
           recentConcepts,
-          opts.topicHint,
+          researchTopicHint,
         );
       } catch (anthropicErr) {
         const gemMsg = lastGemErr instanceof Error ? lastGemErr.message : String(lastGemErr);
@@ -1430,7 +1513,7 @@ export async function generateDailyGrindIssue(opts: {
       recentTopics,
       recentConcepts,
     };
-    if (opts.topicHint) perpOpts.topicHint = opts.topicHint;
+    if (researchTopicHint) perpOpts.topicHint = researchTopicHint;
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -1475,7 +1558,7 @@ export async function generateDailyGrindIssue(opts: {
           opts.issueDate,
           recentTopics,
           recentConcepts,
-          opts.topicHint,
+          researchTopicHint,
         );
         break;
       } catch (err) {
@@ -1512,35 +1595,11 @@ export async function generateDailyGrindIssue(opts: {
       },
     });
   }
-  // STAGE: content-type picker — decide before writer runs so the system
-  // prompt loads only the relevant content-type spec.
-  const pickStart = Date.now();
-  let chosenContentType: DailyGrindContentType = "take";
-  let contentTypeReason = "default fallback";
-  let contentTypePickerCost = { input: 0, output: 0, latency: 0 };
-  try {
-    const picked = await pickContentType(client, research.bundle, recentTopics);
-    chosenContentType = picked.contentType;
-    contentTypeReason = picked.reason;
-    contentTypePickerCost = {
-      input: picked.inputTokens,
-      output: picked.outputTokens,
-      latency: picked.latencyMs,
-    };
-    pipeline.push({
-      name: "content_type_picker",
-      status: "success",
-      latencyMs: Date.now() - pickStart,
-      notes: `picked ${chosenContentType}: ${contentTypeReason}`,
-    });
-  } catch (err) {
-    pipeline.push({
-      name: "content_type_picker",
-      status: "warning",
-      latencyMs: Date.now() - pickStart,
-      notes: `picker failed, defaulting to "take": ${err instanceof Error ? err.message : String(err)}`,
-    });
-  }
+  // Content type was locked by the topic_proposer (Stage 1) BEFORE research.
+  // No second picker call needed — research was guided by the proposed topic,
+  // and the writer phase below uses lockedContentType to load the correct
+  // voice module.
+  const contentTypePickerCost = { input: 0, output: 0, latency: 0 };
 
   const writerStart = Date.now();
   const writer = await runWriterPhase(
@@ -1550,14 +1609,14 @@ export async function generateDailyGrindIssue(opts: {
     recentTopics,
     recentVerses,
     recentConcepts,
-    chosenContentType,
+    lockedContentType,
     pipeline,
   );
   pipeline.push({
     name: "writer",
     status: "success",
     latencyMs: Date.now() - writerStart,
-    notes: `headline="${writer.content.headline}", contentType=${chosenContentType}`,
+    notes: `headline="${writer.content.headline}", contentType=${lockedContentType}`,
     data: {
       inputTokens: writer.inputTokens,
       outputTokens: writer.outputTokens,
