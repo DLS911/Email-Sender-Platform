@@ -13,6 +13,7 @@ import {
 } from "./pipeline-blocks/research-weekday";
 import { buildDraftWeekdayPrompt } from "./pipeline-blocks/draft-weekday";
 import { buildStylePassPrompt } from "./pipeline-blocks/style-pass";
+import { buildEditorPassPrompt } from "./pipeline-blocks/editor-pass";
 import type {
   DailyGrindContent,
   DailyGrindContentType,
@@ -932,6 +933,171 @@ async function runStylePass(
   };
 }
 
+/**
+ * Editor pass — spec'd substantive editorial review. Sonnet-based since
+ * the review requires real judgment (framework honesty, earned-line
+ * presence, content-type structural beats). ~$0.03 per call.
+ *
+ * Returns one of four verdicts:
+ *  - approve: ship the approvedDraft (editor may have lightly polished)
+ *  - approve_with_concerns: ship but flag for human review
+ *  - revise: caller runs writer rewrite with revisionRequest
+ *  - rewrite_section: caller runs writer section-rewrite with rewriteInstructions
+ */
+async function runEditorPass(
+  client: Anthropic,
+  content: DailyGrindContent,
+  contentType: DailyGrindContentType,
+  issueDate: string,
+  iterationNumber: number,
+  maxIterations: number,
+): Promise<{
+  verdict: "approve" | "revise" | "rewrite_section" | "approve_with_concerns";
+  summary: string;
+  specificFlags: Array<{ section: string; issue: string; severity: string; instruction: string }>;
+  approvedDraft: DailyGrindContent | null;
+  revisionRequest: string | null;
+  rewriteSection: string | null;
+  rewriteInstructions: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = buildEditorPassPrompt({
+    brandId: "castor_abbott",
+    edition: "weekday",
+    issueDate,
+    contentType,
+    styledDraftJson: JSON.stringify(content, null, 2),
+    iterationNumber,
+    maxIterations,
+  });
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 8000,
+    temperature: 0.3,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    throw new Error("editor_pass: missing text block");
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(extractJsonObject(block.text)) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(
+      `editor_pass: failed to parse JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const verdictRaw = typeof parsed.verdict === "string" ? parsed.verdict : "approve_with_concerns";
+  const validVerdicts = ["approve", "revise", "rewrite_section", "approve_with_concerns"] as const;
+  const verdict = (validVerdicts.includes(verdictRaw as (typeof validVerdicts)[number])
+    ? verdictRaw
+    : "approve_with_concerns") as (typeof validVerdicts)[number];
+
+  const approvedDraft =
+    parsed.approvedDraft && typeof parsed.approvedDraft === "object"
+      ? (parsed.approvedDraft as DailyGrindContent)
+      : null;
+
+  return {
+    verdict,
+    summary: typeof parsed.summary === "string" ? parsed.summary : "",
+    specificFlags: Array.isArray(parsed.specificFlags)
+      ? (parsed.specificFlags as Array<{
+          section: string;
+          issue: string;
+          severity: string;
+          instruction: string;
+        }>)
+      : [],
+    approvedDraft,
+    revisionRequest: typeof parsed.revisionRequest === "string" ? parsed.revisionRequest : null,
+    rewriteSection: typeof parsed.rewriteSection === "string" ? parsed.rewriteSection : null,
+    rewriteInstructions:
+      typeof parsed.rewriteInstructions === "string" ? parsed.rewriteInstructions : null,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+  };
+}
+
+/**
+ * If the editor flags revision needed, run a Sonnet rewrite of the full draft
+ * with the editor's specific revision instructions. Same shape as voice
+ * sharpen but with editor-level feedback (substantive, not surface).
+ */
+async function runEditorRevision(
+  client: Anthropic,
+  content: DailyGrindContent,
+  revisionRequest: string,
+  flags: Array<{ section: string; issue: string; instruction: string }>,
+): Promise<{
+  content: DailyGrindContent | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const flagsText = flags
+    .map((f) => `- [${f.section}] ${f.issue} — ${f.instruction}`)
+    .join("\n");
+
+  const userPrompt = `You are revising a Daily Grind draft per editor feedback. Preserve facts, sources, URLs, the ancientTruth verse, the contentType, and the JSON schema EXACTLY. Apply the editor's specific revisions:
+
+Editor revision request:
+${revisionRequest}
+
+Specific section flags:
+${flagsText}
+
+Original draft:
+${JSON.stringify(content, null, 2)}
+
+Return the revised draft as a JSON object with the same schema. No preamble, no fences.`;
+
+  const editorRevisionSystem = `You are revising a Daily Grind draft in Mark's voice. Mark talks like a sharp colleague who has watched 1000+ advisors fail or succeed. Direct, opinionated, contrarian. Apply ONLY the editor's specific revisions. Do NOT rewrite for substance beyond what the editor flagged. Do NOT change facts, source URLs, or the ancientTruth verse. Do NOT add em dashes. Do NOT hedge.`;
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: WRITER_MAX_TOKENS,
+    temperature: 0.45,
+    system: editorRevisionSystem,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return {
+      content: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  try {
+    const revised = parseContent(block.text);
+    return {
+      content: deepStripDashes(revised),
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  } catch {
+    return {
+      content: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+}
+
 async function voiceReview(
   client: Anthropic,
   content: DailyGrindContent,
@@ -1490,6 +1656,104 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
           ? `writer used ${dupes.length} duplicate URL(s); retry produced distinct bundle`
           : `writer used ${dupes.length} duplicate URL(s); retry did not recover, shipping with duplicates`,
       });
+    }
+  }
+
+  // STAGE: editor_pass — spec'd substantive editorial review with revision
+  // loop. Sonnet evaluates voice integrity, framework honesty, earned-line
+  // presence, strong close, content-type-specific structural beats.
+  // Up to 2 iterations before forced approve_with_concerns.
+  const MAX_EDITOR_ITERATIONS = 2;
+  for (let iter = 1; iter <= MAX_EDITOR_ITERATIONS; iter++) {
+    const editorStart = Date.now();
+    try {
+      const editor = await runEditorPass(
+        client,
+        content,
+        contentType,
+        issueDate,
+        iter,
+        MAX_EDITOR_ITERATIONS,
+      );
+      totalLatency += editor.latencyMs;
+      totalInput += editor.inputTokens;
+      totalOutput += editor.outputTokens;
+
+      if (editor.verdict === "approve" || editor.verdict === "approve_with_concerns") {
+        // Use the approved draft if the editor provided one (lightly polished),
+        // otherwise keep current content.
+        if (editor.approvedDraft) {
+          content = deepStripDashes(editor.approvedDraft);
+        }
+        pipeline.push({
+          name: "editor_pass",
+          status: editor.verdict === "approve" ? "success" : "warning",
+          latencyMs: Date.now() - editorStart,
+          notes: `iter ${iter}/${MAX_EDITOR_ITERATIONS} verdict=${editor.verdict}: ${editor.summary}${editor.specificFlags.length > 0 ? ` (${editor.specificFlags.length} flags)` : ""}`,
+          data: { verdict: editor.verdict, flagCount: editor.specificFlags.length },
+        });
+        break;
+      }
+
+      // Revision needed — re-run writer with editor feedback
+      const revisionRequest =
+        editor.verdict === "revise"
+          ? editor.revisionRequest ?? ""
+          : `Rewrite the ${editor.rewriteSection ?? "flagged"} section. Instructions: ${editor.rewriteInstructions ?? ""}`;
+
+      if (!revisionRequest) {
+        pipeline.push({
+          name: "editor_pass",
+          status: "warning",
+          latencyMs: Date.now() - editorStart,
+          notes: `iter ${iter} verdict=${editor.verdict} but no revision text; shipping as-is`,
+        });
+        break;
+      }
+
+      pipeline.push({
+        name: "editor_pass",
+        status: "retried",
+        latencyMs: Date.now() - editorStart,
+        notes: `iter ${iter}/${MAX_EDITOR_ITERATIONS} verdict=${editor.verdict}: ${editor.summary}. Running revision.`,
+      });
+
+      const revStart = Date.now();
+      const revised = await runEditorRevision(
+        client,
+        content,
+        revisionRequest,
+        editor.specificFlags,
+      );
+      totalLatency += revised.latencyMs;
+      totalInput += revised.inputTokens;
+      totalOutput += revised.outputTokens;
+
+      if (revised.content) {
+        content = revised.content;
+        pipeline.push({
+          name: "editor_revision",
+          status: "retried",
+          latencyMs: Date.now() - revStart,
+          notes: `applied editor's revision instructions`,
+        });
+      } else {
+        pipeline.push({
+          name: "editor_revision",
+          status: "warning",
+          latencyMs: Date.now() - revStart,
+          notes: `revision call failed to parse, keeping current draft`,
+        });
+        break;
+      }
+    } catch (err) {
+      pipeline.push({
+        name: "editor_pass",
+        status: "warning",
+        latencyMs: Date.now() - editorStart,
+        notes: `editor_pass error: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      break;
     }
   }
 
