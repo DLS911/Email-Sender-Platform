@@ -182,7 +182,9 @@ Framework references: ${input.approvedTopic.frameworkReferences.join(", ")}`,
   sections.push(
     formatSection(
       "Universal Requirements (apply regardless of content type)",
-      `Worth Knowing section needs 3 news items relevant to financial advisors. The FIRST item must include a statistic, number, or data point suitable for a visual element. Items 2 and 3 are commentary or development pieces.
+      `Worth Knowing section needs **5-8 news items** relevant to financial advisors (do NOT stop at 3 — the writer needs depth, and we need redundancy to drop low-quality items). The FIRST item must include a statistic, number, or data point suitable for a visual element. Remaining items are commentary, development pieces, or supporting evidence.
+
+primaryFindings should have **at least 5 distinct findings** — each one a specific claim with its own source. If you only find 3, run more searches.
 
 Ancient Truth daily reference needs 2-3 candidate Proverbs (ESV translation preferred). The proverbs should be ones that genuinely apply to advisor practice — wealth, work, counsel, integrity, discipline. Don't force application.
 

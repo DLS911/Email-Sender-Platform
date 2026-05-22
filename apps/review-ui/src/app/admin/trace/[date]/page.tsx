@@ -221,15 +221,17 @@ export default async function TracePage({
         </p>
       ) : (
         <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {trace.pipeline.map((stage, i) => (
+          {trace.pipeline.map((stage, i) => {
+            const isGate = stage.name.endsWith("_gate") || stage.name === "pipeline_drift_check";
+            return (
             <li
               key={i}
               style={{
                 marginBottom: 18,
-                border: "1px solid #d5d8de",
+                border: isGate ? "2px solid #5a7fb8" : "1px solid #d5d8de",
                 borderLeft: `4px solid ${statusColor(stage.status)}`,
                 borderRadius: 6,
-                background: "#fafbfc",
+                background: isGate ? "#f0f5fc" : "#fafbfc",
               }}
             >
               <div
@@ -246,6 +248,11 @@ export default async function TracePage({
                   <span style={{ fontWeight: 600, fontSize: 14 }}>
                     {i + 1}. {stage.name}
                   </span>
+                  {isGate ? (
+                    <span style={{ marginLeft: 8, fontSize: 10, background: "#5a7fb8", color: "white", padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      gate
+                    </span>
+                  ) : null}
                   <span style={{ marginLeft: 10, fontSize: 12, color: statusColor(stage.status) }}>
                     {stage.status}
                   </span>
@@ -270,13 +277,14 @@ export default async function TracePage({
                 </div>
                 <div style={{ background: "#fff", padding: "10px 14px" }}>
                   <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
-                    OUTPUT (passed downstream)
+                    {isGate ? "DECISION (what the gate chose)" : "OUTPUT (passed downstream)"}
                   </div>
                   <KeyValueBlock obj={stage.output} />
                 </div>
               </div>
             </li>
-          ))}
+          );
+          })}
         </ol>
       )}
     </main>

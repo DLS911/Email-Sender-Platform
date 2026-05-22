@@ -21,6 +21,7 @@ import {
 } from "./pipeline-blocks/persona-evaluate";
 import { PERSONAS } from "./pipeline-blocks/personas";
 import { scoreAggregate, type ScoreAggregateResult } from "./pipeline-blocks/score-aggregate";
+import { buildPersonaRevisionPrompt } from "./pipeline-blocks/persona-revision";
 import {
   buildAssembleHtmlPrompt,
   type AssembleHtmlOutput,
@@ -116,7 +117,7 @@ const RESEARCH_TEMPERATURE = 0;
 const RESEARCH_MAX_TOKENS = 5000;
 const WRITER_TEMPERATURE = 0.45;
 const WRITER_MAX_TOKENS = 5000;
-const WEB_SEARCH_MAX_USES = 4;
+const WEB_SEARCH_MAX_USES = 8;
 
 const INPUT_COST_PER_M = 3;
 const OUTPUT_COST_PER_M = 15;
@@ -389,8 +390,9 @@ async function runStructuredResearchWeekday(
     frameworkReferences: string[];
   },
   recentTopics: string[],
+  expandQueries: boolean = false,
 ): Promise<ResearchResult> {
-  const userPrompt = buildResearchWeekdayPrompt({
+  let userPrompt = buildResearchWeekdayPrompt({
     brandId: "castor_abbott",
     issueDate,
     approvedTopic: proposal,
@@ -398,12 +400,19 @@ async function runStructuredResearchWeekday(
     factCheckHistory: recentTopics,
   });
 
+  if (expandQueries) {
+    // Second-attempt augmentation: the first attempt returned <5 items. Push
+    // the model to broaden its search strategy and try adjacent angles
+    // before giving up.
+    userPrompt += `\n\n## RETRY CONTEXT — READ CAREFULLY\n\nThe first research pass returned fewer than 5 items, which is insufficient. Broaden your search strategy:\n\n1. Run MORE web_search calls (you have ${WEB_SEARCH_MAX_USES} max — use 6-8 of them, not 2-3).\n2. Try ADJACENT angles: if "${proposal.topic}" returned thin results, search for related terms (synonyms, broader category names, vendor/product names in the space, regulatory keywords).\n3. Search MULTIPLE source domains in parallel: thinkadvisor.com, wealthmanagement.com, kitces.com, investmentnews.com, financial-planning.com, fa-mag.com, riaintel.com, advisorhub.com.\n4. If you still can't find ${WEB_SEARCH_MAX_USES} unique items, return what you have but include them all — do NOT return fewer than your first pass.`;
+  }
+
   const start = Date.now();
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 8000,
     temperature: RESEARCH_TEMPERATURE,
-    system: `You are the research analyst for The Daily Grind, a weekday newsletter for independent financial advisors. You have access to the web_search tool — use it to find real, cited, recent material on the approved topic.
+    system: `You are the research analyst for The Daily Grind, a weekday newsletter for independent financial advisors. You have access to the web_search tool — use it aggressively to find real, cited, recent material on the approved topic. The writer block needs 5-8 distinct cited items minimum; fewer than 5 forces the writer to repeat sources, which damages quality.
 
 Be specific: dollar amounts, percentages, specific scripts, real publication names. Avoid generic claims.
 
@@ -444,7 +453,9 @@ Return only the JSON output specified in the user message.`,
     );
   }
 
-  // Validate structure
+  // Validate structure. We throw at < 3 (catastrophic — writer can't ship)
+  // but accept 3-4 with a downstream gate flag (the retry loop in the
+  // caller will trigger a broader-query retry if itemCount < 5).
   if (!Array.isArray(structured.worthKnowingItems) || structured.worthKnowingItems.length < 3) {
     throw new Error(
       `research_weekday: need at least 3 worthKnowingItems, got ${structured.worthKnowingItems?.length ?? 0}`,
@@ -2190,7 +2201,10 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
   // presence, strong close, content-type-specific structural beats.
   // Up to 2 iterations before forced approve_with_concerns.
   const MAX_EDITOR_ITERATIONS = 2;
+  let editorFinalVerdict: string = "no_verdict";
+  let editorIterationsUsed = 0;
   for (let iter = 1; iter <= MAX_EDITOR_ITERATIONS; iter++) {
+    editorIterationsUsed = iter;
     const editorStart = Date.now();
     try {
       const editor = await runEditorPass(
@@ -2218,6 +2232,7 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
           notes: `iter ${iter}/${MAX_EDITOR_ITERATIONS} verdict=${editor.verdict}: ${editor.summary}${editor.specificFlags.length > 0 ? ` (${editor.specificFlags.length} flags)` : ""}`,
           data: { verdict: editor.verdict, flagCount: editor.specificFlags.length },
         });
+        editorFinalVerdict = editor.verdict;
         break;
       }
 
@@ -2257,6 +2272,7 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
 
       if (revised.content) {
         content = revised.content;
+        editorFinalVerdict = `${editor.verdict}_revised_iter${iter}`;
         pipeline.push({
           name: "editor_revision",
           status: "retried",
@@ -2279,8 +2295,43 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         latencyMs: Date.now() - editorStart,
         notes: `editor_pass error: ${err instanceof Error ? err.message : String(err)}`,
       });
+      editorFinalVerdict = `error_iter${iter}`;
       break;
     }
+  }
+  // ─── editor_gate ──────────────────────────────────────────────────────────
+  // Explicit decision record: did the editor loop terminate by approval, by
+  // exhausting iterations, or by error?
+  {
+    const exhausted = editorIterationsUsed >= MAX_EDITOR_ITERATIONS && !editorFinalVerdict.startsWith("approve");
+    const passed = editorFinalVerdict === "approve";
+    const gateStatus: PipelineStageRecord["status"] = passed
+      ? "success"
+      : exhausted
+        ? "warning"
+        : "warning";
+    pipeline.push({
+      name: "editor_gate",
+      status: gateStatus,
+      notes: passed
+        ? `editor approved on iter ${editorIterationsUsed}`
+        : exhausted
+          ? `exhausted ${MAX_EDITOR_ITERATIONS} editor iterations without clean approve (final: ${editorFinalVerdict}); shipping anyway`
+          : `editor loop ended early (final: ${editorFinalVerdict})`,
+      input: {
+        maxIterations: MAX_EDITOR_ITERATIONS,
+        iterationsUsed: editorIterationsUsed,
+      },
+      output: {
+        finalVerdict: editorFinalVerdict,
+        decision: passed ? "proceed" : "proceed_with_warning",
+        reason: passed
+          ? "clean approval"
+          : exhausted
+            ? "iterations exhausted, accepting current draft"
+            : "loop ended without approval",
+      },
+    });
   }
 
   // STAGE: fact_check — verify every factual claim against original research.
@@ -2335,13 +2386,19 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
   // parallel. Each produces open/read/click/reply/forward/unsubscribe
   // probabilities + love rating + voice fit + flags + persona-voice reaction.
   // ~$0.05-0.10 total (10 Haiku calls). Score aggregator computes pass/fail.
+  //
+  // GATING: if verdict=fail and we have revision budget, run a persona-driven
+  // editor_revision pass that addresses specific complaints, then re-run the
+  // panel ONCE to confirm. Max 1 revision (cost-bounded).
   let panelResult: ScoreAggregateResult | null = null;
+  let panelEvaluations: Awaited<ReturnType<typeof runPersonaPanel>>["evaluations"] = [];
   const panelStart = Date.now();
   try {
     const panel = await runPersonaPanel(client, content, contentType, issueDate);
     totalLatency += panel.maxLatencyMs;
     totalInput += panel.totalInputTokens;
     totalOutput += panel.totalOutputTokens;
+    panelEvaluations = panel.evaluations;
 
     if (panel.evaluations.length === 0) {
       pipeline.push({
@@ -2367,15 +2424,9 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         },
       });
 
-      const verdictStatus: PipelineStageRecord["status"] =
-        panelResult.verdict === "pass"
-          ? "success"
-          : panelResult.verdict === "pass_with_concerns"
-            ? "warning"
-            : "warning"; // ship even on fail (per spec: "If still fails, logs warning but publishes")
       pipeline.push({
         name: "score_aggregate",
-        status: verdictStatus,
+        status: panelResult.verdict === "pass" ? "success" : "warning",
         notes: `verdict=${panelResult.verdict}. ${panelResult.hardStops.length > 0 ? `Hard stops: ${panelResult.hardStops.join("; ")}` : "no hard stops"}`,
         data: {
           verdict: panelResult.verdict,
@@ -2394,6 +2445,153 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
       latencyMs: Date.now() - panelStart,
       notes: `persona_panel error: ${err instanceof Error ? err.message : String(err)}`,
     });
+  }
+
+  // ─── persona_gate ────────────────────────────────────────────────────────
+  // Make the verdict decision EXPLICIT in the trace. If fail (without hard
+  // stops), trigger a persona-driven revision and re-evaluate ONCE.
+  if (panelResult && panelEvaluations.length > 0) {
+    const verdict = panelResult.verdict;
+    if (verdict === "pass") {
+      pipeline.push({
+        name: "persona_gate",
+        status: "success",
+        notes: `verdict=pass → shipping as-is`,
+        input: { verdict, metrics: panelResult.metrics, benchmarks: panelResult.benchmarks },
+        output: { decision: "proceed", reason: "all benchmarks met" },
+      });
+    } else if (verdict === "pass_with_concerns") {
+      pipeline.push({
+        name: "persona_gate",
+        status: "warning",
+        notes: `verdict=pass_with_concerns → shipping (single benchmark missed)`,
+        input: { verdict, metrics: panelResult.metrics, benchmarks: panelResult.benchmarks },
+        output: {
+          decision: "proceed_with_concerns",
+          reason: "one benchmark missed but not enough to trigger revision",
+        },
+      });
+    } else if (panelResult.hardStops.length > 0) {
+      // Hard stops mean catastrophic — skip revision, ship with warning so
+      // we can debug the persona behaviour rather than mask it.
+      pipeline.push({
+        name: "persona_gate",
+        status: "warning",
+        notes: `verdict=fail with hard stops → shipping with warning (no revision will help)`,
+        input: { verdict, hardStops: panelResult.hardStops },
+        output: {
+          decision: "proceed_with_warning",
+          reason: `hard stops present: ${panelResult.hardStops.join("; ")}`,
+        },
+      });
+    } else {
+      // Soft fail (multiple benchmarks missed, no hard stops) → run a
+      // persona-driven revision and re-evaluate.
+      const revisionStart = Date.now();
+      const promptBuild = buildPersonaRevisionPrompt(panelEvaluations, panelResult);
+      pipeline.push({
+        name: "persona_gate",
+        status: "retried",
+        notes: `verdict=fail (no hard stops) → triggering persona-driven revision (${promptBuild.prioritizedFixes.length} prioritized fixes)`,
+        input: { verdict, metrics: panelResult.metrics, benchmarks: panelResult.benchmarks },
+        output: {
+          decision: "revise",
+          reason: "soft fail — multiple benchmarks missed; running editor_revision against persona feedback",
+          prioritizedFixes: promptBuild.prioritizedFixes,
+          topComplaints: promptBuild.complaints,
+        },
+      });
+      try {
+        const revised = await runEditorRevision(
+          client,
+          content,
+          promptBuild.revisionRequest,
+          [], // editor flags don't apply here — the revision request carries the audience feedback
+        );
+        totalLatency += revised.latencyMs;
+        totalInput += revised.inputTokens;
+        totalOutput += revised.outputTokens;
+        if (revised.content) {
+          content = revised.content;
+          pipeline.push({
+            name: "persona_revision",
+            status: "retried",
+            latencyMs: Date.now() - revisionStart,
+            notes: `applied persona-driven revision (${promptBuild.prioritizedFixes.length} fixes)`,
+            input: {
+              prioritizedFixes: promptBuild.prioritizedFixes,
+              complaintsAddressed: promptBuild.complaints.length,
+            },
+            output: { reviseStatus: "applied" },
+          });
+
+          // Re-run persona panel ONCE to confirm the revision actually
+          // moved the needle. Even if it still fails, we now ship and let
+          // the trace show the before/after delta.
+          const recheckStart = Date.now();
+          try {
+            const recheck = await runPersonaPanel(client, content, contentType, issueDate);
+            totalLatency += recheck.maxLatencyMs;
+            totalInput += recheck.totalInputTokens;
+            totalOutput += recheck.totalOutputTokens;
+            if (recheck.evaluations.length > 0) {
+              const recheckResult = scoreAggregate(recheck.evaluations, contentType);
+              panelEvaluations = recheck.evaluations;
+              panelResult = recheckResult;
+              const delta = {
+                loveRate: recheckResult.metrics.loveRate - panelResult.metrics.loveRate,
+                shareRate: recheckResult.metrics.shareRate - panelResult.metrics.shareRate,
+              };
+              pipeline.push({
+                name: "persona_panel_recheck",
+                status:
+                  recheckResult.verdict === "pass"
+                    ? "success"
+                    : recheckResult.verdict === "pass_with_concerns"
+                      ? "warning"
+                      : "warning",
+                latencyMs: Date.now() - recheckStart,
+                notes: `post-revision verdict=${recheckResult.verdict}. ${recheckResult.summary}`,
+                input: {
+                  loveRateBefore: (panelResult.metrics.loveRate * 100).toFixed(0) + "%",
+                  shareRateBefore: (panelResult.metrics.shareRate * 100).toFixed(0) + "%",
+                },
+                output: {
+                  verdict: recheckResult.verdict,
+                  metrics: recheckResult.metrics,
+                  deltaLoveRate: delta.loveRate,
+                  deltaShareRate: delta.shareRate,
+                  improved:
+                    recheckResult.metrics.loveRate > panelResult.metrics.loveRate ||
+                    recheckResult.verdict === "pass",
+                },
+              });
+            }
+          } catch (err) {
+            pipeline.push({
+              name: "persona_panel_recheck",
+              status: "warning",
+              latencyMs: Date.now() - recheckStart,
+              notes: `recheck failed: ${err instanceof Error ? err.message : String(err)} — shipping revised content without confirmation`,
+            });
+          }
+        } else {
+          pipeline.push({
+            name: "persona_revision",
+            status: "warning",
+            latencyMs: Date.now() - revisionStart,
+            notes: `persona revision call failed to parse, keeping original draft and shipping with warning`,
+          });
+        }
+      } catch (err) {
+        pipeline.push({
+          name: "persona_revision",
+          status: "warning",
+          latencyMs: Date.now() - revisionStart,
+          notes: `persona revision error: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    }
   }
 
   // Headline pattern check: if the writer produced a headline matching one of
@@ -2740,8 +2938,15 @@ export async function generateDailyGrindIssue(opts: {
       "items must be at least",
       "worthKnowingItems",
     ];
+    // ITEM FLOOR: the writer struggles when given <5 items; Worth Knowing
+    // needs 3 distinct items and primaryFindings should have several
+    // claims. If a first research pass returns thin (<5), run a SECOND
+    // research call with broader query hints — feeding back the topics
+    // the first pass missed.
+    const RESEARCH_ITEM_FLOOR = 5;
     let lastErr: unknown = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    let thinAttemptCount = 0;
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         research = proposal
           ? await runStructuredResearchWeekday(
@@ -2749,6 +2954,7 @@ export async function generateDailyGrindIssue(opts: {
               opts.issueDate,
               proposal,
               recentTopics,
+              attempt > 1, // expandQueries on retry
             )
           : await runResearchPhase(
               client,
@@ -2757,18 +2963,28 @@ export async function generateDailyGrindIssue(opts: {
               recentConcepts,
               researchTopicHint,
             );
-        break;
+        // Item-count gate: if research is thin, retry with broader queries.
+        const itemCount = research.bundle.items.length;
+        if (itemCount >= RESEARCH_ITEM_FLOOR) break;
+        thinAttemptCount = attempt;
+        console.warn(
+          `[daily-grind][research] attempt ${attempt} returned ${itemCount} items, below floor ${RESEARCH_ITEM_FLOOR}. ${attempt < 3 ? "Retrying with broader queries." : "Shipping with thin research; downstream stages will flag."}`,
+        );
+        if (attempt === 3) break; // exhausted; let downstream gate flag it
+        await new Promise((r) => setTimeout(r, 3000));
       } catch (err) {
         lastErr = err;
         const message = err instanceof Error ? err.message : String(err);
         const transient = transientHints.some((h) => message.includes(h));
-        if (!transient || attempt === 2) throw err;
+        if (!transient || attempt === 3) throw err;
         await new Promise((r) => setTimeout(r, 6000));
       }
     }
     if (!research) {
       throw lastErr instanceof Error ? lastErr : new Error("research: no result after retries");
     }
+    // Expose retry count for the trace below.
+    (research as ResearchResult & { thinRetries?: number }).thinRetries = thinAttemptCount;
   }
   // Visibility: log research bundle stats so we can diagnose writer
   // mode-collapse failures. If the bundle has <5 items or <3 distinct
@@ -2779,11 +2995,13 @@ export async function generateDailyGrindIssue(opts: {
     console.log(
       `[daily-grind][research] items=${research.bundle.items.length} distinctSources=${distinctSources.size} distinctUrls=${distinctUrls.size} sources=[${Array.from(distinctSources).join(", ")}]`,
     );
+    const thinRetries =
+      (research as ResearchResult & { thinRetries?: number }).thinRetries ?? 0;
     pipeline.push({
       name: "research",
       status: "success",
       latencyMs: research.latencyMs,
-      notes: `backend=${backend}, items=${research.bundle.items.length}, distinctSources=${distinctSources.size}`,
+      notes: `backend=${backend}, items=${research.bundle.items.length}, distinctSources=${distinctSources.size}${thinRetries > 0 ? `, thinRetries=${thinRetries}` : ""}`,
       input: {
         backend,
         topicHint: researchTopicHint ?? null,
@@ -2795,6 +3013,7 @@ export async function generateDailyGrindIssue(opts: {
         distinctSources: distinctSources.size,
         sources: Array.from(distinctSources),
         itemHeadlines: research.bundle.items.slice(0, 10).map((r) => r.title),
+        thinRetries,
       },
       data: {
         backend,
@@ -2803,6 +3022,42 @@ export async function generateDailyGrindIssue(opts: {
         sources: Array.from(distinctSources),
       },
     });
+    // ─── research_quality_gate ─────────────────────────────────────────────
+    // Make the floor decision EXPLICIT in the trace. If items >= 5 and
+    // distinct sources >= 3, gate passes. Otherwise it's a warning the
+    // writer (and the human reading the trace) can see.
+    {
+      const itemCount = research.bundle.items.length;
+      const RESEARCH_ITEM_FLOOR = 5;
+      const SOURCE_FLOOR = 3;
+      const passed = itemCount >= RESEARCH_ITEM_FLOOR && distinctSources.size >= SOURCE_FLOOR;
+      const reasons: string[] = [];
+      if (itemCount < RESEARCH_ITEM_FLOOR) {
+        reasons.push(`itemCount=${itemCount} < floor=${RESEARCH_ITEM_FLOOR}`);
+      }
+      if (distinctSources.size < SOURCE_FLOOR) {
+        reasons.push(`distinctSources=${distinctSources.size} < floor=${SOURCE_FLOOR}`);
+      }
+      pipeline.push({
+        name: "research_quality_gate",
+        status: passed ? "success" : "warning",
+        notes: passed
+          ? `passed: items=${itemCount}≥${RESEARCH_ITEM_FLOOR}, distinctSources=${distinctSources.size}≥${SOURCE_FLOOR}${thinRetries > 0 ? ` (after ${thinRetries} thin retries)` : ""}`
+          : `BELOW FLOOR: ${reasons.join("; ")}. Writer will produce thinner Worth Knowing. ${thinRetries >= 3 ? "Exhausted retries." : "(Retries already attempted: " + thinRetries + ")"}`,
+        input: {
+          itemCount,
+          distinctSources: distinctSources.size,
+          itemFloor: RESEARCH_ITEM_FLOOR,
+          sourceFloor: SOURCE_FLOOR,
+          thinRetries,
+        },
+        output: {
+          gateVerdict: passed ? "pass" : "warning_below_floor",
+          decision: passed ? "proceed_to_writer" : "proceed_to_writer_with_warning",
+          reasons,
+        },
+      });
+    }
   }
   // Content type was locked by the topic_proposer (Stage 1) BEFORE research.
   // No second picker call needed — research was guided by the proposed topic,
@@ -2866,43 +3121,108 @@ export async function generateDailyGrindIssue(opts: {
       notes: `persona_panel verdict=pass — skipping voice review/sharpen to save budget`,
     });
   } else try {
-    const reviewStart = Date.now();
-    const review = await voiceReview(client, finalContent);
-    voiceReviewCost = {
-      input: review.inputTokens,
-      output: review.outputTokens,
-      latency: review.latencyMs,
-    };
-    pipeline.push({
-      name: "voice_review",
-      status: review.passed ? "success" : "warning",
-      latencyMs: Date.now() - reviewStart,
-      notes: `score=${review.score}/10, defects=[${review.defects.join(", ") || "none"}]`,
-    });
-
-    if (!review.passed && review.defects.length > 0) {
+    // Iterative voice review + sharpen. Up to 2 sharpen iterations. After
+    // each sharpen, we re-run voice_review to see if the defects were
+    // actually addressed. Sharpen only fires when there are concrete
+    // defects to address.
+    const MAX_SHARPEN_ITERATIONS = 2;
+    let lastDefects: string[] = [];
+    let lastScore = 0;
+    for (let iter = 1; iter <= MAX_SHARPEN_ITERATIONS + 1; iter++) {
+      const reviewStart = Date.now();
+      const review = await voiceReview(client, finalContent);
+      voiceReviewCost = {
+        input: voiceReviewCost.input + review.inputTokens,
+        output: voiceReviewCost.output + review.outputTokens,
+        latency: voiceReviewCost.latency + review.latencyMs,
+      };
+      const reviewLabel = iter === 1 ? "voice_review" : `voice_review_iter${iter}`;
+      pipeline.push({
+        name: reviewLabel,
+        status: review.passed ? "success" : "warning",
+        latencyMs: Date.now() - reviewStart,
+        notes: `score=${review.score}/10, defects=[${review.defects.join(", ") || "none"}]`,
+        input: { iteration: iter, defectsBeforeSharpen: lastDefects },
+        output: {
+          passed: review.passed,
+          score: review.score,
+          defects: review.defects,
+          delta: iter > 1 ? { scoreImprovement: review.score - lastScore, defectsResolved: lastDefects.filter((d) => !review.defects.includes(d)) } : null,
+        },
+      });
+      lastDefects = review.defects;
+      lastScore = review.score;
+      if (review.passed) {
+        pipeline.push({
+          name: "voice_gate",
+          status: "success",
+          notes: `voice clean after ${iter - 1} sharpen iteration(s) (score=${review.score}/10)`,
+          input: { passed: true, score: review.score },
+          output: { decision: "proceed", reason: "voice review passed" },
+        });
+        break;
+      }
+      if (review.defects.length === 0) {
+        pipeline.push({
+          name: "voice_gate",
+          status: "warning",
+          notes: `voice_review failed but reported no defects — can't sharpen without a target, shipping as-is`,
+          input: { passed: false, score: review.score, defects: [] },
+          output: { decision: "proceed_with_warning", reason: "no defects to target" },
+        });
+        break;
+      }
+      if (iter > MAX_SHARPEN_ITERATIONS) {
+        pipeline.push({
+          name: "voice_gate",
+          status: "warning",
+          notes: `exhausted ${MAX_SHARPEN_ITERATIONS} sharpen iterations; ${review.defects.length} defects remain: ${review.defects.join(", ")}`,
+          input: { passed: false, score: review.score, defects: review.defects },
+          output: {
+            decision: "proceed_with_warning",
+            reason: `${MAX_SHARPEN_ITERATIONS} sharpen iterations did not clear defects`,
+            remainingDefects: review.defects,
+          },
+        });
+        break;
+      }
+      // Sharpen
       const sharpenStart = Date.now();
       const sharpened = await voiceSharpenRewrite(client, finalContent, review.defects);
       sharpenCost = {
-        input: sharpened.inputTokens,
-        output: sharpened.outputTokens,
-        latency: sharpened.latencyMs,
+        input: sharpenCost.input + sharpened.inputTokens,
+        output: sharpenCost.output + sharpened.outputTokens,
+        latency: sharpenCost.latency + sharpened.latencyMs,
       };
       if (sharpened.content) {
         finalContent = sharpened.content;
         pipeline.push({
-          name: "voice_sharpen",
+          name: `voice_sharpen_iter${iter}`,
           status: "retried",
           latencyMs: Date.now() - sharpenStart,
-          notes: `addressed defects: ${review.defects.join(", ")}`,
+          notes: `iter ${iter}/${MAX_SHARPEN_ITERATIONS}: addressing ${review.defects.length} defects: ${review.defects.join(", ")}`,
+          input: { iteration: iter, targetDefects: review.defects },
+          output: { reviseStatus: "applied" },
         });
       } else {
         pipeline.push({
-          name: "voice_sharpen",
+          name: `voice_sharpen_iter${iter}`,
           status: "warning",
           latencyMs: Date.now() - sharpenStart,
-          notes: `sharpen attempted but parse failed, shipping original`,
+          notes: `sharpen iter ${iter} parse failed, breaking loop, shipping with ${review.defects.length} unresolved defects`,
         });
+        pipeline.push({
+          name: "voice_gate",
+          status: "warning",
+          notes: `voice sharpen parse failure on iter ${iter}; shipping draft with unresolved defects`,
+          input: { passed: false, defects: review.defects },
+          output: {
+            decision: "proceed_with_warning",
+            reason: "sharpen failed to produce parseable output",
+            remainingDefects: review.defects,
+          },
+        });
+        break;
       }
     }
   } catch (err) {
@@ -2910,6 +3230,12 @@ export async function generateDailyGrindIssue(opts: {
       name: "voice_review",
       status: "warning",
       notes: `review skipped due to error: ${err instanceof Error ? err.message : String(err)}`,
+    });
+    pipeline.push({
+      name: "voice_gate",
+      status: "warning",
+      notes: `voice review threw — no gate decision possible, shipping draft unchanged`,
+      output: { decision: "proceed_with_warning", reason: `voice_review threw: ${err instanceof Error ? err.message : String(err)}` },
     });
   }
 
