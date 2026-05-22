@@ -261,8 +261,8 @@ ${CANONICAL_EXAMPLES.myTake.map((m) => `- "${m}"`).join("\n")}
 
   sections.push(
     formatSection(
-      "Ancient Truth Application — concrete, NOT preachy",
-      `Pick ONE verse from the proverbCandidates in research. Then write a 2-3 sentence application with a concrete metaphor + direct application to advisor practice.
+      "Ancient Truth — daily wisdom, NOT topical",
+      `Pick ONE verse from the proverbCandidates in research. Then write a 2-3 sentence application that **explains the verse's plain general wisdom** — what it teaches about living, working, or character. **Do NOT force a connection to today's email topic.** The Ancient Truth is daily wisdom that stands on its own, not a reframe of the email's argument.
 
 Example 1:
 Verse: "${CANONICAL_EXAMPLES.ancientTruthApplication[0]!.verse}"
@@ -272,7 +272,7 @@ Example 2:
 Verse: "${CANONICAL_EXAMPLES.ancientTruthApplication[1]!.verse}"
 Application: "${CANONICAL_EXAMPLES.ancientTruthApplication[1]!.application}"
 
-Notice: concrete metaphor (farmer / blindsided) + direct application. NOT "as believers" or "trust in His plan."`,
+Notice: the applications explain what the VERSE teaches — they do NOT say "this is why you should [do today's tactic]." Voice is direct, not preachy. No "as believers" or "trust in His plan." Just plain wisdom.`,
     ),
   );
 

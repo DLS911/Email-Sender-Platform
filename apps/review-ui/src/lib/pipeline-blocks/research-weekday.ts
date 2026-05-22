@@ -186,7 +186,7 @@ Framework references: ${input.approvedTopic.frameworkReferences.join(", ")}`,
 
 primaryFindings should have **at least 5 distinct findings** — each one a specific claim with its own source. If you only find 3, run more searches.
 
-Ancient Truth daily reference needs 2-3 candidate Proverbs (ESV translation preferred). The proverbs should be ones that genuinely apply to advisor practice — wealth, work, counsel, integrity, discipline. Don't force application.
+Ancient Truth daily reference needs 2-3 candidate Bible verses (ESV translation preferred). These should be **standalone daily wisdom** — they do NOT need to relate to the email's topic. Pull from Proverbs, Matthew (Sermon on the Mount, parables), James, Ecclesiastes, Psalms, or Luke. Variety across books is good. Plain general wisdom on living well, work, character, integrity, humility, patience, prudence. Do NOT pre-filter to "fits this issue's topic" — the verse stands on its own as daily wisdom.
 
 Source quality bar:
 - Prefer Kitces Research, Cerulli, J.D. Power, Schwab Advisor Services, InvestmentNews, FA Magazine, Financial Advisor magazine, regulatory primary sources (SEC, FINRA), Federal Reserve research
@@ -237,9 +237,9 @@ URL quality bar:
   ],
   "proverbCandidates": [
     {
-      "reference": "<e.g. Proverbs 11:14>",
-      "text": "<the proverb text>",
-      "applicationToTopic": "<1 sentence on how this could connect to advisor practice>"
+      "reference": "<e.g. Proverbs 11:14 | Matthew 6:34 | James 1:19 | Ecclesiastes 3:1>",
+      "text": "<the verse text in ESV>",
+      "applicationToTopic": "<1 sentence on the verse's PLAIN meaning — general wisdom, not tied to today's email topic>"
     }
   ],
   "researchNotes": "<1-2 paragraphs on what you found, what was harder than expected, and any caveats the writer should know about>"

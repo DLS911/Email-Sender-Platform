@@ -1979,17 +1979,21 @@ Return JSON only.`;
   };
 }
 
-const VERSE_SWAP_SYSTEM_PROMPT = `You pick a Bible verse for The Daily Grind, a newsletter for independent financial advisors. The host is Mark at Castor Abbott. The verse must fit the issue's theme and the application must be 2-3 sentences applying the verse to advisor practice — concrete, not preachy.
+const VERSE_SWAP_SYSTEM_PROMPT = `You pick a Bible verse for The Daily Grind, a newsletter for independent financial advisors. The host is Mark at Castor Abbott.
+
+This is **daily standalone wisdom** — the verse does NOT need to relate to the issue's topic. Pick something that teaches general wisdom on living, working, character, integrity, humility, prudence, patience, or counsel. Variety across books is good.
 
 Avoid these AI-default verses: Proverbs 21:5, Proverbs 24:27, Proverbs 16:9, Proverbs 16:3, Proverbs 15:22, Proverbs 22:3.
 
-Prefer less-cited Proverbs (3, 11, 14, 18, 20, 25, 27, 29) or Ecclesiastes, Psalms, James, or Luke when the theme allows.
+Pull from a wide range: less-cited Proverbs (3, 11, 14, 18, 20, 25, 27, 29), Matthew (Sermon on the Mount, parables), James, Ecclesiastes, Psalms, Luke. Rotate books across issues.
+
+The application is 2-3 sentences explaining the verse's PLAIN meaning. Do not tie it to a specific advisor tactic or topic. Direct, not preachy. No "as believers" or "trust in His plan."
 
 Return ONLY this JSON, no preamble:
 {
   "verse": "the verse text in quotes",
   "reference": "Book Chapter:Verse (Translation)",
-  "application": "2-3 sentences applying the verse to advisor practice"
+  "application": "2-3 sentences explaining the verse's general wisdom"
 }`;
 
 async function swapBannedVerse(
@@ -2013,13 +2017,12 @@ async function swapBannedVerse(
     : "";
 
   const userPrompt = `Issue date: ${issueDate}
-Issue headline: ${headline}
-Issue theme (1-line): ${topicSummary}
+Issue headline (for context only — verse does NOT need to match): ${headline}
 
 BANNED VERSES — DO NOT use any of these (or any verse that's the most-common AI default like Proverbs 21:5):
 ${banned.map((b) => `- ${b}`).join("\n")}
 
-Pick a different verse that fits the theme.${bookConstraint}`;
+Pick a different verse for general daily wisdom. Do NOT match the headline's topic.${bookConstraint}`;
 
   const start = Date.now();
   const response = await client.messages.create({

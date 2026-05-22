@@ -312,15 +312,17 @@ export const CANONICAL_EXAMPLES = {
     `The practice you're building to keep is worth less every year you don't sell it.`,
   ],
 
-  // Ancient Truth application — concrete metaphor + direct application, NOT preachy
+  // Ancient Truth — daily wisdom, NOT topically tied to the email theme.
+  // Application explains the verse's plain meaning. Direct, not preachy.
+  // Don't force a connection to today's specific tactic/take.
   ancientTruthApplication: [
     {
-      verse: `Prepare your work outside; get everything ready for yourself in the field, and after that build your house. — Proverbs 24:27`,
-      application: `The farmer who prepares the field before planting reaps the harvest. The advisor who prepares before the meeting earns the client.`,
+      verse: `Be quick to hear, slow to speak, slow to anger. — James 1:19`,
+      application: `Wisdom usually shows up in restraint. The fastest opinion in the room is rarely the right one, and listening costs nothing.`,
     },
     {
-      verse: `The prudent sees danger and hides himself, but the simple go on and suffer for it. — Proverbs 27:12`,
-      application: `Advisors who over-specialize in a single demographic risk being blindsided when that niche becomes saturated or obsolete. The prudent build flexibility into their positioning.`,
+      verse: `Do not be anxious about tomorrow, for tomorrow will be anxious for itself. Sufficient for the day is its own trouble. — Matthew 6:34`,
+      application: `Worry borrowed from tomorrow doesn't change tomorrow, it just empties today. Do the next right thing in front of you.`,
     },
   ],
 
