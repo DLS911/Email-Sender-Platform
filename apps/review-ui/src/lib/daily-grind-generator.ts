@@ -2547,8 +2547,10 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
   }
 
   // ─── persona_gate ────────────────────────────────────────────────────────
-  // Make the verdict decision EXPLICIT in the trace. If fail (without hard
-  // stops), trigger a persona-driven revision and re-evaluate ONCE.
+  // Per spec `04_content_pipeline.spec.md:708`: `while (!qualityResult.passed
+  // && revisionCycle < 3)`. The spec's "passed" is binary — ALL benchmarks
+  // met, no hard stops. Anything else triggers the revision loop, regardless
+  // of whether it's pass_with_concerns (1 miss) or fail (2+ misses).
   if (panelResult && panelEvaluations.length > 0) {
     const verdict = panelResult.verdict;
     if (verdict === "pass") {
@@ -2558,17 +2560,6 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         notes: `verdict=pass → shipping as-is`,
         input: { verdict, metrics: panelResult.metrics, benchmarks: panelResult.benchmarks },
         output: { decision: "proceed", reason: "all benchmarks met" },
-      });
-    } else if (verdict === "pass_with_concerns") {
-      pipeline.push({
-        name: "persona_gate",
-        status: "warning",
-        notes: `verdict=pass_with_concerns → shipping (single benchmark missed)`,
-        input: { verdict, metrics: panelResult.metrics, benchmarks: panelResult.benchmarks },
-        output: {
-          decision: "proceed_with_concerns",
-          reason: "one benchmark missed but not enough to trigger revision",
-        },
       });
     } else if (panelResult.hardStops.length > 0) {
       // Hard stops mean catastrophic — skip revision, ship with warning so
@@ -2584,7 +2575,7 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         },
       });
     } else {
-      // Soft fail (multiple benchmarks missed, no hard stops) → run the
+      // verdict is pass_with_concerns OR fail with no hard stops → run the
       // spec'd quality-gate revision loop, up to 3 cycles per
       // `04_content_pipeline.spec.md:708`. Each cycle:
       //   1. Build revision recommendations from current panel feedback
@@ -3605,7 +3596,11 @@ export async function generateDailyGrindIssue(opts: {
       }
     }
     if (stage.name === "persona_revision_loop_end" && stage.status === "warning") {
-      warnings.push(`persona_revision_loop: did not reach pass verdict after up to 3 cycles`);
+      const finalVerdict = (stage.output as Record<string, unknown> | undefined)?.finalVerdict;
+      const finalMetrics = (stage.output as Record<string, unknown> | undefined)?.finalMetrics as Record<string, unknown> | undefined;
+      warnings.push(
+        `persona_revision_loop: did not reach pass verdict after up to 3 cycles (final=${finalVerdict ?? "unknown"}${finalMetrics ? ", love=" + ((Number(finalMetrics.loveRate) || 0) * 100).toFixed(0) + "%, share=" + ((Number(finalMetrics.shareRate) || 0) * 100).toFixed(0) + "%" : ""})`,
+      );
     }
     if (stage.name === "fact_check" && (stage.data as Record<string, unknown> | undefined)?.verdict === "reject") {
       warnings.push(
