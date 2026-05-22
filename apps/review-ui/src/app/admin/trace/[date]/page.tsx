@@ -47,6 +47,8 @@ async function loadTrace(date: string): Promise<{
   pipeline: StageRecord[] | null;
   issueSummary: Record<string, unknown> | null;
   contentType: string | null;
+  qualityGateStatus: "passed" | "pending_review_with_warnings" | null;
+  qualityGateWarnings: string[];
 } | null> {
   const db = createClient(
     process.env.SUPABASE_URL ?? "",
@@ -66,6 +68,13 @@ async function loadTrace(date: string): Promise<{
     pipeline: (meta.pipeline as StageRecord[] | undefined) ?? null,
     issueSummary: (meta.issueSummary as Record<string, unknown> | undefined) ?? null,
     contentType: typeof meta.contentType === "string" ? meta.contentType : null,
+    qualityGateStatus:
+      meta.qualityGateStatus === "passed" || meta.qualityGateStatus === "pending_review_with_warnings"
+        ? meta.qualityGateStatus
+        : null,
+    qualityGateWarnings: Array.isArray(meta.qualityGateWarnings)
+      ? (meta.qualityGateWarnings as unknown[]).filter((w): w is string => typeof w === "string")
+      : [],
   };
 }
 
@@ -169,12 +178,52 @@ export default async function TracePage({
       <div style={{ fontSize: 14, color: "#444", marginBottom: 8 }}>
         <strong>Final headline:</strong> {trace.headline}
       </div>
-      <div style={{ fontSize: 13, color: "#666", marginBottom: 24 }}>
+      <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
         <strong>Content type:</strong> {trace.contentType ?? "—"}
         {trace.issueSummary && typeof trace.issueSummary.cluster === "string" ? (
           <> · <strong>Cluster (per issue_summary):</strong> {String(trace.issueSummary.cluster)}</>
         ) : null}
       </div>
+
+      {trace.qualityGateStatus === "passed" ? (
+        <div
+          style={{
+            background: "#e8f5e9",
+            border: "1px solid #4caf50",
+            padding: "10px 14px",
+            borderRadius: 8,
+            marginBottom: 24,
+            fontSize: 13,
+            color: "#0a7f3f",
+          }}
+        >
+          ✓ Final quality gate: <strong>PASSED</strong>. All gates clean. Shipped normally.
+        </div>
+      ) : trace.qualityGateStatus === "pending_review_with_warnings" ? (
+        <div
+          style={{
+            background: "#fff3e0",
+            border: "1px solid #ff9800",
+            padding: "12px 16px",
+            borderRadius: 8,
+            marginBottom: 24,
+          }}
+        >
+          <strong style={{ color: "#b8651a" }}>
+            ⚠ Final quality gate: PENDING_REVIEW_WITH_WARNINGS ({trace.qualityGateWarnings.length})
+          </strong>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 4, marginBottom: 8 }}>
+            Issue shipped but flagged for human review per spec.
+          </div>
+          <ul style={{ marginTop: 4, marginBottom: 0, paddingLeft: 20 }}>
+            {trace.qualityGateWarnings.map((w, i) => (
+              <li key={i} style={{ fontSize: 13, lineHeight: 1.45 }}>
+                {w}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {driftFlags.length > 0 ? (
         <div

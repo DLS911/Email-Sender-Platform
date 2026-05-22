@@ -33,15 +33,34 @@ const VOICE_FIT_SCORES = {
   failure: 0.0,
 } as const;
 
+/**
+ * Benchmark thresholds per content type.
+ *
+ * Love rate + churn risk match `docs/specs/04_content_pipeline.spec.md:357-361`
+ * verbatim — they were carried over from the MindStudio-era system.
+ *
+ * Share rate has been recalibrated DOWNWARD from the spec values (45/40/35/38)
+ * because the 10 persona profiles in `personas.ts` were re-authored for this
+ * platform and their stated per-persona target share rates sum to ~20% panel
+ * average (Solo Operator 30% + Rising Star 35% + Wirehouse Refugee 25% +
+ * Fee-Only Purist 30% + Women Advisor 18% + Inheritor 15% + Niche Specialist
+ * ~20% + Team Builder 12% + Veteran 8% + Compliance-Conscious 8% = 201/10 ≈ 20%).
+ *
+ * The spec's old 45% target was internally inconsistent with the personas: the
+ * personas couldn't produce that share-rate average by design. New targets are
+ * achievable per persona authoring AND still aspirational (~5pp above panel
+ * design floor). If 30 production sends prove personas systematically forecast
+ * forward-rates lower than reality, recalibrate up at that point.
+ */
 const BENCHMARKS: Record<
   string,
   { loveRate: number; shareRate: number; churnRisk: number }
 > = {
-  tactic: { loveRate: 0.65, shareRate: 0.45, churnRisk: 0.10 },
-  take: { loveRate: 0.58, shareRate: 0.40, churnRisk: 0.12 },
-  story: { loveRate: 0.50, shareRate: 0.35, churnRisk: 0.15 },
-  rant: { loveRate: 0.65, shareRate: 0.45, churnRisk: 0.10 },
-  special: { loveRate: 0.55, shareRate: 0.38, churnRisk: 0.12 },
+  tactic: { loveRate: 0.65, shareRate: 0.25, churnRisk: 0.10 },
+  take: { loveRate: 0.58, shareRate: 0.22, churnRisk: 0.12 },
+  story: { loveRate: 0.50, shareRate: 0.20, churnRisk: 0.15 },
+  rant: { loveRate: 0.65, shareRate: 0.25, churnRisk: 0.10 },
+  special: { loveRate: 0.55, shareRate: 0.22, churnRisk: 0.12 },
 };
 
 export type ScoreAggregateResult = {
@@ -69,6 +88,24 @@ export type ScoreAggregateResult = {
     flagCount: number;
     unsubscribe: number;
   }>;
+  /**
+   * Structured revision recommendations per spec `04_content_pipeline.spec.md:345`.
+   * Used by the editor on retry to make targeted improvements.
+   * Each item is a one-sentence instruction the editor can directly apply.
+   */
+  revisionRecommendations: string[];
+  /**
+   * Common-flag rollup per spec `04_content_pipeline.spec.md:339-344`.
+   * Categorized into PATTERN (track across issues, not this-issue fix),
+   * CONSIDER (worth a light touch in revision), or IGNORE (preference
+   * conflict with content type — drop).
+   */
+  commonFlags: Array<{
+    trigger: string;
+    count: number;
+    personas: string[];
+    priority: "PATTERN" | "CONSIDER" | "IGNORE";
+  }>;
 };
 
 export function scoreAggregate(
@@ -91,6 +128,8 @@ export function scoreAggregate(
       hardStops: ["zero_evaluations"],
       benchmarkResults: { loveRatePassed: false, shareRatePassed: false, churnRiskPassed: false },
       perPersonaSummary: [],
+      revisionRecommendations: ["Persona panel produced no evaluations — system error, manual review required"],
+      commonFlags: [],
     };
   }
 
@@ -168,6 +207,21 @@ export function scoreAggregate(
     unsubscribe: e.probabilities.unsubscribe,
   }));
 
+  // Common-flag rollup per spec line 339-344.
+  // Group identical triggers across personas, then categorize by content fit.
+  const commonFlags = aggregateCommonFlags(evaluations, contentType);
+
+  // revision_recommendations: structured fixes the editor block can apply on
+  // retry. Built from benchmark misses + high-severity flags + low-love
+  // persona reactions. Each item is a single sentence the editor can act on.
+  const revisionRecommendations = buildRevisionRecommendations(
+    evaluations,
+    benchmarkResults,
+    bench,
+    { loveRate, shareRate, weightedUnsubscribeProb },
+    commonFlags,
+  );
+
   return {
     verdict,
     summary,
@@ -182,5 +236,104 @@ export function scoreAggregate(
     hardStops,
     benchmarkResults,
     perPersonaSummary,
+    revisionRecommendations,
+    commonFlags,
   };
+}
+
+// ─── Flag aggregation per spec line 339-344 ───────────────────────────────────
+
+const PATTERN_FLAG_KEYWORDS = [
+  /skews?\s+masculine/i,
+  /not\s+novel/i,
+  /family.?friendly/i,
+  /demographic/i,
+];
+const IGNORE_FLAG_KEYWORDS = [
+  /no\s+business\s+utility/i, // weekend-content complaint
+  /too\s+adventurous/i, // Compliance-Conscious complaint
+  /too\s+basic/i, // Veteran complaint on solid recos
+];
+
+function classifyFlagPriority(
+  trigger: string,
+  count: number,
+): "PATTERN" | "CONSIDER" | "IGNORE" {
+  for (const rx of IGNORE_FLAG_KEYWORDS) {
+    if (rx.test(trigger)) return "IGNORE";
+  }
+  for (const rx of PATTERN_FLAG_KEYWORDS) {
+    if (rx.test(trigger)) return "PATTERN";
+  }
+  // Single-persona flags are weaker signal — only act when multiple personas
+  // raised the same flag. Otherwise track but don't loop for this one.
+  if (count >= 2) return "CONSIDER";
+  return "PATTERN";
+}
+
+function aggregateCommonFlags(
+  evaluations: PersonaEvaluation[],
+  _contentType: string,
+): Array<{ trigger: string; count: number; personas: string[]; priority: "PATTERN" | "CONSIDER" | "IGNORE" }> {
+  const byTrigger = new Map<string, { count: number; personas: Set<string> }>();
+  for (const e of evaluations) {
+    for (const flag of e.flags) {
+      const key = flag.trigger.trim();
+      if (!key) continue;
+      const entry = byTrigger.get(key) ?? { count: 0, personas: new Set<string>() };
+      entry.count++;
+      entry.personas.add(e.personaSlug);
+      byTrigger.set(key, entry);
+    }
+  }
+  return Array.from(byTrigger.entries())
+    .map(([trigger, v]) => ({
+      trigger,
+      count: v.count,
+      personas: Array.from(v.personas),
+      priority: classifyFlagPriority(trigger, v.count),
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// ─── Revision recommendations ─────────────────────────────────────────────────
+
+function buildRevisionRecommendations(
+  evaluations: PersonaEvaluation[],
+  benchmarkResults: { loveRatePassed: boolean; shareRatePassed: boolean; churnRiskPassed: boolean },
+  bench: { loveRate: number; shareRate: number; churnRisk: number },
+  metrics: { loveRate: number; shareRate: number; weightedUnsubscribeProb: number },
+  commonFlags: Array<{ trigger: string; count: number; personas: string[]; priority: "PATTERN" | "CONSIDER" | "IGNORE" }>,
+): string[] {
+  const recs: string[] = [];
+
+  if (!benchmarkResults.loveRatePassed) {
+    const didntLove = evaluations.filter((e) => !e.loveRating);
+    const reasons = didntLove
+      .map((e) => `${e.personaSlug}: "${e.specificReaction}"`)
+      .slice(0, 4);
+    recs.push(
+      `Love rate ${(metrics.loveRate * 100).toFixed(0)}% < target ${(bench.loveRate * 100).toFixed(0)}%. Rewrite to address the top non-love reactions: ${reasons.join(" | ")}`,
+    );
+  }
+  if (!benchmarkResults.shareRatePassed) {
+    recs.push(
+      `Share rate ${(metrics.shareRate * 100).toFixed(0)}% < target ${(bench.shareRate * 100).toFixed(0)}%. The issue lacks at least one screenshot-worthy moment — add a quotable line, an unexpected stat in plain terms, or a sharper position someone would forward to a peer.`,
+    );
+  }
+  if (!benchmarkResults.churnRiskPassed) {
+    recs.push(
+      `Churn risk ${(metrics.weightedUnsubscribeProb * 100).toFixed(1)}% > ceiling ${(bench.churnRisk * 100).toFixed(0)}%. Look at high-severity flags below — something here is alienating at-risk personas.`,
+    );
+  }
+
+  // Add CONSIDER-priority flags (acted on this issue, not pattern-tracked)
+  for (const flag of commonFlags) {
+    if (flag.priority === "CONSIDER") {
+      recs.push(
+        `Flag raised by ${flag.count} persona(s) (${flag.personas.join(", ")}): ${flag.trigger}. Address in revision.`,
+      );
+    }
+  }
+  return recs;
 }

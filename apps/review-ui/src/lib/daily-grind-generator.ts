@@ -110,6 +110,18 @@ export type DailyGrindIssue = {
     issueDate: string;
     researchFunnel?: ResearchFunnel;
     issueSummary?: IssueSummary;
+    /**
+     * Final quality-gate status per spec `04_content_pipeline.spec.md:728`.
+     *  - "passed": all gates clean, ship normally
+     *  - "pending_review_with_warnings": at least one gate produced a
+     *    warning serious enough to flag — issue is published but trace
+     *    surface should show it as needing human review
+     */
+    qualityGateStatus?: "passed" | "pending_review_with_warnings";
+    /**
+     * List of reasons the issue is flagged. Empty when status=passed.
+     */
+    qualityGateWarnings?: string[];
   };
 };
 
@@ -2572,111 +2584,163 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         },
       });
     } else {
-      // Soft fail (multiple benchmarks missed, no hard stops) → run a
-      // persona-driven revision and re-evaluate.
-      const revisionStart = Date.now();
-      const promptBuild = buildPersonaRevisionPrompt(panelEvaluations, panelResult);
+      // Soft fail (multiple benchmarks missed, no hard stops) → run the
+      // spec'd quality-gate revision loop, up to 3 cycles per
+      // `04_content_pipeline.spec.md:708`. Each cycle:
+      //   1. Build revision recommendations from current panel feedback
+      //   2. Apply persona-driven revision
+      //   3. Re-run persona panel
+      //   4. If pass, exit; otherwise loop.
+      const MAX_REVISION_CYCLES = 3;
       pipeline.push({
         name: "persona_gate",
         status: "retried",
-        notes: `verdict=fail (no hard stops) → triggering persona-driven revision (${promptBuild.prioritizedFixes.length} prioritized fixes)`,
+        notes: `verdict=fail (no hard stops) → entering revision loop (up to ${MAX_REVISION_CYCLES} cycles per spec)`,
         input: { verdict, metrics: panelResult.metrics, benchmarks: panelResult.benchmarks },
         output: {
-          decision: "revise",
-          reason: "soft fail — multiple benchmarks missed; running editor_revision against persona feedback",
-          prioritizedFixes: promptBuild.prioritizedFixes,
-          topComplaints: promptBuild.complaints,
+          decision: "revise_with_loop",
+          reason: `soft fail — multiple benchmarks missed; running up to ${MAX_REVISION_CYCLES} revision cycles`,
+          initialMetrics: panelResult.metrics,
         },
       });
-      try {
-        // Use the dedicated persona-revision function (not editor_revision)
-        // — editor_revision's system prompt explicitly says "apply only
-        // flagged changes" which is wrong for audience-driven substantive
-        // rewrites. persona-revision tells the model to RESTRUCTURE.
-        const revised = await runPersonaRevision(client, content, promptBuild.revisionRequest);
-        totalLatency += revised.latencyMs;
-        totalInput += revised.inputTokens;
-        totalOutput += revised.outputTokens;
-        if (revised.content) {
-          content = revised.content;
-          pipeline.push({
-            name: "persona_revision",
-            status: "retried",
-            latencyMs: Date.now() - revisionStart,
-            notes: `applied persona-driven revision (${promptBuild.prioritizedFixes.length} fixes)`,
-            input: {
-              prioritizedFixes: promptBuild.prioritizedFixes,
-              complaintsAddressed: promptBuild.complaints.length,
-            },
-            output: { reviseStatus: "applied" },
-          });
 
-          // Re-run persona panel ONCE to confirm the revision actually
-          // moved the needle. Even if it still fails, we now ship and let
-          // the trace show the before/after delta.
-          const recheckStart = Date.now();
-          try {
-            const recheck = await runPersonaPanel(client, content, contentType, issueDate);
-            totalLatency += recheck.maxLatencyMs;
-            totalInput += recheck.totalInputTokens;
-            totalOutput += recheck.totalOutputTokens;
-            if (recheck.evaluations.length > 0) {
-              const recheckResult = scoreAggregate(recheck.evaluations, contentType);
-              panelEvaluations = recheck.evaluations;
-              panelResult = recheckResult;
-              const delta = {
-                loveRate: recheckResult.metrics.loveRate - panelResult.metrics.loveRate,
-                shareRate: recheckResult.metrics.shareRate - panelResult.metrics.shareRate,
-              };
-              pipeline.push({
-                name: "persona_panel_recheck",
-                status:
-                  recheckResult.verdict === "pass"
-                    ? "success"
-                    : recheckResult.verdict === "pass_with_concerns"
-                      ? "warning"
-                      : "warning",
-                latencyMs: Date.now() - recheckStart,
-                notes: `post-revision verdict=${recheckResult.verdict}. ${recheckResult.summary}`,
-                input: {
-                  loveRateBefore: (panelResult.metrics.loveRate * 100).toFixed(0) + "%",
-                  shareRateBefore: (panelResult.metrics.shareRate * 100).toFixed(0) + "%",
-                },
-                output: {
-                  verdict: recheckResult.verdict,
-                  metrics: recheckResult.metrics,
-                  deltaLoveRate: delta.loveRate,
-                  deltaShareRate: delta.shareRate,
-                  improved:
-                    recheckResult.metrics.loveRate > panelResult.metrics.loveRate ||
-                    recheckResult.verdict === "pass",
-                },
-              });
-            }
-          } catch (err) {
+      let revisionCycle = 0;
+      let lastMetrics = panelResult.metrics;
+      while (panelResult.verdict !== "pass" && revisionCycle < MAX_REVISION_CYCLES) {
+        revisionCycle++;
+        const cycleStart = Date.now();
+        const promptBuild = buildPersonaRevisionPrompt(panelEvaluations, panelResult);
+        // Augment the revision request with the spec's structured
+        // revision_recommendations field (built from benchmarks + flags +
+        // low-love reactions). This is what the spec passes to the editor
+        // block on each revision cycle.
+        const combinedRevisionRequest = `${promptBuild.revisionRequest}
+
+## Structured revision_recommendations (from score_aggregator, per spec)
+
+${panelResult.revisionRecommendations.map((r) => `- ${r}`).join("\n")}
+
+## Common flags (CONSIDER priority — address this cycle)
+
+${panelResult.commonFlags
+  .filter((f) => f.priority === "CONSIDER")
+  .map((f) => `- "${f.trigger}" (raised by ${f.personas.length} personas: ${f.personas.join(", ")})`)
+  .join("\n") || "(none)"}`;
+
+        let revisedOk = false;
+        try {
+          const revised = await runPersonaRevision(client, content, combinedRevisionRequest);
+          totalLatency += revised.latencyMs;
+          totalInput += revised.inputTokens;
+          totalOutput += revised.outputTokens;
+          if (revised.content) {
+            content = revised.content;
+            revisedOk = true;
             pipeline.push({
-              name: "persona_panel_recheck",
+              name: `persona_revision_cycle${revisionCycle}`,
+              status: "retried",
+              latencyMs: Date.now() - cycleStart,
+              notes: `cycle ${revisionCycle}/${MAX_REVISION_CYCLES}: applied persona-driven revision (${promptBuild.prioritizedFixes.length} fixes + ${panelResult.revisionRecommendations.length} structured recs)`,
+              input: {
+                cycle: revisionCycle,
+                prioritizedFixes: promptBuild.prioritizedFixes,
+                revisionRecommendations: panelResult.revisionRecommendations,
+                considerFlags: panelResult.commonFlags
+                  .filter((f) => f.priority === "CONSIDER")
+                  .map((f) => f.trigger),
+              },
+              output: { reviseStatus: "applied" },
+            });
+          } else {
+            pipeline.push({
+              name: `persona_revision_cycle${revisionCycle}`,
+              status: "warning",
+              latencyMs: Date.now() - cycleStart,
+              notes: `cycle ${revisionCycle}: revision call failed to parse; keeping prior draft and exiting loop`,
+            });
+            break;
+          }
+        } catch (err) {
+          pipeline.push({
+            name: `persona_revision_cycle${revisionCycle}`,
+            status: "warning",
+            latencyMs: Date.now() - cycleStart,
+            notes: `cycle ${revisionCycle} revision error: ${err instanceof Error ? err.message : String(err)} — exiting loop`,
+          });
+          break;
+        }
+
+        if (!revisedOk) break;
+
+        // Re-run persona panel after this cycle's revision
+        const recheckStart = Date.now();
+        try {
+          const recheck = await runPersonaPanel(client, content, contentType, issueDate);
+          totalLatency += recheck.maxLatencyMs;
+          totalInput += recheck.totalInputTokens;
+          totalOutput += recheck.totalOutputTokens;
+          if (recheck.evaluations.length > 0) {
+            const recheckResult = scoreAggregate(recheck.evaluations, contentType);
+            const deltaLove = recheckResult.metrics.loveRate - lastMetrics.loveRate;
+            const deltaShare = recheckResult.metrics.shareRate - lastMetrics.shareRate;
+            panelEvaluations = recheck.evaluations;
+            panelResult = recheckResult;
+            lastMetrics = recheckResult.metrics;
+            pipeline.push({
+              name: `persona_panel_cycle${revisionCycle}`,
+              status:
+                recheckResult.verdict === "pass"
+                  ? "success"
+                  : recheckResult.verdict === "pass_with_concerns"
+                    ? "warning"
+                    : "warning",
+              latencyMs: Date.now() - recheckStart,
+              notes: `cycle ${revisionCycle}/${MAX_REVISION_CYCLES} post-revision verdict=${recheckResult.verdict}. ${recheckResult.summary}`,
+              input: { cycle: revisionCycle },
+              output: {
+                verdict: recheckResult.verdict,
+                metrics: recheckResult.metrics,
+                deltaLoveRate: deltaLove,
+                deltaShareRate: deltaShare,
+                improved: recheckResult.metrics.loveRate > lastMetrics.loveRate || recheckResult.verdict === "pass",
+              },
+            });
+          } else {
+            pipeline.push({
+              name: `persona_panel_cycle${revisionCycle}`,
               status: "warning",
               latencyMs: Date.now() - recheckStart,
-              notes: `recheck failed: ${err instanceof Error ? err.message : String(err)} — shipping revised content without confirmation`,
+              notes: `cycle ${revisionCycle}: recheck produced zero evaluations — exiting loop`,
             });
+            break;
           }
-        } else {
+        } catch (err) {
           pipeline.push({
-            name: "persona_revision",
+            name: `persona_panel_cycle${revisionCycle}`,
             status: "warning",
-            latencyMs: Date.now() - revisionStart,
-            notes: `persona revision call failed to parse, keeping original draft and shipping with warning`,
+            latencyMs: Date.now() - recheckStart,
+            notes: `cycle ${revisionCycle} recheck failed: ${err instanceof Error ? err.message : String(err)} — exiting loop`,
           });
+          break;
         }
-      } catch (err) {
-        pipeline.push({
-          name: "persona_revision",
-          status: "warning",
-          latencyMs: Date.now() - revisionStart,
-          notes: `persona revision error: ${err instanceof Error ? err.message : String(err)}`,
-        });
       }
+
+      // Loop terminated — log final cycle outcome
+      pipeline.push({
+        name: "persona_revision_loop_end",
+        status: panelResult.verdict === "pass" ? "success" : "warning",
+        notes:
+          panelResult.verdict === "pass"
+            ? `revision loop converged on cycle ${revisionCycle}/${MAX_REVISION_CYCLES} (verdict=pass)`
+            : revisionCycle >= MAX_REVISION_CYCLES
+              ? `exhausted ${MAX_REVISION_CYCLES} revision cycles, final verdict=${panelResult.verdict} (will mark pending_review_with_warnings per spec)`
+              : `loop exited early on cycle ${revisionCycle} due to revision/recheck error`,
+        input: { maxCycles: MAX_REVISION_CYCLES, cyclesUsed: revisionCycle },
+        output: {
+          finalVerdict: panelResult.verdict,
+          finalMetrics: panelResult.metrics,
+        },
+      });
     }
   }
 
@@ -3519,6 +3583,68 @@ export async function generateDailyGrindIssue(opts: {
     data: { flags: drift.flags, handoffs: drift.handoffs },
   });
 
+  // ─── final_quality_gate ────────────────────────────────────────────────────
+  // Roll up every gate's decision into ONE top-level pass/warning verdict
+  // per spec `04_content_pipeline.spec.md:719-728`. Reasons to flag for
+  // human review:
+  //   - persona panel verdict still != pass after revision loop
+  //   - persona panel hard stops triggered
+  //   - fact_check verdict=reject
+  //   - voice_gate exhausted iterations with defects remaining
+  //   - pipeline drift detected
+  //   - research below floor after all retries
+  //   - editor_gate exhausted iterations without clean approve
+  const warnings: string[] = [];
+  for (const stage of pipeline) {
+    if (stage.name === "persona_gate") {
+      const decision = (stage.output as Record<string, unknown> | undefined)?.decision;
+      if (decision === "proceed_with_warning") {
+        warnings.push(
+          `persona_gate: ${(stage.output as Record<string, unknown>)?.reason ?? "ships with hard stops"}`,
+        );
+      }
+    }
+    if (stage.name === "persona_revision_loop_end" && stage.status === "warning") {
+      warnings.push(`persona_revision_loop: did not reach pass verdict after up to 3 cycles`);
+    }
+    if (stage.name === "fact_check" && (stage.data as Record<string, unknown> | undefined)?.verdict === "reject") {
+      warnings.push(
+        `fact_check: verdict=reject (${(stage.data as Record<string, unknown>)?.issueCount ?? "?"} high-severity issues) — should not ship without human review`,
+      );
+    }
+    if (stage.name === "voice_gate" && stage.status === "warning") {
+      const remaining = (stage.output as Record<string, unknown> | undefined)?.remainingDefects;
+      if (Array.isArray(remaining) && remaining.length > 0) {
+        warnings.push(`voice_gate: ${remaining.length} defects remain after max iterations: ${remaining.join(", ")}`);
+      }
+    }
+    if (stage.name === "pipeline_drift_check" && stage.status === "warning") {
+      warnings.push(`pipeline_drift_check: ${stage.notes ?? "drift detected"}`);
+    }
+    if (stage.name === "research_quality_gate" && stage.status === "warning") {
+      warnings.push(`research_quality_gate: ${stage.notes ?? "research below floor"}`);
+    }
+    if (stage.name === "editor_gate" && stage.status === "warning") {
+      warnings.push(`editor_gate: ${stage.notes ?? "editor loop did not produce clean approve"}`);
+    }
+  }
+  const qualityGateStatus: "passed" | "pending_review_with_warnings" =
+    warnings.length === 0 ? "passed" : "pending_review_with_warnings";
+  pipeline.push({
+    name: "final_quality_gate",
+    status: qualityGateStatus === "passed" ? "success" : "warning",
+    notes:
+      qualityGateStatus === "passed"
+        ? `all gates clean → status=passed, ship normally`
+        : `${warnings.length} warning(s) → status=pending_review_with_warnings (ships but flagged for human review per spec)`,
+    input: { stageCount: pipeline.length - 1 },
+    output: {
+      qualityGateStatus,
+      warnings,
+      decision: qualityGateStatus === "passed" ? "ship_normally" : "ship_but_flag_for_human_review",
+    },
+  });
+
   const totalCost = estimateCostUsd(
     research.inputTokens,
     research.outputTokens,
@@ -3545,6 +3671,8 @@ export async function generateDailyGrindIssue(opts: {
       issueDate: opts.issueDate,
       ...("funnel" in research && research.funnel ? { researchFunnel: research.funnel } : {}),
       ...(issueSummaryResult ? { issueSummary: issueSummaryResult } : {}),
+      qualityGateStatus,
+      qualityGateWarnings: warnings,
     },
   };
 }

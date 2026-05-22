@@ -338,6 +338,11 @@ async function persistIssue(
         // Persist full pipeline trace (input → output at each handoff). This is
         // what the /admin/trace/[issueDate] viewer reads to surface drift.
         pipeline: issue.pipeline,
+        // Spec-compliant quality gate status. "pending_review_with_warnings"
+        // means the issue ships but the trace surface flags it for human
+        // review per spec `04_content_pipeline.spec.md:728`.
+        qualityGateStatus: issue.meta.qualityGateStatus ?? "passed",
+        qualityGateWarnings: issue.meta.qualityGateWarnings ?? [],
       },
     },
     { onConflict: "issue_date" },

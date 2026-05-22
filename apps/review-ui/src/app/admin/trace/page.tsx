@@ -80,6 +80,13 @@ export default async function TraceIndex({
         driftCount = (drift.output!.flags as unknown[]).length;
       }
     }
+    const qualityGateStatus =
+      meta.qualityGateStatus === "passed" || meta.qualityGateStatus === "pending_review_with_warnings"
+        ? (meta.qualityGateStatus as "passed" | "pending_review_with_warnings")
+        : null;
+    const qualityGateWarningCount = Array.isArray(meta.qualityGateWarnings)
+      ? (meta.qualityGateWarnings as unknown[]).length
+      : 0;
     return {
       issue_date: row.issue_date,
       headline: row.headline,
@@ -91,6 +98,8 @@ export default async function TraceIndex({
       hasTrace,
       stageCount,
       driftCount,
+      qualityGateStatus,
+      qualityGateWarningCount,
     };
   });
 
@@ -117,6 +126,7 @@ export default async function TraceIndex({
             <th style={{ padding: "8px 6px" }}>Headline</th>
             <th style={{ padding: "8px 6px" }}>Stages</th>
             <th style={{ padding: "8px 6px" }}>Drift</th>
+            <th style={{ padding: "8px 6px" }}>Quality Gate</th>
             <th style={{ padding: "8px 6px" }}></th>
           </tr>
         </thead>
@@ -139,6 +149,17 @@ export default async function TraceIndex({
                   )
                 ) : (
                   <span style={{ color: "#b8651a", fontWeight: 600 }}>⚠ {r.driftCount}</span>
+                )}
+              </td>
+              <td style={{ padding: "8px 6px" }}>
+                {r.qualityGateStatus === "passed" ? (
+                  <span style={{ color: "#0a7f3f" }}>passed</span>
+                ) : r.qualityGateStatus === "pending_review_with_warnings" ? (
+                  <span style={{ color: "#b8651a", fontWeight: 600 }}>
+                    ⚠ pending review ({r.qualityGateWarningCount})
+                  </span>
+                ) : (
+                  <span style={{ color: "#aaa" }}>—</span>
                 )}
               </td>
               <td style={{ padding: "8px 6px" }}>
