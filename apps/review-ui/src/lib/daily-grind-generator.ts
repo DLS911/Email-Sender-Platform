@@ -76,6 +76,19 @@ export type PipelineStageRecord = {
   latencyMs?: number;
   notes?: string;
   data?: Record<string, unknown>;
+  /**
+   * Handoff input: what this stage RECEIVED from prior stages.
+   * Captures the contract / instruction it was given, so we can see if its
+   * output actually honored the handoff.
+   */
+  input?: Record<string, unknown>;
+  /**
+   * Handoff output: the structured product of this stage that downstream
+   * stages will (or should) consume. Pair (input, output) lets us debug
+   * drift — e.g. proposer says "tactic about referrals," writer outputs
+   * a take about M&A → output.cluster will reveal the break.
+   */
+  output?: Record<string, unknown>;
 };
 
 export type DailyGrindIssue = {
@@ -121,6 +134,111 @@ function estimateCostUsd(
     ((researchOut + writerOut) / 1_000_000) * OUTPUT_COST_PER_M;
   const searchCost = (searches / 1000) * WEB_SEARCH_COST_PER_K;
   return tokenCost + searchCost;
+}
+
+// ─── Pipeline drift detection ───────────────────────────────────────────────
+//
+// At each handoff between blocks (proposer → research → writer → summary),
+// compare what the upstream stage DECLARED its intent to be against what the
+// downstream stage actually produced. Flag mismatches so Mark/Austin can
+// debug "the proposer wanted X but the writer shipped Y."
+
+type DriftFlag = {
+  code: string;
+  fromStage: string;
+  toStage: string;
+  detail: string;
+};
+
+type DriftInput = {
+  proposerCluster: string | null;
+  proposerContentType: string | null;
+  proposerTopic: string | null;
+  summaryCluster: string | null;
+  finalContentType: string;
+  finalHeadline: string;
+  researchSources: string[];
+};
+
+/**
+ * Cluster keywords mined from `pipeline-blocks/issue-summary.ts` reference list.
+ * Used to *guess* the cluster of a free-text proposer topic when we don't yet
+ * have a structured cluster field on the proposer output. (Issue_summary emits
+ * the canonical cluster — this is just a heuristic for the handoff check.)
+ */
+const CLUSTER_KEYWORDS: Array<{ cluster: string; patterns: RegExp[] }> = [
+  { cluster: "prospecting-prep", patterns: [/discovery call/i, /prospecting/i, /linkedin intel/i, /pre.?meeting/i, /coi lunch/i] },
+  { cluster: "referral-mechanics", patterns: [/referral/i, /center.? of influence/i, /\bcoi\b/i] },
+  { cluster: "compliance-documentation", patterns: [/\bwsp\b/i, /sec exam/i, /\badv\b/i, /marketing rule/i, /compliance documentation/i] },
+  { cluster: "m-and-a-buyer-vetting", patterns: [/\bm&a\b/i, /\bm and a\b/i, /buyer vetting/i, /earnout/i, /due diligence/i, /buyer integration/i, /\bria sale\b/i, /selling your practice/i] },
+  { cluster: "m-and-a-valuation", patterns: [/valuation/i, /aum multiple/i, /deal terms/i, /growth.?rate/i] },
+  { cluster: "fee-and-pricing", patterns: [/fee compression/i, /pricing/i, /flat.?fee/i, /retainer/i, /free planning/i] },
+  { cluster: "team-and-scaling", patterns: [/hiring/i, /succession/i, /capacity/i, /founder bottleneck/i, /team building/i] },
+  { cluster: "compliance-supervision", patterns: [/supervisory/i, /principal review/i, /audit trail/i] },
+  { cluster: "tax-scenarios", patterns: [/roth conversion/i, /year.?end planning/i, /estate transition/i, /tax scenario/i] },
+  { cluster: "client-communication", patterns: [/annual review/i, /market panic/i, /client retention/i, /client communication/i] },
+  { cluster: "tech-and-tools", patterns: [/\bcrm\b/i, /ai tool/i, /integration sprawl/i] },
+  { cluster: "positioning-and-niche", patterns: [/niche/i, /positioning/i, /demographic vs transition/i, /contrarian positioning/i] },
+];
+
+function detectClusterFromString(s: string | null): string | null {
+  if (!s) return null;
+  for (const entry of CLUSTER_KEYWORDS) {
+    for (const pattern of entry.patterns) {
+      if (pattern.test(s)) return entry.cluster;
+    }
+  }
+  return null;
+}
+
+function computePipelineDrift(input: DriftInput): {
+  flags: DriftFlag[];
+  handoffs: Record<string, unknown>;
+} {
+  const flags: DriftFlag[] = [];
+  const handoffs: Record<string, unknown> = {
+    proposer_to_research: {
+      proposerTopic: input.proposerTopic,
+      proposerCluster: input.proposerCluster,
+      researchSources: input.researchSources,
+    },
+    research_to_writer: {
+      proposerContentType: input.proposerContentType,
+      finalContentType: input.finalContentType,
+    },
+    writer_to_summary: {
+      finalHeadline: input.finalHeadline,
+      summaryCluster: input.summaryCluster,
+      proposerCluster: input.proposerCluster,
+    },
+  };
+
+  if (input.proposerCluster && input.summaryCluster && input.proposerCluster !== input.summaryCluster) {
+    flags.push({
+      code: "cluster_drift",
+      fromStage: "topic_proposer",
+      toStage: "issue_summary",
+      detail: `proposer aimed for cluster "${input.proposerCluster}" but final draft summary cluster is "${input.summaryCluster}"`,
+    });
+  }
+  if (input.proposerContentType && input.proposerContentType !== input.finalContentType) {
+    flags.push({
+      code: "content_type_drift",
+      fromStage: "topic_proposer",
+      toStage: "writer",
+      detail: `proposer picked "${input.proposerContentType}" but final shipped as "${input.finalContentType}"`,
+    });
+  }
+  const headlineCluster = detectClusterFromString(input.finalHeadline);
+  if (input.proposerCluster && headlineCluster && headlineCluster !== input.proposerCluster) {
+    flags.push({
+      code: "headline_cluster_drift",
+      fromStage: "topic_proposer",
+      toStage: "assemble_html",
+      detail: `proposer aimed for cluster "${input.proposerCluster}" but final inbox headline reads as cluster "${headlineCluster}"`,
+    });
+  }
+  return { flags, handoffs };
 }
 
 function stripCodeFences(text: string): string {
@@ -2450,6 +2568,16 @@ export async function generateDailyGrindIssue(opts: {
   // Wed=Tactic, Thu=Story/Special, Fri=Tactic+Digital Grind.
   const proposerStart = Date.now();
   let proposal: Awaited<ReturnType<typeof runTopicProposer>> | null = null;
+  const proposerInput = {
+    recentHeadlines: recentTopics.slice(0, 10),
+    recentIssueSummariesCount: recentIssueSummaries.length,
+    recentClusters: recentIssueSummaries
+      .map((s) => s.cluster)
+      .filter((c): c is string => typeof c === "string")
+      .slice(0, 10),
+    blockedConceptsCount: recentConcepts.length,
+    explicitTopicHint: opts.topicHint ?? null,
+  };
   try {
     proposal = await runTopicProposer(
       client,
@@ -2463,6 +2591,14 @@ export async function generateDailyGrindIssue(opts: {
       status: "success",
       latencyMs: Date.now() - proposerStart,
       notes: `${proposal.contentType.toUpperCase()}: ${proposal.topic}. Angle: ${proposal.angle}`,
+      input: proposerInput,
+      output: {
+        contentType: proposal.contentType,
+        topic: proposal.topic,
+        angle: proposal.angle,
+        frameworkReferences: proposal.frameworkReferences,
+        rationale: proposal.rationale,
+      },
       data: {
         contentType: proposal.contentType,
         topic: proposal.topic,
@@ -2477,6 +2613,7 @@ export async function generateDailyGrindIssue(opts: {
       status: "warning",
       latencyMs: Date.now() - proposerStart,
       notes: `proposer failed: ${err instanceof Error ? err.message : String(err)}`,
+      input: proposerInput,
     });
   }
 
@@ -2647,6 +2784,18 @@ export async function generateDailyGrindIssue(opts: {
       status: "success",
       latencyMs: research.latencyMs,
       notes: `backend=${backend}, items=${research.bundle.items.length}, distinctSources=${distinctSources.size}`,
+      input: {
+        backend,
+        topicHint: researchTopicHint ?? null,
+        proposerContentType: proposal?.contentType ?? null,
+        proposerTopic: proposal?.topic ?? null,
+      },
+      output: {
+        itemCount: research.bundle.items.length,
+        distinctSources: distinctSources.size,
+        sources: Array.from(distinctSources),
+        itemHeadlines: research.bundle.items.slice(0, 10).map((r) => r.title),
+      },
       data: {
         backend,
         itemCount: research.bundle.items.length,
@@ -2678,6 +2827,20 @@ export async function generateDailyGrindIssue(opts: {
     status: "success",
     latencyMs: Date.now() - writerStart,
     notes: `headline="${writer.content.headline}", contentType=${lockedContentType}`,
+    input: {
+      lockedContentType,
+      proposerTopic: proposal?.topic ?? null,
+      proposerAngle: proposal?.angle ?? null,
+      researchItemCount: research.bundle.items.length,
+      researchSources: Array.from(new Set(research.bundle.items.map((r) => r.source))),
+    },
+    output: {
+      headline: writer.content.headline,
+      preheader: writer.content.preheader,
+      contentType: lockedContentType,
+      worthKnowingCount: writer.content.worthKnowing?.length ?? 0,
+      hasMainContent: Boolean(writer.content.mainContent?.intro),
+    },
     data: {
       inputTokens: writer.inputTokens,
       outputTokens: writer.outputTokens,
@@ -2771,6 +2934,7 @@ export async function generateDailyGrindIssue(opts: {
     };
     if (assembleResult.result) {
       const { subjectLine, previewText, characterCounts } = assembleResult.result;
+      const writerHeadline = finalContent.headline;
       // Override headline + preheader with the optimized inbox versions.
       // The H1 in the body uses the same field, so this aligns the body H1
       // with the inbox subject for consistency.
@@ -2784,6 +2948,16 @@ export async function generateDailyGrindIssue(opts: {
         status: "success",
         latencyMs: Date.now() - assembleStart,
         notes: `subject (${characterCounts?.subjectLineChars ?? subjectLine.length} chars): "${subjectLine}". preview (${characterCounts?.previewTextChars ?? previewText.length} chars).`,
+        input: {
+          writerHeadline,
+          recentSubjectLineCount: recentTopics.length,
+        },
+        output: {
+          subjectLine,
+          previewText,
+          subjectLineChars: characterCounts?.subjectLineChars ?? subjectLine.length,
+          previewTextChars: characterCounts?.previewTextChars ?? previewText.length,
+        },
         data: {
           subjectLine,
           previewText,
@@ -2828,6 +3002,11 @@ export async function generateDailyGrindIssue(opts: {
         status: "success",
         latencyMs: Date.now() - summaryStart,
         notes: `cluster=${summary.summary.cluster}, topicSlug=${summary.summary.topicSlug}, freshAfter=${summary.summary.freshAfter}`,
+        input: {
+          finalHeadline: finalContent.headline,
+          finalContentType: lockedContentType,
+        },
+        output: summary.summary as unknown as Record<string, unknown>,
         data: summary.summary as unknown as Record<string, unknown>,
       });
     } else {
@@ -2846,6 +3025,31 @@ export async function generateDailyGrindIssue(opts: {
       notes: `issue_summary error: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
+
+  // STAGE: pipeline_drift_check — compare what each stage was TOLD to do
+  // against what downstream stages produced. Flag breaks so we can debug
+  // "the proposer wanted X but the writer shipped Y" without rereading
+  // the whole trace.
+  const drift = computePipelineDrift({
+    proposerCluster: detectClusterFromString(proposal?.topic ?? null),
+    proposerContentType: proposal?.contentType ?? null,
+    proposerTopic: proposal?.topic ?? null,
+    summaryCluster: issueSummaryResult?.cluster ?? null,
+    finalContentType: lockedContentType,
+    finalHeadline: finalContent.headline,
+    researchSources: Array.from(new Set(research.bundle.items.map((r) => r.source))),
+  });
+  pipeline.push({
+    name: "pipeline_drift_check",
+    status: drift.flags.length === 0 ? "success" : "warning",
+    notes:
+      drift.flags.length === 0
+        ? "no drift detected"
+        : `drift detected: ${drift.flags.map((f) => f.code).join(", ")}`,
+    input: drift.handoffs,
+    output: { flags: drift.flags },
+    data: { flags: drift.flags, handoffs: drift.handoffs },
+  });
 
   const totalCost = estimateCostUsd(
     research.inputTokens,

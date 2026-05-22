@@ -335,6 +335,9 @@ async function persistIssue(
         researchItemCount: issue.research.items.length,
         researchSources: issue.research.items.map((r) => ({ source: r.source, url: r.url })),
         ...(issue.meta.issueSummary ? { issueSummary: issue.meta.issueSummary } : {}),
+        // Persist full pipeline trace (input → output at each handoff). This is
+        // what the /admin/trace/[issueDate] viewer reads to surface drift.
+        pipeline: issue.pipeline,
       },
     },
     { onConflict: "issue_date" },
