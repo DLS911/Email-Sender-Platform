@@ -177,7 +177,13 @@ export function scoreAggregate(
     churnRiskPassed: weightedUnsubscribeProb <= bench.churnRisk,
   };
 
-  const missedCount = Object.values(benchmarkResults).filter((p) => !p).length;
+  // Share rate is INFORMATIONAL ONLY — does not affect verdict or trigger
+  // revisions. The persona definitions cap panel-average forward probabilities
+  // at ~20% by design (sum of per-persona target share rates ≈ 20%), so this
+  // metric is structurally below any aspirational target. We still surface
+  // the number in the trace so it can be compared across issues, but love
+  // rate and churn risk are the only metrics that gate publishing.
+  const missedCount = (benchmarkResults.loveRatePassed ? 0 : 1) + (benchmarkResults.churnRiskPassed ? 0 : 1);
 
   let verdict: "pass" | "pass_with_concerns" | "fail";
   if (hardStops.length > 0) {
@@ -193,8 +199,8 @@ export function scoreAggregate(
   const summary = [
     `Panel of ${panelSize}.`,
     `Love rate: ${(loveRate * 100).toFixed(0)}% (target ≥${(bench.loveRate * 100).toFixed(0)}%) ${benchmarkResults.loveRatePassed ? "✓" : "✗"}`,
-    `Share rate: ${(shareRate * 100).toFixed(0)}% (target ≥${(bench.shareRate * 100).toFixed(0)}%) ${benchmarkResults.shareRatePassed ? "✓" : "✗"}`,
     `Churn risk: ${(weightedUnsubscribeProb * 100).toFixed(1)}% (target ≤${(bench.churnRisk * 100).toFixed(0)}%) ${benchmarkResults.churnRiskPassed ? "✓" : "✗"}`,
+    `Share rate: ${(shareRate * 100).toFixed(0)}% (informational, not gated).`,
     `Voice fit avg: ${(voiceFitAvg * 100).toFixed(0)}/100.`,
   ].join(" ");
 
@@ -316,11 +322,7 @@ function buildRevisionRecommendations(
       `Love rate ${(metrics.loveRate * 100).toFixed(0)}% < target ${(bench.loveRate * 100).toFixed(0)}%. Rewrite to address the top non-love reactions: ${reasons.join(" | ")}`,
     );
   }
-  if (!benchmarkResults.shareRatePassed) {
-    recs.push(
-      `Share rate ${(metrics.shareRate * 100).toFixed(0)}% < target ${(bench.shareRate * 100).toFixed(0)}%. The issue lacks at least one screenshot-worthy moment — add a quotable line, an unexpected stat in plain terms, or a sharper position someone would forward to a peer.`,
-    );
-  }
+  // Share rate is informational-only — does not generate revision recommendations.
   if (!benchmarkResults.churnRiskPassed) {
     recs.push(
       `Churn risk ${(metrics.weightedUnsubscribeProb * 100).toFixed(1)}% > ceiling ${(bench.churnRisk * 100).toFixed(0)}%. Look at high-severity flags below — something here is alienating at-risk personas.`,

@@ -75,11 +75,7 @@ export function buildPersonaRevisionPrompt(
       `Improve love rate: only ${(score.metrics.loveRate * 100).toFixed(0)}% loved it vs target ≥${(score.benchmarks.loveRate * 100).toFixed(0)}%. Look at the specific complaints below to understand why.`,
     );
   }
-  if (!score.benchmarkResults.shareRatePassed) {
-    fixSet.add(
-      `Improve share-worthiness: only ${(score.metrics.shareRate * 100).toFixed(0)}% would forward this vs target ≥${(score.benchmarks.shareRate * 100).toFixed(0)}%. The issue needs at least one earned line worth pulling out to a colleague.`,
-    );
-  }
+  // Share rate is informational only — not a revision target.
   if (!score.benchmarkResults.churnRiskPassed) {
     fixSet.add(
       `Reduce churn risk: ${(score.metrics.weightedUnsubscribeProb * 100).toFixed(1)}% weighted unsubscribe prob vs ceiling ≤${(score.benchmarks.churnRisk * 100).toFixed(0)}%. Something here is alienating at-risk personas — look at high-severity flags below.`,
@@ -104,8 +100,8 @@ export function buildPersonaRevisionPrompt(
 
 ## Aggregate metrics
 - Love rate: ${(score.metrics.loveRate * 100).toFixed(0)}% (target ≥${(score.benchmarks.loveRate * 100).toFixed(0)}%) ${score.benchmarkResults.loveRatePassed ? "✓" : "✗"}
-- Share rate: ${(score.metrics.shareRate * 100).toFixed(0)}% (target ≥${(score.benchmarks.shareRate * 100).toFixed(0)}%) ${score.benchmarkResults.shareRatePassed ? "✓" : "✗"}
 - Churn risk: ${(score.metrics.weightedUnsubscribeProb * 100).toFixed(1)}% (ceiling ≤${(score.benchmarks.churnRisk * 100).toFixed(0)}%) ${score.benchmarkResults.churnRiskPassed ? "✓" : "✗"}
+- Share rate: ${(score.metrics.shareRate * 100).toFixed(0)}% (informational only, not a revision target)
 
 ## What needs to change (in order of priority)
 
