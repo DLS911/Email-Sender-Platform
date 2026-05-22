@@ -22,6 +22,7 @@ import {
 import { PERSONAS } from "./pipeline-blocks/personas";
 import { scoreAggregate, type ScoreAggregateResult } from "./pipeline-blocks/score-aggregate";
 import { buildPersonaRevisionPrompt } from "./pipeline-blocks/persona-revision";
+import { applySurgicalRewrites } from "./pipeline-blocks/surgical-rewrites";
 import {
   buildAssembleHtmlPrompt,
   type AssembleHtmlOutput,
@@ -1198,6 +1199,92 @@ async function runEditorPass(
     outputTokens: response.usage.output_tokens,
     latencyMs,
   };
+}
+
+/**
+ * Persona-driven substantive revision. Unlike runEditorRevision which says
+ * "apply ONLY the flagged changes," this one tells the model to make the
+ * structural changes needed so that the audience actually loves the piece.
+ *
+ * Used when score_aggregate returns verdict=fail. The revisionRequest carries
+ * specific complaints from the lowest-love personas + benchmark-driven
+ * priorities. The model is allowed (and pushed) to change scenes, framings,
+ * earned lines, and Unspoken architecture — anything except facts, sources,
+ * the verse, and the JSON schema.
+ */
+async function runPersonaRevision(
+  client: Anthropic,
+  content: DailyGrindContent,
+  revisionRequest: string,
+): Promise<{
+  content: DailyGrindContent | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}> {
+  const userPrompt = `You are substantively revising a Daily Grind draft based on AUDIENCE FEEDBACK from a panel of 10 advisor personas. They did NOT love the current draft. You must change what they did not love.
+
+Preserve EXACTLY:
+- All facts, statistics, dollar amounts
+- All sourceUrls and source names in worthKnowing
+- The ancientTruth verse + reference
+- The contentType
+- The JSON schema shape
+
+CHANGE freely:
+- The Unspoken's scene, character action, and quotable line
+- The framing of arguments in firstPull and mainContent
+- The earned lines (the quotable, share-worthy positions)
+- Closing direction (if it duplicates The Number)
+- Section subheads if they read as generic
+
+${revisionRequest}
+
+Original draft:
+${JSON.stringify(content, null, 2)}
+
+Return the revised draft as a JSON object with the same schema. No preamble, no fences.`;
+
+  const personaRevisionSystem = `You are rewriting a Daily Grind draft in Mark's voice to address specific audience complaints. The panel of advisors DIDN'T LOVE IT. Your job is to make changes that would change their love rating to YES. Be willing to rewrite scenes, redo earned lines, sharpen positions. Do NOT take the path of least resistance — superficial edits that ship the same draft with new words. If a section is fundamentally broken, REPLACE it.
+
+Mark's voice: direct, contrarian, scene-anchored, specific. No AI vocabulary. No hedges. No em dashes.
+
+Preserve facts, sources, URLs, verse, schema. Everything else is on the table.`;
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: WRITER_MAX_TOKENS,
+    temperature: 0.55,
+    system: personaRevisionSystem,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+  const latencyMs = Date.now() - start;
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return {
+      content: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
+  try {
+    const revised = parseContent(block.text);
+    return {
+      content: deepStripDashes(revised),
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  } catch {
+    return {
+      content: null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    };
+  }
 }
 
 /**
@@ -2502,12 +2589,11 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         },
       });
       try {
-        const revised = await runEditorRevision(
-          client,
-          content,
-          promptBuild.revisionRequest,
-          [], // editor flags don't apply here — the revision request carries the audience feedback
-        );
+        // Use the dedicated persona-revision function (not editor_revision)
+        // — editor_revision's system prompt explicitly says "apply only
+        // flagged changes" which is wrong for audience-driven substantive
+        // rewrites. persona-revision tells the model to RESTRUCTURE.
+        const revised = await runPersonaRevision(client, content, promptBuild.revisionRequest);
         totalLatency += revised.latencyMs;
         totalInput += revised.inputTokens;
         totalOutput += revised.outputTokens;
@@ -3186,9 +3272,65 @@ export async function generateDailyGrindIssue(opts: {
         });
         break;
       }
-      // Sharpen
+      // Surgical first: section-specific defects (unspoken_*, closing_*, flip_*)
+      // get a targeted rewrite that REPLACES the broken section rather than
+      // sending the whole JSON for a general edit. Cheap (Haiku) and more
+      // reliable because the model isn't preserving the broken text.
       const sharpenStart = Date.now();
-      const sharpened = await voiceSharpenRewrite(client, finalContent, review.defects);
+      const sectionDefects = review.defects.filter((d) =>
+        [
+          "unspoken_timeline",
+          "unspoken_no_character_action",
+          "unspoken_no_quotable_line",
+          "hollow_unspoken",
+          "closing_repeats_number",
+          "flip_too_long",
+        ].includes(d),
+      );
+      let surgicalReport: { sectionsRewritten: string[]; failures: string[] } = {
+        sectionsRewritten: [],
+        failures: [],
+      };
+      if (sectionDefects.length > 0) {
+        const surgical = await applySurgicalRewrites(client, finalContent, sectionDefects, {
+          topic: proposal?.topic ?? finalContent.headline,
+        });
+        sharpenCost = {
+          input: sharpenCost.input + surgical.totalInputTokens,
+          output: sharpenCost.output + surgical.totalOutputTokens,
+          latency: sharpenCost.latency + surgical.totalLatencyMs,
+        };
+        if (surgical.sectionsRewritten.length > 0) {
+          finalContent = surgical.content;
+        }
+        surgicalReport = {
+          sectionsRewritten: surgical.sectionsRewritten,
+          failures: surgical.failures,
+        };
+        pipeline.push({
+          name: `surgical_rewrite_iter${iter}`,
+          status: surgical.sectionsRewritten.length > 0 ? "retried" : "warning",
+          latencyMs: surgical.totalLatencyMs,
+          notes:
+            surgical.sectionsRewritten.length > 0
+              ? `iter ${iter}: surgically rewrote ${surgical.sectionsRewritten.join(", ")} for defects: ${sectionDefects.join(", ")}${surgical.failures.length > 0 ? ` (failures: ${surgical.failures.join("; ")})` : ""}`
+              : `iter ${iter}: surgical rewrite attempted ${sectionDefects.length} sections but none succeeded: ${surgical.failures.join("; ")}`,
+          input: { iteration: iter, targetSectionDefects: sectionDefects },
+          output: {
+            sectionsRewritten: surgical.sectionsRewritten,
+            failures: surgical.failures,
+          },
+        });
+      }
+      // General sharpen handles any remaining defects (theme_repetition,
+      // no_position, uniform_rhythm) AND polishes the whole draft against
+      // the freshly-rewritten sections.
+      const generalDefects = review.defects.filter((d) => !sectionDefects.includes(d));
+      const sharpened = await voiceSharpenRewrite(
+        client,
+        finalContent,
+        generalDefects.length > 0 ? generalDefects : review.defects,
+      );
       sharpenCost = {
         input: sharpenCost.input + sharpened.inputTokens,
         output: sharpenCost.output + sharpened.outputTokens,
@@ -3200,8 +3342,8 @@ export async function generateDailyGrindIssue(opts: {
           name: `voice_sharpen_iter${iter}`,
           status: "retried",
           latencyMs: Date.now() - sharpenStart,
-          notes: `iter ${iter}/${MAX_SHARPEN_ITERATIONS}: addressing ${review.defects.length} defects: ${review.defects.join(", ")}`,
-          input: { iteration: iter, targetDefects: review.defects },
+          notes: `iter ${iter}/${MAX_SHARPEN_ITERATIONS}: addressing ${review.defects.length} defects: ${review.defects.join(", ")}${surgicalReport.sectionsRewritten.length > 0 ? ` (after surgical of ${surgicalReport.sectionsRewritten.join(", ")})` : ""}`,
+          input: { iteration: iter, targetDefects: review.defects, surgicalSectionsRewritten: surgicalReport.sectionsRewritten },
           output: { reviseStatus: "applied" },
         });
       } else {
