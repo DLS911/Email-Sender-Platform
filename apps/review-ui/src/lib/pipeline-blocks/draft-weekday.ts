@@ -51,37 +51,42 @@ export type DraftWeekdayInput = {
 function formatStyleRules(formatStyle: FormatStyle): string {
   switch (formatStyle) {
     case "deep_dive":
-      return `**Format: DEEP DIVE.** One idea, explored thoroughly. Go deep on a single move rather than broad across many.
-- First Pull: develop the argument in full — narrative or named-convention setup, then the reframe, with room to breathe.
-- Main Content: 3-4 howTo steps, each with real depth (label + 2-4 sentence body that explains the mechanism, not just the action). The reader should finish understanding WHY, not just WHAT.
-- Longer body (250-350 words). Fewer points, more thoroughly earned.`;
+      return `**Format: DEEP DIVE.** One idea, taken all the way down. The opposite of a checklist.
+- howTo.steps: EXACTLY 2-3 steps. Each body is LONG — 4-6 sentences that explain the mechanism, the why, the edge cases. If you find yourself writing a 5th step, you're going broad; collapse back into fewer, deeper moves.
+- howTo.title: something like "How it actually works:" or "The mechanism:" — not "How to run it:".
+- intro: 2-3 full paragraphs developing the single idea before any steps.
+- The reader finishes understanding ONE thing deeply, not five things shallowly.`;
 
     case "quick_hits":
-      return `**Format: QUICK HITS.** Scannable, rapid-fire, high-density. Built to be skimmed and acted on fast.
-- First Pull: short and punchy. Land the frame in 2-3 tight paragraphs, no long windup.
-- Main Content: 5-7 howTo steps, each SHORT (label + 1-2 sentence body). Each step is its own self-contained move. Think checklist energy, not essay.
-- Shorter overall. Every line earns its place. No connective filler between points.`;
+      return `**Format: QUICK HITS.** A scannable checklist. The opposite of an essay.
+- howTo.steps: EXACTLY 6-8 steps. Each body is ONE punchy sentence (under ~20 words). Label is an imperative verb phrase. No step body runs more than one sentence.
+- howTo.title: something like "The checklist:" or "Run through these:".
+- intro: ONE short paragraph (2-3 sentences) max, then straight into the list.
+- closing: one line. Skimmable throughout — a reader should get the whole thing in 30 seconds.`;
 
     case "contrarian":
-      return `**Format: CONTRARIAN.** Lead by stating the conventional approach as if you might endorse it, then dismantle it.
-- First Pull: name what "everyone does" specifically and fairly (steelman it), then turn — show why it quietly fails.
-- Main Content: structure each howTo step as a correction — "What most advisors do" → "Why it backfires" → "Do this instead." The body is the case against the default and the replacement.
-- The energy is argument, not instruction. The reader should feel a belief get overturned.`;
+      return `**Format: CONTRARIAN.** An argument that overturns a belief. Not a how-to at all.
+- howTo.steps: EXACTLY 3 steps, but each is a CONTRAST, not an instruction. Label = the common belief (e.g. "Belief: more meetings = better retention"). Body = why it backfires, then the replacement move.
+- howTo.title: "Three beliefs to drop:" or "Where the conventional wisdom breaks:".
+- intro: steelman the conventional approach first — state it fairly, as if you might agree — THEN turn.
+- The reader should feel a belief get dismantled, not receive a procedure.`;
 
     case "story":
-      return `**Format: STORY.** Narrative-driven. The lesson emerges from a scene, it is not stated up front.
-- First Pull: open mid-scene with a specific (anonymized) advisor and a concrete moment — a meeting, a call, a decision. No thesis statement first; drop the reader into the story.
-- Main Content: the howTo steps are the beats of what the advisor did (or should have done), told as the arc continues. Extract the transferable move from the narrative rather than abstracting away from it.
-- Closing returns to the scene or its aftermath. The reader remembers the person, and the lesson rides along.`;
+      return `**Format: STORY.** Narrative prose. NOT a step list.
+- howTo.steps: EXACTLY 2 entries, and they are NOT procedural steps — they are the two turning points of the story (label = the moment, e.g. "The call that changed it"; body = what happened and what it revealed). Do not produce a numbered procedure.
+- howTo.title: "What happened:" or "The turn:".
+- intro: open mid-scene with a specific anonymized advisor and a concrete moment (a meeting, a phone call, a number on a screen). No thesis sentence first — drop the reader into the scene.
+- closing: return to the scene or its aftermath. The reader remembers the PERSON; the lesson rides along.`;
 
     case "data":
-      return `**Format: DATA.** Evidence-forward. The numbers lead and carry the argument.
-- First Pull: open on the most striking figure from research and what it actually means (not a stat dump — one number, fully unpacked).
-- Main Content: anchor EVERY howTo step to a specific figure, percentage, or dollar amount from the research. Use the stat fields heavily. The structure is claim → number → implication, repeated.
-- The reader should leave with 3-4 hard numbers they can quote. No vibes-based assertions where a figure exists.`;
+      return `**Format: DATA.** Evidence-forward. Numbers lead and carry every claim.
+- howTo.steps: 4-5 steps, and EVERY step body LEADS with a specific figure/percentage/dollar amount from research (e.g. "Start with the 31% figure: ..."). Set the step's stat fields where the schema allows. No step without a number.
+- howTo.title: "By the numbers:" or "What the data says to do:".
+- intro: open on the single most striking figure from research, fully unpacked (not a stat dump — one number, explained).
+- The reader leaves with 4-5 hard numbers they can quote.`;
 
     default:
-      return `**Format: DEEP DIVE.** One idea explored thoroughly; 3-4 substantive howTo steps.`;
+      return `**Format: DEEP DIVE.** 2-3 deep steps on one idea.`;
   }
 }
 
@@ -194,10 +199,12 @@ Framework references: ${input.approvedTopic.frameworkReferences.join(", ") || "n
   // The same content type must read very differently across the 5 styles.
   sections.push(
     formatSection(
-      `Format Style: ${(input.formatStyle ?? "deep_dive").toUpperCase()}`,
+      `Format Style: ${(input.formatStyle ?? "deep_dive").toUpperCase()} — this governs structure`,
       `${formatStyleRules(input.formatStyle ?? "deep_dive")}
 
-This format style governs the SHAPE of First Pull and Main Content. Apply it on top of the content-type structure above — they combine. The Opening Trifecta, Worth Knowing, and Ancient Truth keep their standard structure regardless of format style.`,
+**PRECEDENCE:** When this format style's step count or shape conflicts with the content-type structure above, THE FORMAT STYLE WINS. The content type governs the substance and voice (what a Tactic/Take/Story argues); the format style governs the SHAPE (how many steps, how long, list vs narrative vs argument). Follow the exact step count stated here, not any count implied by the content-type section.
+
+The Opening Trifecta, Worth Knowing, and Ancient Truth keep their standard structure regardless of format style.`,
     ),
   );
 
