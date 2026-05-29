@@ -90,6 +90,20 @@ summaries.
 
 ## TIER 2 — Learning loop (turns it from "generator" into "improving system")
 
+### L. Brain semantic dedup — DONE (`bbb3ae5`, `8c58ed1`)
+Root cause was twofold: (1) migration 0008 (match_content_concepts /
+recent_content_concepts RPCs) was never applied to prod — APPLIED 2026-05-29 via
+Management API; (2) findSimilarConceptsForTexts was never called. Now the
+topic_proposer runs a dedup loop: propose → embed "topic — angle" →
+match_content_concepts (cosine ≥0.82 over 538 stored concepts) → block & re-run
+if too similar (max 3), else accept; ships least-similar with warning on
+exhaustion. New topic_dedup_check trace stage. Verified 2026-06-03: dedup ran,
+topic cleared as fresh. ALSO fixed a fatal interaction: writer URL hallucination
++ url_verify bundle-shrink was throwing and killing whole issues — replaced with
+non-fatal repairWorthKnowingUrls (drop invalid, backfill from verified research).
+
+
+
 ### H. Engagement feedback loop — BROKEN — `TODO`
 Specs 05 + 06. All quality gating is AI predicting reader behavior; the system
 consumes **zero real outcome signal**. Resend events are logged but never
