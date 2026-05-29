@@ -3109,6 +3109,8 @@ export async function generateDailyGrindIssue(opts: {
    * deterministic assigner avoids repeating a recently-used structure.
    */
   recentFormatStyles?: string[];
+  /** TESTING: bypass rotation and force a specific format style. */
+  formatStyleOverride?: FormatStyle;
   /**
    * Supabase client (service role). When provided, the topic_proposer's
    * chosen topic is embedded and checked against past content_concepts via
@@ -3134,12 +3136,15 @@ export async function generateDailyGrindIssue(opts: {
   // audit topic paired with format=story produces a procedural piece dressed
   // as story; we want the proposer to pick a SCENE-shaped topic when format is
   // story, a CHECKLIST-shaped topic when format is quick_hits, etc.
-  const lockedFormatStyle = pickFormatStyle(opts.recentFormatStyles ?? [], opts.issueDate);
+  const lockedFormatStyle: FormatStyle =
+    opts.formatStyleOverride ?? pickFormatStyle(opts.recentFormatStyles ?? [], opts.issueDate);
   pipeline.push({
     name: "format_style_assign",
     status: "success",
-    notes: `formatStyle=${lockedFormatStyle} (rotated against last ${(opts.recentFormatStyles ?? []).length} issues: [${(opts.recentFormatStyles ?? []).slice(0, 6).join(", ")}])`,
-    input: { recentFormatStyles: (opts.recentFormatStyles ?? []).slice(0, 10) },
+    notes: opts.formatStyleOverride
+      ? `formatStyle=${lockedFormatStyle} (OVERRIDDEN via test param; rotation bypassed)`
+      : `formatStyle=${lockedFormatStyle} (rotated against last ${(opts.recentFormatStyles ?? []).length} issues: [${(opts.recentFormatStyles ?? []).slice(0, 6).join(", ")}])`,
+    input: { recentFormatStyles: (opts.recentFormatStyles ?? []).slice(0, 10), override: opts.formatStyleOverride ?? null },
     output: { formatStyle: lockedFormatStyle },
   });
 

@@ -29,6 +29,7 @@ async function handle(req: Request): Promise<NextResponse> {
   let targetDate = url.searchParams.get("targetDate") ?? undefined;
   const topicHint = url.searchParams.get("topicHint") ?? undefined;
   const regenerate = url.searchParams.get("regenerate") === "1";
+  const forceFormatStyle = url.searchParams.get("formatStyle") ?? undefined;
   const mode = url.searchParams.get("mode");
   if (!targetDate && mode) {
     const now = new Date();
@@ -50,6 +51,7 @@ async function handle(req: Request): Promise<NextResponse> {
     const result = await runDailyGrindGenerate({
       ...(targetDate ? { targetDate } : {}),
       ...(topicHint ? { topicHint } : {}),
+      ...(forceFormatStyle ? { forceFormatStyle } : {}),
       regenerate,
     });
     logger.info("cron.daily_grind_generate.complete", {

@@ -421,7 +421,7 @@ async function markSent(
  * are handled by runDailyGrindSend on a separate cron schedule.
  */
 export async function runDailyGrindGenerate(
-  opts: { targetDate?: string; topicHint?: string; regenerate?: boolean } = {},
+  opts: { targetDate?: string; topicHint?: string; regenerate?: boolean; forceFormatStyle?: string } = {},
 ): Promise<GenerateResult> {
   const nowUtc = new Date();
   const targetDate =
@@ -485,6 +485,14 @@ export async function runDailyGrindGenerate(
       notes: `headlines=${recentHeadlines.length}, verses=${recentVerses.length}, concepts=${recentConcepts.length}, issueSummaries=${summariesWithData}/${recentIssueSummaries.length}`,
     });
 
+    const fmtOverride: { formatStyleOverride?: "deep_dive" | "quick_hits" | "contrarian" | "story" | "data" } =
+      opts.forceFormatStyle === "deep_dive" ||
+      opts.forceFormatStyle === "quick_hits" ||
+      opts.forceFormatStyle === "contrarian" ||
+      opts.forceFormatStyle === "story" ||
+      opts.forceFormatStyle === "data"
+        ? { formatStyleOverride: opts.forceFormatStyle }
+        : {};
     const start = Date.now();
     const issue = await generateDailyGrindIssue(
       opts.topicHint
@@ -497,6 +505,7 @@ export async function runDailyGrindGenerate(
             recentFormatStyles,
             topicHint: opts.topicHint,
             db,
+            ...fmtOverride,
           }
         : {
             issueDate: targetDate,
@@ -506,6 +515,7 @@ export async function runDailyGrindGenerate(
             recentIssueSummaries,
             recentFormatStyles,
             db,
+            ...fmtOverride,
           },
     );
     // Merge inner-pipeline records (research, writer, validators, retries)
