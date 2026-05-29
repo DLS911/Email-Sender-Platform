@@ -241,6 +241,13 @@ Your First Pull should ARGUE or NARRATE, not summarize.`,
 
   sections.push(
     formatSection(
+      "The Number — MUST cite a source (hard rule)",
+      `The Number's stat is a factual claim. It MUST carry a real source. Set theNumber.sourceUrl to the EXACT url (verbatim) of the research item that backs the stat, and theNumber.sourceName to that publisher. Do NOT invent a URL. Do NOT leave it blank. If you can't tie the stat to a specific research URL, pick a different stat from primaryFindings that you CAN source. An unsourced Number will be rejected.`,
+    ),
+  );
+
+  sections.push(
+    formatSection(
       "The Flip Reality — 12-20 words max",
       `Compressed reframes, not analytical explanations:
 ${CANONICAL_EXAMPLES.flipReality.map((f) => `- "${f}"`).join("\n")}
@@ -297,7 +304,7 @@ The Main Content closing must NOT restate The Number paragraph. Land somewhere n
   "preheader": "<60-110 chars for Gmail preview>",
   "contentType": "${input.approvedTopic.contentType}",
   "openingTrifecta": {
-    "theNumber": { "stat": "<from research's primaryFindings>", "description": "<paragraph naming the gap behind the number>" },
+    "theNumber": { "stat": "<from research's primaryFindings>", "description": "<paragraph naming the gap behind the number>", "sourceUrl": "<REQUIRED: the EXACT url from a research item that backs this stat — must be a real research URL, verbatim>", "sourceName": "<REQUIRED: publisher name for that url>" },
     "theUnspoken": "<single italic narrative paragraph, 80-130 words, scene-anchored, dollar punchline>",
     "theFlip": { "conventional": "<conventional wisdom in quotes>", "reality": "<12-20 word reframe>" }
   },

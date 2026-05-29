@@ -35,7 +35,7 @@ export type DailyGrindContent = {
   preheader: string;
   contentType: DailyGrindContentType;
   openingTrifecta: {
-    theNumber: { stat: string; description: string };
+    theNumber: { stat: string; description: string; sourceUrl: string; sourceName: string };
     theUnspoken: string;
     theFlip: { conventional: string; reality: string };
   };
@@ -88,12 +88,22 @@ function paragraphs(text: string): string {
     .join("\n");
 }
 
-function renderTheNumber(theNumber: { stat: string; description: string }): string {
+function renderTheNumber(theNumber: {
+  stat: string;
+  description: string;
+  sourceUrl: string;
+  sourceName: string;
+}): string {
+  const sourceLine =
+    theNumber.sourceUrl && theNumber.sourceName
+      ? `<p style="font-size: 12px; color: #8a8178; margin: 8px 0 0 0;">Source: <a href="${escapeHtml(theNumber.sourceUrl)}" style="color: #8a8178; text-decoration: underline;">${escapeHtml(theNumber.sourceName)}</a></p>`
+      : "";
   return `<tr>
   <td style="padding: 20px 24px; border-bottom: 1px solid #e8e4de;">
     <p style="font-size: 11px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 8px 0;">The Number</p>
     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 700; color: #c4a882; margin: 0 0 8px 0; line-height: 1;">${escapeHtml(theNumber.stat)}</p>
     <p style="font-size: 15px; color: #4a4540; margin: 0;">${escapeHtml(theNumber.description)}</p>
+    ${sourceLine}
   </td>
 </tr>`;
 }

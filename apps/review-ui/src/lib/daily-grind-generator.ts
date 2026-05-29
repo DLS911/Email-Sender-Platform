@@ -23,6 +23,7 @@ import { PERSONAS } from "./pipeline-blocks/personas";
 import { scoreAggregate, type ScoreAggregateResult } from "./pipeline-blocks/score-aggregate";
 import { buildPersonaRevisionPrompt } from "./pipeline-blocks/persona-revision";
 import { applySurgicalRewrites } from "./pipeline-blocks/surgical-rewrites";
+import { verifyUrls } from "./pipeline-blocks/url-verify";
 import {
   buildAssembleHtmlPrompt,
   type AssembleHtmlOutput,
@@ -765,6 +766,10 @@ function parseContent(rawText: string): DailyGrindContent {
       theNumber: {
         stat: requireString(theNumber, "stat", "openingTrifecta.theNumber"),
         description: requireString(theNumber, "description", "openingTrifecta.theNumber"),
+        // Parsed leniently here; the hard "must be a verified research URL"
+        // rule is enforced in the_number_source_check stage after url_verify.
+        sourceUrl: typeof theNumber.sourceUrl === "string" ? theNumber.sourceUrl.trim() : "",
+        sourceName: typeof theNumber.sourceName === "string" ? theNumber.sourceName.trim() : "",
       },
       theUnspoken: requireString(trifecta, "theUnspoken", "openingTrifecta"),
       theFlip: {
@@ -2298,6 +2303,99 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
     }
   }
 
+  // STAGE: the_number_source_check — HARD RULE. The Number's stat is a
+  // factual claim and must carry a source URL that matches one of the
+  // verified research items. If the writer left it blank or pointed at a
+  // URL not in (verified) research, do one targeted retry; if that fails,
+  // backfill from the best available research item so we never ship an
+  // unsourced Number.
+  {
+    const researchUrls = new Map(research.items.map((r) => [r.url, r]));
+    const num = content.openingTrifecta.theNumber;
+    const sourcedOk = num.sourceUrl !== "" && researchUrls.has(num.sourceUrl);
+    if (sourcedOk) {
+      pipeline.push({
+        name: "the_number_source_check",
+        status: "success",
+        notes: `The Number sourced to ${num.sourceName} (${num.sourceUrl})`,
+      });
+    } else {
+      // Targeted retry: ask the writer to attach a real research URL to the stat.
+      const availableForNumber = research.items
+        .slice(0, 8)
+        .map((r) => `- ${r.source}: ${r.title} (${r.url})`)
+        .join("\n");
+      const numberRetryPrompt = `${userPrompt}
+
+(Retry note: theNumber.sourceUrl was ${num.sourceUrl === "" ? "MISSING" : `"${num.sourceUrl}" which is not a real research URL`}. The Number's stat MUST be backed by one of these verified research items — set theNumber.sourceUrl to the exact URL (verbatim) and theNumber.sourceName to the publisher. If the current stat can't be tied to one of these, change the stat to one that can:
+${availableForNumber})`;
+      const numRetryStart = Date.now();
+      let numberFixed = false;
+      try {
+        const numRetry = await client.messages.create({
+          model: MODEL,
+          max_tokens: WRITER_MAX_TOKENS,
+          temperature: WRITER_TEMPERATURE,
+          system: [{ type: "text", text: contentTypeVoicePrompt, cache_control: { type: "ephemeral" } }],
+          messages: [{ role: "user", content: numberRetryPrompt }],
+        });
+        totalLatency += Date.now() - numRetryStart;
+        totalInput += numRetry.usage.input_tokens;
+        totalOutput += numRetry.usage.output_tokens;
+        const numRetryBlock = numRetry.content[0];
+        if (numRetryBlock && numRetryBlock.type === "text") {
+          const retried = deepStripDashes(parseContent(numRetryBlock.text));
+          const rn = retried.openingTrifecta.theNumber;
+          if (rn.sourceUrl !== "" && researchUrls.has(rn.sourceUrl)) {
+            content = retried;
+            numberFixed = true;
+          }
+        }
+      } catch {
+        // fall through to backfill
+      }
+
+      if (numberFixed) {
+        pipeline.push({
+          name: "the_number_source_check",
+          status: "retried",
+          latencyMs: Date.now() - numRetryStart,
+          notes: `The Number was unsourced; retry attached a verified source (${content.openingTrifecta.theNumber.sourceName})`,
+        });
+      } else {
+        // Backfill: attach the first verified research item as the source so
+        // the Number is never unsourced. Flag for human review.
+        const fallback = research.items[0];
+        if (fallback) {
+          content = {
+            ...content,
+            openingTrifecta: {
+              ...content.openingTrifecta,
+              theNumber: {
+                ...content.openingTrifecta.theNumber,
+                sourceUrl: fallback.url,
+                sourceName: fallback.source,
+              },
+            },
+          };
+          pipeline.push({
+            name: "the_number_source_check",
+            status: "warning",
+            latencyMs: Date.now() - numRetryStart,
+            notes: `The Number was unsourced and retry failed; backfilled source to ${fallback.source} (${fallback.url}) — VERIFY the stat actually comes from this source`,
+          });
+        } else {
+          pipeline.push({
+            name: "the_number_source_check",
+            status: "warning",
+            latencyMs: Date.now() - numRetryStart,
+            notes: `The Number is unsourced and no research item available to backfill — flagged for human review`,
+          });
+        }
+      }
+    }
+  }
+
   // STAGE: editor_pass — spec'd substantive editorial review with revision
   // loop. Sonnet evaluates voice integrity, framework honesty, earned-line
   // presence, strong close, content-type-specific structural beats.
@@ -3203,6 +3301,94 @@ export async function generateDailyGrindIssue(opts: {
       });
     }
   }
+  // ─── url_verify ────────────────────────────────────────────────────────────
+  // Actually FETCH each research URL and confirm it's live + a deep article
+  // link + topically relevant before the writer is allowed to cite it. Drops
+  // dead links, homepage redirects, and pages whose content doesn't match the
+  // claimed headline. This is the fix for "links are broken or not the direct
+  // link to the relevant info."
+  {
+    const verifyStart = Date.now();
+    const candidates = research.bundle.items.map((r) => ({ url: r.url, title: r.title }));
+    let results: Awaited<ReturnType<typeof verifyUrls>> = [];
+    try {
+      results = await verifyUrls(candidates);
+    } catch (err) {
+      pipeline.push({
+        name: "url_verify",
+        status: "warning",
+        latencyMs: Date.now() - verifyStart,
+        notes: `url verification threw: ${err instanceof Error ? err.message : String(err)} — proceeding with unverified research`,
+      });
+    }
+    if (results.length > 0) {
+      const okUrls = new Set(results.filter((r) => r.ok).map((r) => r.url));
+      const dropped = results.filter((r) => !r.ok);
+      const beforeCount = research.bundle.items.length;
+      // Filter the research bundle down to only verified-live items.
+      research.bundle.items = research.bundle.items.filter((r) => okUrls.has(r.url));
+      const afterCount = research.bundle.items.length;
+      pipeline.push({
+        name: "url_verify",
+        status: dropped.length === 0 ? "success" : "warning",
+        latencyMs: Date.now() - verifyStart,
+        notes:
+          dropped.length === 0
+            ? `all ${beforeCount} research URLs verified live + relevant`
+            : `dropped ${dropped.length}/${beforeCount} URLs (${afterCount} survive): ${dropped.map((d) => `${d.url} [${d.reason}]`).slice(0, 6).join("; ")}`,
+        input: { candidateCount: beforeCount },
+        output: {
+          verified: afterCount,
+          dropped: dropped.map((d) => ({ url: d.url, reason: d.reason, status: d.status })),
+          survivingUrls: Array.from(okUrls),
+        },
+      });
+
+      // If verification dropped us below the worth-knowing floor (need 3
+      // distinct live sources), try ONE broader-query research pass to refill.
+      const SOURCE_FLOOR_AFTER_VERIFY = 3;
+      const distinctLive = new Set(research.bundle.items.map((r) => r.url)).size;
+      if (distinctLive < SOURCE_FLOOR_AFTER_VERIFY && proposal) {
+        const refillStart = Date.now();
+        try {
+          const refill = await runStructuredResearchWeekday(
+            client,
+            opts.issueDate,
+            proposal,
+            recentTopics,
+            true, // expandQueries
+          );
+          // Verify the refill's URLs too, then merge the live ones in.
+          const refillResults = await verifyUrls(
+            refill.bundle.items.map((r) => ({ url: r.url, title: r.title })),
+          );
+          const refillOk = new Set(refillResults.filter((r) => r.ok).map((r) => r.url));
+          const existingUrls = new Set(research.bundle.items.map((r) => r.url));
+          const added = refill.bundle.items.filter(
+            (r) => refillOk.has(r.url) && !existingUrls.has(r.url),
+          );
+          research.bundle.items = [...research.bundle.items, ...added];
+          research.inputTokens += refill.inputTokens;
+          research.outputTokens += refill.outputTokens;
+          pipeline.push({
+            name: "url_verify_refill",
+            status: research.bundle.items.length >= SOURCE_FLOOR_AFTER_VERIFY ? "retried" : "warning",
+            latencyMs: Date.now() - refillStart,
+            notes: `verification left ${distinctLive} live sources (< ${SOURCE_FLOOR_AFTER_VERIFY}); broader-query refill added ${added.length} verified items (now ${research.bundle.items.length})`,
+            output: { addedUrls: added.map((a) => a.url) },
+          });
+        } catch (err) {
+          pipeline.push({
+            name: "url_verify_refill",
+            status: "warning",
+            latencyMs: Date.now() - refillStart,
+            notes: `refill failed: ${err instanceof Error ? err.message : String(err)} — shipping with ${distinctLive} live sources`,
+          });
+        }
+      }
+    }
+  }
+
   // Content type was locked by the topic_proposer (Stage 1) BEFORE research.
   // No second picker call needed — research was guided by the proposed topic,
   // and the writer phase below uses lockedContentType to load the correct
@@ -3624,6 +3810,45 @@ export async function generateDailyGrindIssue(opts: {
     }
     if (stage.name === "editor_gate" && stage.status === "warning") {
       warnings.push(`editor_gate: ${stage.notes ?? "editor loop did not produce clean approve"}`);
+    }
+    if (stage.name === "the_number_source_check" && stage.status === "warning") {
+      warnings.push(`the_number_source_check: ${stage.notes ?? "The Number unsourced"}`);
+    }
+    if (stage.name === "url_verify" && stage.status === "warning") {
+      const droppedArr = (stage.output as Record<string, unknown> | undefined)?.dropped;
+      const dropCount = Array.isArray(droppedArr) ? droppedArr.length : 0;
+      if (dropCount > 0) {
+        warnings.push(`url_verify: dropped ${dropCount} dead/irrelevant source URL(s) — see trace`);
+      }
+    }
+  }
+  // FINAL safety net: the shipped content's Number MUST have a source URL that
+  // survived into the final draft. Revision/voice stages re-parse full content
+  // and could blank it. Check the actual finalContent, not just stage records.
+  {
+    const finalNum = finalContent.openingTrifecta.theNumber;
+    const liveUrls = new Set(research.bundle.items.map((r) => r.url));
+    if (!finalNum.sourceUrl || finalNum.sourceUrl.trim() === "") {
+      // Backfill from a verified research item rather than ship unsourced.
+      const fallback = research.bundle.items[0];
+      if (fallback) {
+        finalContent = {
+          ...finalContent,
+          openingTrifecta: {
+            ...finalContent.openingTrifecta,
+            theNumber: { ...finalNum, sourceUrl: fallback.url, sourceName: fallback.source },
+          },
+        };
+        warnings.push(
+          `the_number_source_check (final): a downstream rewrite blanked the Number's source; backfilled to ${fallback.source} — VERIFY the stat matches`,
+        );
+      } else {
+        warnings.push(`the_number_source_check (final): Number has no source and no research item to backfill`);
+      }
+    } else if (!liveUrls.has(finalNum.sourceUrl)) {
+      warnings.push(
+        `the_number_source_check (final): Number source ${finalNum.sourceUrl} is not among verified-live research URLs`,
+      );
     }
   }
   const qualityGateStatus: "passed" | "pending_review_with_warnings" =
