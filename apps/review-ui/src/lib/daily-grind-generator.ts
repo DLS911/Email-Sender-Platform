@@ -1013,6 +1013,7 @@ async function runTopicProposer(
     frameworksApplied?: string[];
     freshAfter?: string;
   }> = [],
+  formatStyle?: FormatStyle,
 ): Promise<{
   contentType: DailyGrindContentType;
   topic: string;
@@ -1069,9 +1070,23 @@ async function runTopicProposer(
     5: "Fridays favor Tactic plus a Digital Grind angle",
   };
   const dowHint = dowHints[issueDow];
-  const fullPrompt = dowHint
-    ? `${userPrompt}\n\n## Day-of-Week Affinity\n${dowHint}`
-    : userPrompt;
+  // Format-style guidance — the format is locked BEFORE the proposer runs, so
+  // the proposer must pick a topic the writer can actually shape into that
+  // form. A procedural compliance audit cannot be told as a 2-beat story; a
+  // narrative advisor-scene cannot become a one-line checklist.
+  const formatHints: Record<FormatStyle, string> = {
+    deep_dive: `Format will be DEEP DIVE — pick a topic with ONE central mechanism worth taking 4-6 sentences to explain. Good fit: a single under-appreciated dynamic (e.g. "how AUM-tied fees distort COI behavior"). Bad fit: a checklist topic with 8 unrelated items.`,
+    quick_hits: `Format will be QUICK HITS — pick a topic that naturally breaks into 6-8 short, scannable items. Good fit: red-flag lists, warning signs, audit checklists, things to remove/add. Bad fit: one complex argument or a single narrative.`,
+    contrarian: `Format will be CONTRARIAN — pick a topic where there's a clear "what everyone does" the issue can dismantle. Good fit: industry-default behaviors (scripted referral asks, "stay the course" speeches, COI lunches). Bad fit: technical procedures with no popular convention to overturn.`,
+    story: `Format will be STORY — pick a topic that can be TOLD AS A SINGLE ADVISOR SCENE with a specific moment. Good fit: a phone call, a meeting, a discovery, a decision an advisor made. Bad fit: regulatory/compliance audits, technical procedures, multi-item checklists — those have no scene.`,
+    data: `Format will be DATA — pick a topic where research gives you multiple concrete figures. Good fit: industry studies, percentages, dollar gaps, time studies. Bad fit: voice/positioning topics where numbers don't naturally appear.`,
+  };
+  const fsHint = formatStyle ? formatHints[formatStyle] : undefined;
+  const fullPrompt = [
+    userPrompt,
+    dowHint ? `\n\n## Day-of-Week Affinity\n${dowHint}` : "",
+    fsHint ? `\n\n## Format Style (LOCKED — pick a fitting topic)\n${fsHint}` : "",
+  ].join("");
 
   const start = Date.now();
   const response = await client.messages.create({
@@ -3113,11 +3128,24 @@ export async function generateDailyGrindIssue(opts: {
   const recentIssueSummaries = opts.recentIssueSummaries ?? [];
   const pipeline: PipelineStageRecord[] = [];
 
+  // ─── format_style_assign (spec content_type_assigner "how" layer) ─────────
+  // Picked BEFORE the topic_proposer (matches spec ordering) so the proposer
+  // can choose a topic that actually fits the locked format style. A compliance
+  // audit topic paired with format=story produces a procedural piece dressed
+  // as story; we want the proposer to pick a SCENE-shaped topic when format is
+  // story, a CHECKLIST-shaped topic when format is quick_hits, etc.
+  const lockedFormatStyle = pickFormatStyle(opts.recentFormatStyles ?? [], opts.issueDate);
+  pipeline.push({
+    name: "format_style_assign",
+    status: "success",
+    notes: `formatStyle=${lockedFormatStyle} (rotated against last ${(opts.recentFormatStyles ?? []).length} issues: [${(opts.recentFormatStyles ?? []).slice(0, 6).join(", ")}])`,
+    input: { recentFormatStyles: (opts.recentFormatStyles ?? []).slice(0, 10) },
+    output: { formatStyle: lockedFormatStyle },
+  });
+
   // STAGE: topic_proposer — picks contentType + topic + angle + framework
-  // BEFORE research. Replaces the old after-research pickContentType.
-  // Uses the spec'd prompt from apps/pipeline/.../topic_proposer.ts.
-  // Day-of-week affinity is built into the prompt: Mon=Tactic, Tue=Take,
-  // Wed=Tactic, Thu=Story/Special, Fri=Tactic+Digital Grind.
+  // BEFORE research, and now AWARE of the locked formatStyle so the topic
+  // shape matches what the writer will be asked to produce.
   const proposerStart = Date.now();
   let proposal: Awaited<ReturnType<typeof runTopicProposer>> | null = null;
   const proposerInput = {
@@ -3155,6 +3183,7 @@ export async function generateDailyGrindIssue(opts: {
         recentTopics,
         [...recentConcepts, ...semanticallyBlocked],
         recentIssueSummaries,
+        lockedFormatStyle,
       );
 
       // Semantic similarity check (only when a db is available).
@@ -3265,19 +3294,6 @@ export async function generateDailyGrindIssue(opts: {
     ? `${proposal.topic} — angle: ${proposal.angle}`
     : opts.topicHint;
   const lockedContentType: DailyGrindContentType = proposal?.contentType ?? "take";
-
-  // ─── format_style assignment (spec content_type_assigner "how" layer) ──────
-  // Deterministic rotation so the SAME content type doesn't read the same way
-  // two issues running. Drives First Pull + Main Content structure in the
-  // writer. 5 styles × content types = the spec's 50+ combinations.
-  const lockedFormatStyle = pickFormatStyle(opts.recentFormatStyles ?? [], opts.issueDate);
-  pipeline.push({
-    name: "format_style_assign",
-    status: "success",
-    notes: `formatStyle=${lockedFormatStyle} (rotated against last ${(opts.recentFormatStyles ?? []).length} issues: [${(opts.recentFormatStyles ?? []).slice(0, 6).join(", ")}])`,
-    input: { recentFormatStyles: (opts.recentFormatStyles ?? []).slice(0, 10), contentType: lockedContentType },
-    output: { formatStyle: lockedFormatStyle, contentType: lockedContentType },
-  });
 
   // Research phase backend selection.
   // - "anthropic" (DEFAULT): Anthropic Sonnet 4.5 + web_search tool. ~$0.50/call.

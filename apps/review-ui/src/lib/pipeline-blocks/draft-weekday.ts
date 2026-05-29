@@ -72,11 +72,12 @@ function formatStyleRules(formatStyle: FormatStyle): string {
 - The reader should feel a belief get dismantled, not receive a procedure.`;
 
     case "story":
-      return `**Format: STORY.** Narrative prose. NOT a step list.
-- howTo.steps: EXACTLY 2 entries, and they are NOT procedural steps — they are the two turning points of the story (label = the moment, e.g. "The call that changed it"; body = what happened and what it revealed). Do not produce a numbered procedure.
-- howTo.title: "What happened:" or "The turn:".
-- intro: open mid-scene with a specific anonymized advisor and a concrete moment (a meeting, a phone call, a number on a screen). No thesis sentence first — drop the reader into the scene.
-- closing: return to the scene or its aftermath. The reader remembers the PERSON; the lesson rides along.`;
+      return `**Format: STORY.** Narrative prose, not a procedure. THIS IS NON-NEGOTIABLE.
+- howTo.steps: EXACTLY 2 entries. They are STORY BEATS, not procedure steps. Each label names a moment ("The call that changed it" / "The follow-up they didn't expect"); each body is 3-5 sentences of NARRATION about what the advisor saw/did/learned, in past tense. NEVER write "do this" or "first/next/then" or numbered instructions. If you find yourself writing a procedure, you've broken the format — collapse it back into two narrative beats.
+- howTo.title: "What happened:" or "The turn:". Never "How to:" / "Steps:" / "The checklist:".
+- intro: open mid-scene with a SPECIFIC anonymized advisor and ONE moment (a meeting, a phone call, a number on a screen). No thesis sentence first. Past tense. The reader meets a person doing a thing, not an argument.
+- mainContent.closing: return to the scene or its aftermath. The reader remembers the PERSON; the lesson rides along.
+- If the topic seems intrinsically procedural (a compliance audit, a multi-item checklist), find the SINGLE advisor whose experience surfaces the lesson and tell THEIR story — do not list the procedure.`;
 
     case "data":
       return `**Format: DATA.** Evidence-forward. Numbers lead and carry every claim.
