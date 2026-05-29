@@ -11,7 +11,7 @@ import {
   buildResearchWeekdayPrompt,
   type StructuredResearchOutput,
 } from "./pipeline-blocks/research-weekday";
-import { buildDraftWeekdayPrompt } from "./pipeline-blocks/draft-weekday";
+import { buildDraftWeekdayPrompt, type FormatStyle } from "./pipeline-blocks/draft-weekday";
 import { buildStylePassPrompt } from "./pipeline-blocks/style-pass";
 import { buildEditorPassPrompt } from "./pipeline-blocks/editor-pass";
 import { buildFactCheckPrompt } from "./pipeline-blocks/fact-check";
@@ -113,6 +113,8 @@ export type DailyGrindIssue = {
     issueDate: string;
     researchFunnel?: ResearchFunnel;
     issueSummary?: IssueSummary;
+    /** The format style this issue was written in (spec "how" layer). */
+    formatStyle?: FormatStyle;
     /**
      * Final quality-gate status per spec `04_content_pipeline.spec.md:728`.
      *  - "passed": all gates clean, ship normally
@@ -256,6 +258,45 @@ function computePipelineDrift(input: DriftInput): {
     });
   }
   return { flags, handoffs };
+}
+
+// ─── Format style assignment (spec 04 content_type_assigner) ─────────────────
+//
+// Deterministic "how" layer. The same content type reads very differently
+// across these 5 styles. We rotate: exclude the most-recently-used styles so
+// consecutive issues don't repeat structure even when the content type repeats.
+const FORMAT_STYLES: FormatStyle[] = ["deep_dive", "quick_hits", "contrarian", "story", "data"];
+
+/**
+ * Pick a format style, rotating away from the recently-used ones. Given the
+ * last N issues' format styles (most-recent-first), prefer a style not used in
+ * the recent window. Deterministic given the inputs (picks the
+ * least-recently-used, tie-broken by the canonical order).
+ */
+function pickFormatStyle(recentFormatStyles: string[], issueDate: string): FormatStyle {
+  const recent = recentFormatStyles.filter((s): s is FormatStyle =>
+    (FORMAT_STYLES as string[]).includes(s),
+  );
+  // Score each candidate by how long ago it was last used (higher = staler).
+  // Unused styles get the max score. Tie-break by a date-seeded rotation so we
+  // don't always land on the same style on a fresh DB.
+  const recencyIndex = new Map<FormatStyle, number>();
+  recent.forEach((s, i) => {
+    if (!recencyIndex.has(s)) recencyIndex.set(s, i); // first occurrence = most recent
+  });
+  const seed = Number(issueDate.replace(/-/g, "")) % FORMAT_STYLES.length;
+  let best: FormatStyle = FORMAT_STYLES[seed]!;
+  let bestScore = -1;
+  for (let k = 0; k < FORMAT_STYLES.length; k++) {
+    const style = FORMAT_STYLES[(seed + k) % FORMAT_STYLES.length]!;
+    const idx = recencyIndex.get(style);
+    const staleness = idx === undefined ? 999 : idx; // unused = very stale
+    if (staleness > bestScore) {
+      bestScore = staleness;
+      best = style;
+    }
+  }
+  return best;
 }
 
 function stripCodeFences(text: string): string {
@@ -2102,6 +2143,7 @@ async function runWriterPhase(
     angle: string;
     frameworkReferences: string[];
   },
+  formatStyle?: FormatStyle,
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
@@ -2119,6 +2161,7 @@ async function runWriterPhase(
         issueDate,
         approvedTopic: proposal,
         structuredResearch: research.structured!,
+        ...(formatStyle ? { formatStyle } : {}),
       })
     : buildWriterUserPrompt(
         issueDate,
@@ -3047,6 +3090,11 @@ export async function generateDailyGrindIssue(opts: {
   topicHint?: string;
   apiKey?: string;
   /**
+   * Recent issues' format styles (most-recent-first) for rotation. The
+   * deterministic assigner avoids repeating a recently-used structure.
+   */
+  recentFormatStyles?: string[];
+  /**
    * Supabase client (service role). When provided, the topic_proposer's
    * chosen topic is embedded and checked against past content_concepts via
    * pgvector (match_content_concepts RPC). If the proposed topic is too
@@ -3217,6 +3265,19 @@ export async function generateDailyGrindIssue(opts: {
     ? `${proposal.topic} — angle: ${proposal.angle}`
     : opts.topicHint;
   const lockedContentType: DailyGrindContentType = proposal?.contentType ?? "take";
+
+  // ─── format_style assignment (spec content_type_assigner "how" layer) ──────
+  // Deterministic rotation so the SAME content type doesn't read the same way
+  // two issues running. Drives First Pull + Main Content structure in the
+  // writer. 5 styles × content types = the spec's 50+ combinations.
+  const lockedFormatStyle = pickFormatStyle(opts.recentFormatStyles ?? [], opts.issueDate);
+  pipeline.push({
+    name: "format_style_assign",
+    status: "success",
+    notes: `formatStyle=${lockedFormatStyle} (rotated against last ${(opts.recentFormatStyles ?? []).length} issues: [${(opts.recentFormatStyles ?? []).slice(0, 6).join(", ")}])`,
+    input: { recentFormatStyles: (opts.recentFormatStyles ?? []).slice(0, 10), contentType: lockedContentType },
+    output: { formatStyle: lockedFormatStyle, contentType: lockedContentType },
+  });
 
   // Research phase backend selection.
   // - "anthropic" (DEFAULT): Anthropic Sonnet 4.5 + web_search tool. ~$0.50/call.
@@ -3559,14 +3620,16 @@ export async function generateDailyGrindIssue(opts: {
     lockedContentType,
     pipeline,
     proposal ?? undefined,
+    lockedFormatStyle,
   );
   pipeline.push({
     name: "writer",
     status: "success",
     latencyMs: Date.now() - writerStart,
-    notes: `headline="${writer.content.headline}", contentType=${lockedContentType}`,
+    notes: `headline="${writer.content.headline}", contentType=${lockedContentType}, formatStyle=${lockedFormatStyle}`,
     input: {
       lockedContentType,
+      formatStyle: lockedFormatStyle,
       proposerTopic: proposal?.topic ?? null,
       proposerAngle: proposal?.angle ?? null,
       researchItemCount: research.bundle.items.length,
@@ -4048,6 +4111,7 @@ export async function generateDailyGrindIssue(opts: {
       writerLatencyMs:
         writer.latencyMs + contentTypePickerCost.latency + voiceReviewCost.latency + sharpenCost.latency + assembleCost.latency + summaryCost.latency,
       issueDate: opts.issueDate,
+      formatStyle: lockedFormatStyle,
       ...("funnel" in research && research.funnel ? { researchFunnel: research.funnel } : {}),
       ...(issueSummaryResult ? { issueSummary: issueSummaryResult } : {}),
       qualityGateStatus,

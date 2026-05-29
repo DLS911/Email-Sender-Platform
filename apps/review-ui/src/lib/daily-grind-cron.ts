@@ -279,6 +279,29 @@ async function loadRecentIssueSummaries(
   return out;
 }
 
+/**
+ * Recent format styles (most-recent-first) from generation_meta.formatStyle,
+ * for the deterministic assigner's rotation. Issues before formatStyle was
+ * tracked simply don't contribute.
+ */
+async function loadRecentFormatStyles(db: SupabaseClient, limit = 10): Promise<string[]> {
+  const { data, error } = await db
+    .from("daily_grind_issues")
+    .select("generation_meta")
+    .order("issue_date", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  const out: string[] = [];
+  for (const row of (data ?? []) as Array<{ generation_meta: unknown }>) {
+    const meta = row.generation_meta;
+    if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+      const fs = (meta as Record<string, unknown>).formatStyle;
+      if (typeof fs === "string") out.push(fs);
+    }
+  }
+  return out;
+}
+
 async function loadRecentVerses(db: SupabaseClient, limit = 125): Promise<string[]> {
   const { data, error } = await db
     .from("daily_grind_issues")
@@ -335,6 +358,7 @@ async function persistIssue(
         researchItemCount: issue.research.items.length,
         researchSources: issue.research.items.map((r) => ({ source: r.source, url: r.url })),
         ...(issue.meta.issueSummary ? { issueSummary: issue.meta.issueSummary } : {}),
+        ...(issue.meta.formatStyle ? { formatStyle: issue.meta.formatStyle } : {}),
         // Persist full pipeline trace (input → output at each handoff). This is
         // what the /admin/trace/[issueDate] viewer reads to surface drift.
         pipeline: issue.pipeline,
@@ -446,11 +470,12 @@ export async function runDailyGrindGenerate(
 
     // Stage: memory_load
     const memStart = Date.now();
-    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries] = await Promise.all([
+    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries, recentFormatStyles] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
       loadRecentConceptSummaries(db, 80),
       loadRecentIssueSummaries(db, 15),
+      loadRecentFormatStyles(db, 10),
     ]);
     const summariesWithData = recentIssueSummaries.filter((s) => s.cluster || s.mainAngle).length;
     pipeline.push({
@@ -469,6 +494,7 @@ export async function runDailyGrindGenerate(
             recentVerses,
             recentConcepts,
             recentIssueSummaries,
+            recentFormatStyles,
             topicHint: opts.topicHint,
             db,
           }
@@ -478,6 +504,7 @@ export async function runDailyGrindGenerate(
             recentVerses,
             recentConcepts,
             recentIssueSummaries,
+            recentFormatStyles,
             db,
           },
     );
@@ -758,11 +785,12 @@ export async function runDailyGrindCron(
       preheader: cached.preheader,
     };
   } else {
-    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries] = await Promise.all([
+    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries, recentFormatStyles] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
       loadRecentConceptSummaries(db, 80),
       loadRecentIssueSummaries(db, 15),
+      loadRecentFormatStyles(db, 10),
     ]);
     const issue = await generateDailyGrindIssue(
       opts.topicHint
@@ -772,6 +800,7 @@ export async function runDailyGrindCron(
             recentVerses,
             recentConcepts,
             recentIssueSummaries,
+            recentFormatStyles,
             topicHint: opts.topicHint,
             db,
           }
@@ -781,6 +810,7 @@ export async function runDailyGrindCron(
             recentVerses,
             recentConcepts,
             recentIssueSummaries,
+            recentFormatStyles,
             db,
           },
     );

@@ -22,6 +22,8 @@
 import { CANONICAL_EXAMPLES } from "../daily-grind-voice-prompt";
 import type { StructuredResearchOutput } from "./research-weekday";
 
+export type FormatStyle = "deep_dive" | "quick_hits" | "contrarian" | "story" | "data";
+
 export type DraftWeekdayInput = {
   issueDate: string;
   approvedTopic: {
@@ -31,7 +33,57 @@ export type DraftWeekdayInput = {
     frameworkReferences: string[];
   };
   structuredResearch: StructuredResearchOutput;
+  /**
+   * The "how" layer (spec 04:451-458) that pairs with the content type "what"
+   * layer. The SAME content type reads very differently across these five —
+   * 50+ combinations across the week. Drives the Main Content + First Pull
+   * structure. Optional for back-compat; defaults to deep_dive.
+   */
+  formatStyle?: FormatStyle;
 };
+
+/**
+ * Format-style structural treatments (spec 04:451-458). These modulate HOW the
+ * Main Content and First Pull are delivered, on top of the content-type rules.
+ * The fixed sections (Opening Trifecta, Worth Knowing, Ancient Truth) are
+ * unchanged; the format style reshapes the body's reading experience.
+ */
+function formatStyleRules(formatStyle: FormatStyle): string {
+  switch (formatStyle) {
+    case "deep_dive":
+      return `**Format: DEEP DIVE.** One idea, explored thoroughly. Go deep on a single move rather than broad across many.
+- First Pull: develop the argument in full — narrative or named-convention setup, then the reframe, with room to breathe.
+- Main Content: 3-4 howTo steps, each with real depth (label + 2-4 sentence body that explains the mechanism, not just the action). The reader should finish understanding WHY, not just WHAT.
+- Longer body (250-350 words). Fewer points, more thoroughly earned.`;
+
+    case "quick_hits":
+      return `**Format: QUICK HITS.** Scannable, rapid-fire, high-density. Built to be skimmed and acted on fast.
+- First Pull: short and punchy. Land the frame in 2-3 tight paragraphs, no long windup.
+- Main Content: 5-7 howTo steps, each SHORT (label + 1-2 sentence body). Each step is its own self-contained move. Think checklist energy, not essay.
+- Shorter overall. Every line earns its place. No connective filler between points.`;
+
+    case "contrarian":
+      return `**Format: CONTRARIAN.** Lead by stating the conventional approach as if you might endorse it, then dismantle it.
+- First Pull: name what "everyone does" specifically and fairly (steelman it), then turn — show why it quietly fails.
+- Main Content: structure each howTo step as a correction — "What most advisors do" → "Why it backfires" → "Do this instead." The body is the case against the default and the replacement.
+- The energy is argument, not instruction. The reader should feel a belief get overturned.`;
+
+    case "story":
+      return `**Format: STORY.** Narrative-driven. The lesson emerges from a scene, it is not stated up front.
+- First Pull: open mid-scene with a specific (anonymized) advisor and a concrete moment — a meeting, a call, a decision. No thesis statement first; drop the reader into the story.
+- Main Content: the howTo steps are the beats of what the advisor did (or should have done), told as the arc continues. Extract the transferable move from the narrative rather than abstracting away from it.
+- Closing returns to the scene or its aftermath. The reader remembers the person, and the lesson rides along.`;
+
+    case "data":
+      return `**Format: DATA.** Evidence-forward. The numbers lead and carry the argument.
+- First Pull: open on the most striking figure from research and what it actually means (not a stat dump — one number, fully unpacked).
+- Main Content: anchor EVERY howTo step to a specific figure, percentage, or dollar amount from the research. Use the stat fields heavily. The structure is claim → number → implication, repeated.
+- The reader should leave with 3-4 hard numbers they can quote. No vibes-based assertions where a figure exists.`;
+
+    default:
+      return `**Format: DEEP DIVE.** One idea explored thoroughly; 3-4 substantive howTo steps.`;
+  }
+}
 
 function formatSection(label: string, body: string): string {
   return `## ${label}\n\n${body.trim()}`;
@@ -135,6 +187,17 @@ Framework references: ${input.approvedTopic.frameworkReferences.join(", ") || "n
     formatSection(
       "Main Content Structure for This Content Type",
       contentTypeStructureRules(input.approvedTopic.contentType),
+    ),
+  );
+
+  // Format style — the "how" layer on top of the content-type "what" layer.
+  // The same content type must read very differently across the 5 styles.
+  sections.push(
+    formatSection(
+      `Format Style: ${(input.formatStyle ?? "deep_dive").toUpperCase()}`,
+      `${formatStyleRules(input.formatStyle ?? "deep_dive")}
+
+This format style governs the SHAPE of First Pull and Main Content. Apply it on top of the content-type structure above — they combine. The Opening Trifecta, Worth Knowing, and Ancient Truth keep their standard structure regardless of format style.`,
     ),
   );
 
