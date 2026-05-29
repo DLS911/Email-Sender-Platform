@@ -470,6 +470,7 @@ export async function runDailyGrindGenerate(
             recentConcepts,
             recentIssueSummaries,
             topicHint: opts.topicHint,
+            db,
           }
         : {
             issueDate: targetDate,
@@ -477,6 +478,7 @@ export async function runDailyGrindGenerate(
             recentVerses,
             recentConcepts,
             recentIssueSummaries,
+            db,
           },
     );
     // Merge inner-pipeline records (research, writer, validators, retries)
@@ -771,6 +773,7 @@ export async function runDailyGrindCron(
             recentConcepts,
             recentIssueSummaries,
             topicHint: opts.topicHint,
+            db,
           }
         : {
             issueDate,
@@ -778,6 +781,7 @@ export async function runDailyGrindCron(
             recentVerses,
             recentConcepts,
             recentIssueSummaries,
+            db,
           },
     );
     result.issueGenerated = true;

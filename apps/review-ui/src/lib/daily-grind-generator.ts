@@ -24,6 +24,8 @@ import { scoreAggregate, type ScoreAggregateResult } from "./pipeline-blocks/sco
 import { buildPersonaRevisionPrompt } from "./pipeline-blocks/persona-revision";
 import { applySurgicalRewrites } from "./pipeline-blocks/surgical-rewrites";
 import { verifyUrls } from "./pipeline-blocks/url-verify";
+import { findSimilarConceptsForTexts } from "./daily-grind-brain";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildAssembleHtmlPrompt,
   type AssembleHtmlOutput,
@@ -2991,6 +2993,15 @@ export async function generateDailyGrindIssue(opts: {
   }>;
   topicHint?: string;
   apiKey?: string;
+  /**
+   * Supabase client (service role). When provided, the topic_proposer's
+   * chosen topic is embedded and checked against past content_concepts via
+   * pgvector (match_content_concepts RPC). If the proposed topic is too
+   * semantically similar to something already covered, the proposer re-runs
+   * with that topic blocked — the real dedup the spec calls for (04:494),
+   * not just soft prompt advice. Omit to skip semantic dedup (e.g. tests).
+   */
+  db?: SupabaseClient;
 }): Promise<DailyGrindIssue> {
   const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY missing");
@@ -3018,35 +3029,124 @@ export async function generateDailyGrindIssue(opts: {
     blockedConceptsCount: recentConcepts.length,
     explicitTopicHint: opts.topicHint ?? null,
   };
+  // Semantic dedup loop (spec 04:494). The proposer picks a topic; we embed it
+  // and check pgvector cosine similarity against past content_concepts. If it's
+  // too close to something already covered, we BLOCK that topic and re-run.
+  // Up to 3 attempts. This is the real dedup — the prior behavior only fed
+  // recent-concept TEXT into the prompt as soft advice, which let near-dupes
+  // (same cluster, different headline) slip through repeatedly.
+  const MAX_PROPOSER_ATTEMPTS = 3;
+  const SIMILARITY_THRESHOLD = 0.82;
+  const semanticallyBlocked: string[] = [];
+  const dedupAttempts: Array<{
+    attempt: number;
+    topic: string;
+    angle: string;
+    topSimilarity: number | null;
+    topMatch: string | null;
+    accepted: boolean;
+  }> = [];
   try {
-    proposal = await runTopicProposer(
-      client,
-      opts.issueDate,
-      recentTopics,
-      recentConcepts,
-      recentIssueSummaries,
-    );
-    pipeline.push({
-      name: "topic_proposer",
-      status: "success",
-      latencyMs: Date.now() - proposerStart,
-      notes: `${proposal.contentType.toUpperCase()}: ${proposal.topic}. Angle: ${proposal.angle}`,
-      input: proposerInput,
-      output: {
-        contentType: proposal.contentType,
-        topic: proposal.topic,
-        angle: proposal.angle,
-        frameworkReferences: proposal.frameworkReferences,
-        rationale: proposal.rationale,
-      },
-      data: {
-        contentType: proposal.contentType,
-        topic: proposal.topic,
-        angle: proposal.angle,
-        frameworkReferences: proposal.frameworkReferences,
-        rationale: proposal.rationale,
-      },
-    });
+    for (let attempt = 1; attempt <= MAX_PROPOSER_ATTEMPTS; attempt++) {
+      const candidate = await runTopicProposer(
+        client,
+        opts.issueDate,
+        recentTopics,
+        [...recentConcepts, ...semanticallyBlocked],
+        recentIssueSummaries,
+      );
+
+      // Semantic similarity check (only when a db is available).
+      let topSimilarity: number | null = null;
+      let topMatch: string | null = null;
+      if (opts.db) {
+        try {
+          const probe = `${candidate.topic} — ${candidate.angle}`;
+          const sim = await findSimilarConceptsForTexts({
+            db: opts.db,
+            texts: [probe],
+            threshold: SIMILARITY_THRESHOLD,
+            perTextLimit: 3,
+          });
+          const matches = sim[0]?.matches ?? [];
+          if (matches.length > 0) {
+            const top = matches[0]!;
+            topSimilarity = top.similarity;
+            topMatch = top.conceptSummary;
+          }
+        } catch (simErr) {
+          // Similarity check is best-effort; never fail generation on it.
+          console.warn(
+            `[daily-grind][dedup] similarity check failed: ${simErr instanceof Error ? simErr.message : String(simErr)}`,
+          );
+        }
+      }
+
+      const tooSimilar = topSimilarity !== null && topSimilarity >= SIMILARITY_THRESHOLD;
+      const lastAttempt = attempt === MAX_PROPOSER_ATTEMPTS;
+      dedupAttempts.push({
+        attempt,
+        topic: candidate.topic,
+        angle: candidate.angle,
+        topSimilarity,
+        topMatch,
+        accepted: !tooSimilar || lastAttempt,
+      });
+
+      if (!tooSimilar || lastAttempt) {
+        // Accept this candidate (either it's fresh, or we've exhausted attempts
+        // and ship the least-bad option rather than fail the issue).
+        proposal = candidate;
+        break;
+      }
+      // Too similar — block this topic and try again.
+      semanticallyBlocked.push(candidate.topic);
+    }
+
+    if (proposal) {
+      const finalAttempt = dedupAttempts[dedupAttempts.length - 1]!;
+      const exhaustedSimilar =
+        finalAttempt.topSimilarity !== null && finalAttempt.topSimilarity >= SIMILARITY_THRESHOLD;
+      pipeline.push({
+        name: "topic_proposer",
+        status: exhaustedSimilar ? "warning" : "success",
+        latencyMs: Date.now() - proposerStart,
+        notes: exhaustedSimilar
+          ? `${proposal.contentType.toUpperCase()}: ${proposal.topic}. Angle: ${proposal.angle} (shipped after ${dedupAttempts.length} attempts; still ${(finalAttempt.topSimilarity! * 100).toFixed(0)}% similar to "${finalAttempt.topMatch}")`
+          : `${proposal.contentType.toUpperCase()}: ${proposal.topic}. Angle: ${proposal.angle}${dedupAttempts.length > 1 ? ` (accepted on attempt ${dedupAttempts.length} after ${dedupAttempts.length - 1} too-similar reject(s))` : ""}`,
+        input: { ...proposerInput, semanticDedup: opts.db ? "enabled" : "disabled" },
+        output: {
+          contentType: proposal.contentType,
+          topic: proposal.topic,
+          angle: proposal.angle,
+          frameworkReferences: proposal.frameworkReferences,
+          rationale: proposal.rationale,
+        },
+        data: {
+          contentType: proposal.contentType,
+          topic: proposal.topic,
+          angle: proposal.angle,
+          frameworkReferences: proposal.frameworkReferences,
+          rationale: proposal.rationale,
+        },
+      });
+      // Explicit dedup decision record for the trace.
+      pipeline.push({
+        name: "topic_dedup_check",
+        status: exhaustedSimilar ? "warning" : "success",
+        notes: opts.db
+          ? exhaustedSimilar
+            ? `exhausted ${MAX_PROPOSER_ATTEMPTS} attempts; shipping a topic still ${(finalAttempt.topSimilarity! * 100).toFixed(0)}% similar to prior content (threshold ${(SIMILARITY_THRESHOLD * 100).toFixed(0)}%) — flagged`
+            : `topic cleared semantic dedup (threshold ${(SIMILARITY_THRESHOLD * 100).toFixed(0)}%)${dedupAttempts.length > 1 ? ` after blocking ${dedupAttempts.length - 1} near-duplicate(s)` : ""}`
+          : `semantic dedup skipped (no db) — relied on prompt-level concept advice only`,
+        input: { threshold: SIMILARITY_THRESHOLD, maxAttempts: MAX_PROPOSER_ATTEMPTS },
+        output: {
+          attempts: dedupAttempts,
+          blockedTopics: semanticallyBlocked,
+          decision: exhaustedSimilar ? "ship_with_warning" : "accepted",
+        },
+      });
+    }
   } catch (err) {
     pipeline.push({
       name: "topic_proposer",
@@ -3813,6 +3913,9 @@ export async function generateDailyGrindIssue(opts: {
     }
     if (stage.name === "the_number_source_check" && stage.status === "warning") {
       warnings.push(`the_number_source_check: ${stage.notes ?? "The Number unsourced"}`);
+    }
+    if (stage.name === "topic_dedup_check" && stage.status === "warning") {
+      warnings.push(`topic_dedup_check: ${stage.notes ?? "topic too similar to prior content"}`);
     }
     if (stage.name === "url_verify" && stage.status === "warning") {
       const droppedArr = (stage.output as Record<string, unknown> | undefined)?.dropped;
