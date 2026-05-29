@@ -1,146 +1,147 @@
-# Daily Grind — Outstanding Punch List
+# Daily Grind / Latte — Spec Divergence Punch List
 
-Running list of things to address on the email pipeline. Check off when shipped.
+Full block-by-block audit of all behavioral specs vs. the running code, completed
+2026-05-29. Status legend: `TODO` · `IN PROGRESS` · `DONE`.
 
-Status legend: `TODO` · `IN PROGRESS` · `DONE`
-
-Audit basis: read `03_voice_system.spec.md` in full + `04_content_pipeline.spec.md`
-blocks (content_type_assigner, topic_proposer, research_agent, writer_agent,
-opening_trifecta, score_aggregator) and cross-checked against the running code
-on 2026-05-29. Items A-F below are genuine spec divergences. The remaining
-specs (05 brain, 06 distribution, 07 experiments, 09 optimization, 10
-observability) have NOT yet been audited block-by-block against the code.
-
----
-
-## A. Format Style layer — the "different formats" — `TODO` (highest impact)
-
-**Spec:** `04_content_pipeline.spec.md` block `content_type_assigner` (L433-458).
-Every issue carries a **`formatStyle`: deep_dive | quick_hits | contrarian | story | data**,
-separate from content type. Spec L458 verbatim: "A Tactic can be written as
-deep_dive, quick_hits, contrarian, story, or data — five very different reading
-experiences with the same content category. Tracking the format style separately
-from the content type creates 50+ unique combinations across the week and
-prevents structural repetition even when content type repeats."
-
-**Current state:** `formatStyle` exists only as an *optional, ignored* string on
-the topic_proposer output. The writer never receives it and never varies
-structure by it. So every email is structurally identical regardless of
-content type. This is what Austin meant by "it currently only does one format."
-
-**Fix:** writer must branch its structure on formatStyle (5 genuinely different
-layouts), and the assigner must pick + rotate formatStyle (exclude last 14 days,
-pulled from brain — see item B).
+**Architecture note:** the specs describe an idealized monorepo (`apps/pipeline/`,
+`packages/*`). The real implementation is consolidated in `apps/review-ui/src/lib/`
++ Supabase. Items below are FUNCTIONAL gaps (behavior the spec requires that does
+not happen), not architectural-purity differences. Several spec'd DB tables
+physically exist from the initial scaffold but are **dead** (no live code reads/
+writes them): `framework_concepts`, `subscribers`, `suppression_list`, `sends`,
+`send_events`, `experiments`, `experiment_variants`, `optimization_policies`,
+`pipeline_runs`, `block_executions`.
 
 ---
 
-## B. content_type_assigner as a deterministic block — `TODO`
+## TIER 0 — Compliance / safety (address before any real subscriber list)
 
-**Spec:** L433-458. A PURE FUNCTION (no LLM) that picks
-`contentType` + `subtype` + `formatStyle` + `hasDigitalGrind` from day-of-week
-rules + brain-driven format rotation (last 14 days of format styles for this
-content type are excluded).
+Currently low real-world risk because the only recipients are 3 internal Castor
+Abbott addresses (Mark, Matt, Carmine). Becomes a hard blocker the moment a real
+advisor is added.
 
-**Current state:** content-type selection is folded into the LLM `topic_proposer`
-with day-of-week hints. No separate deterministic assigner, no formatStyle
-rotation, no subtype, no hasDigitalGrind.
+### J. Unsubscribe + suppression — MISSING — `TODO` (CAN-SPAM hazard)
+Spec 06. No subscribe/confirm/unsubscribe route exists. Email footer links are
+static placeholders (`daily-grind-cron.ts:492` → `/unsubscribe?test=true`). No
+`List-Unsubscribe` header in `sendOne`. The `suppression_list` table exists but
+is never queried. **A recipient cannot unsubscribe, and nothing stops us emailing
+a suppressed address.**
 
-**Fix:** extract a deterministic assigner that feeds the proposer/writer. Needed
-for item A's rotation to be principled rather than random.
+### K. Bounce / complaint suppression — MISSING — `TODO`
+Spec 06. The Resend webhook verifies signatures and normalizes
+`bounced`/`complained` events, then **only logs them** (`webhooks/resend/route.ts:28-37`).
+No subscriber state change, no suppression. A hard-bounced or complained address
+keeps getting emailed every cycle → sender-reputation decay.
 
----
-
-## C. Opening Trifecta = ship ONE of three, not stack all three — `TODO`
-
-**Spec:** block `opening_trifecta` (L605-647) + PASS logic L388
-(`trifecta_passed === true` required for weekday). Generate **3 candidate
-openings** (The Number / The Unspoken / The Flip), persona-panel score each,
-**publish the highest-scoring ONE**, log the other two for learning. Compute
-`trifecta_passed` and fold it into the verdict.
-
-**Current state:** the template stacks all three (Number + Unspoken + Flip) in
-every issue, every time. We generate one of each inline, never score, never
-choose, never compute `trifecta_passed` — the PASS clause silently skips. This
-is the other half of "only does one format": the opening never varies.
-
-**Fix:** generate 3 opening candidates, score via persona panel, ship the
-winner, render only that one, log the rest, wire `trifecta_passed`.
+### M. No alerting — MISSING — `TODO`
+Spec 10. There is zero alerting. A "pipeline failed, no issue produced" or a cost
+spike is silent — visible only by reading logs. No `alerts` table, no eval job,
+no Slack/email notify. The spec's core safety property is absent.
 
 ---
 
-## D. Special subtypes — `TODO`
+## TIER 1 — Content quality / variety (what Mark actually sees)
 
-**Spec:** `content_type_assigner` output `subtype: compliance | team_management
-| tech_deep_dive | null` (L450), and writer "A Special must address its subtype
-directly" (L603).
+### A. Format Style layer — MISSING — `TODO` (highest content impact)
+Spec 04:433-458. Every issue should carry a `formatStyle`
+(deep_dive | quick_hits | contrarian | story | data) separate from content type:
+"50+ unique combinations across the week." In code it's an *optional, ignored*
+field on the proposer; the writer never varies structure. Every email is
+structurally identical. This is "it only does one format."
 
-**Current state:** no subtype anywhere. A Special is generic.
+### C. Opening Trifecta = ship ONE of three — MISSING — `TODO`
+Spec 04:605-647 + PASS L388. Should generate 3 candidate openings (Number /
+Unspoken / Flip), persona-score, ship the winner, log the rest, set
+`trifecta_passed`. We stack all three in every issue and never compute
+`trifecta_passed`. The opening never varies.
 
----
+### B. content_type_assigner (deterministic) — MISSING — `TODO`
+Spec 04:433-458. Should be a pure function picking
+contentType + subtype + formatStyle + hasDigitalGrind with 14-day format
+rotation from the brain. Currently folded into the LLM topic_proposer with none
+of the rotation/subtype/digital-grind outputs.
 
-## E. Digital Grind (Friday section) — `TODO`
+### D. Special subtypes — MISSING — `TODO`
+Spec 04:450,603. `compliance | team_management | tech_deep_dive` subtype; a
+Special must address it directly. No subtype anywhere.
 
-**Spec:** `hasDigitalGrind: boolean` (true for Friday tactics, L453) and writer
-output `digital_grind: object | null` (L592).
+### E. Digital Grind (Friday section) — MISSING — `TODO`
+Spec 04:453,592. `hasDigitalGrind` / `digital_grind`. Absent from writer + HTML
+template; Friday issues identical to other days.
 
-**Current state:** not in the writer output or the HTML template. Friday issues
-are identical to other weekdays.
+### F. Writer 3 headline candidates — MISSING — `TODO`
+Spec 04:567. Writer should emit `headline_options: string[]` (3). We emit one
+(plus a banned-pattern rewrite).
 
----
+### G. Source quality tier — MISSING — `TODO`
+URL verification (shipped `fb28887`) guarantees accuracy (live + deep + contains
+the stat) but not prestige. Add a deterministic domain tier table (Tier 1
+Kitces/Cerulli/SEC/FINRA/InvestmentNews; Tier 2 ThinkAdvisor/FA-Mag; Tier 3
+else). Soft preference + `source_quality` warning; never over-drop to sourceless.
+Mark must not grade sources by hand.
 
-## F. Writer produces 3 headline candidates — `TODO`
-
-**Spec:** writer_agent output `headline_options: string[] // 3 candidates`
-(L567). The opening_trifecta block is built "for the writer's chosen headline,"
-implying selection among candidates.
-
-**Current state:** writer emits one headline; we only have a banned-pattern
-rewrite, not 3-candidate generation/selection.
-
----
-
-## G. Source quality tier (auto, not manual) — `TODO`
-
-**Why:** URL verification (shipped, `fb28887`) guarantees a source is live +
-deep + contains the cited stat (accuracy). It does NOT rank source *prestige*.
-Jun 2 sourced The Number to `incomelaboratory.com` — live and relevant but an
-SEO/content-marketing domain, not a top-tier publisher. Austin: Mark should NOT
-grade sources by hand.
-
-**Fix:** deterministic domain tier table (Tier 1 Kitces/Cerulli/SEC/FINRA/
-InvestmentNews; Tier 2 ThinkAdvisor/FA-Mag/etc; Tier 3 everything else). Soft
-preference — prefer Tier 1/2; if only Tier 3 survives URL verification, ship but
-surface a `source_quality` warning in final_quality_gate. Must not over-drop to
-sourceless.
-
----
-
-## H. Tier 3 feedback loop — real engagement signal — `TODO`
-
-**Why:** all quality gating today is AI predicting reader behavior. Ground truth
-= real opens/clicks/forwards/unsubscribes + Mark's ratings.
-
-**Current state:** `api/webhooks/resend/route.ts` receives Resend events but only
-`logger.info`s them — nothing persisted, nothing reaches the brain.
-
-**Fix:** persist events (`daily_grind_email_events`), aggregate per-issue rates,
-feed back to brain + persona calibration. Optional: Mark thumbs up/down capture.
+### I. Cluster repetition — `TODO` (investigate)
+05-22→06-01 auto-run skewed entirely into client-profitability/segmentation.
+Likely fixed structurally by A + B (real format/cluster variety machinery) — but
+confirm the cluster guard didn't regress as brain memory filled with similar
+summaries.
 
 ---
 
-## I. Cluster repetition — possible regression — `TODO` (investigate)
+## TIER 2 — Learning loop (turns it from "generator" into "improving system")
 
-**Observation (2026-05-29):** auto-run 05-22 → 06-01 skewed entirely into ONE
-cluster (client profitability / segmentation / cost-to-serve). Check whether the
-cluster guard + issue-summary memory weakened as the brain filled with similar
-summaries, or whether the proposer kept self-justifying same-cluster picks.
-NOTE: items A/B (real format + cluster variety machinery) may be the structural
-fix for this.
+### H. Engagement feedback loop — BROKEN — `TODO`
+Specs 05 + 06. All quality gating is AI predicting reader behavior; the system
+consumes **zero real outcome signal**. Resend events are logged but never
+persisted; no `send_events`, no attribution, no `performance_observations`, no
+scoring job. Fix: persist webhook events → aggregate per-issue open/click/
+forward/unsubscribe → feed brain + persona calibration. Optional: Mark thumbs
+up/down capture. (Overlaps J/K — same webhook is the entry point.)
+
+### L. Brain framework layer + real dedup enforcement — MISSING/DEAD — `TODO`
+Spec 05. (1) The two-layer brain (framework vs content concepts) is unbuilt —
+`framework_concepts`/`framework_content_usage` tables exist but no code writes
+them; only content-concept text summaries are stored. (2) The pgvector
+similarity/dedup function (`findSimilarConceptsForTexts`, `match_content_concepts`
+RPC) is **dead code — never called** in the live pipeline. Dedup today is just
+recent-concept text dropped into the proposer prompt as soft advice; no
+`lookback_until` / `hard_blocked` enforcement. This is likely the real root of
+item I (cluster repetition).
 
 ---
 
-## Not yet audited
+## TIER 3 — Spec'd capabilities not yet needed (future)
 
-Block-by-block code audit still owed against: `05_brain_and_learning`,
-`06_distribution_platform`, `07_experiment_framework`, `09_optimization_policies`,
-`10_observability`. There may be further divergences in those.
+### N. Experiment framework — ABSENT — `TODO` (future)
+Spec 07. No experiment runtime at all: no variant allocation, no measurement, no
+winner declaration, no 50-variant micro-test. `experiments`/`experiment_variants`
+tables + `@platform/experiments` types exist but are unused stubs. The admin
+`rewrite-issue` tone A/B is a manual content-replace tool, not wired to tracking.
+
+### O. Optimization policy engine — ABSENT — `TODO` (future)
+Spec 09. No `evaluatePolicy` engine, no seeded policies, no approval queue, no
+escalation. `@platform/policies` is a type stub. "Approval" today = implicit human
+review of the single draft. Persona `churnWeight` is a hardcoded constant, never
+auto-tuned.
+
+### P. Observability forensic store + replay completeness — PARTIAL — `TODO` (future)
+Spec 10. `pipeline_runs`/`block_executions` are empty stubs; the trace is a
+per-issue `generation_meta.pipeline` JSON blob → no cross-run SQL (failures by
+reason, cost trends, retry rates), no indexed forensics. Replay is incomplete:
+voice-module/config versions are NOT recorded and the model is a hardcoded
+constant rather than a resolved role, so "what produced this issue 6 months ago"
+can't be fully reconstructed. Cost/latency tracking + the single-issue trace UI
+ARE implemented.
+
+---
+
+## Confirmed NOT gaps
+- Voice frameworks (Trust Stacking, GAP, Physician Model, Three Torments, Offers
+  vs Proposals, contrarian positions, language guide, synthesis) ARE composed
+  into the writer (~39K tokens, `composeWeekdayWriterVoice`).
+- Send scheduling (timezone + send-hour + weekday/Saturday gates) IMPLEMENTED.
+- Per-recipient send idempotency (last_sent_issue_date guard) IMPLEMENTED
+  (though `force=1` bypasses it).
+- Per-issue cost + latency tracking IMPLEMENTED (estimated pricing).
+- Single-issue pipeline trace + drift + quality-gate + viewer UI IMPLEMENTED.
+- Concept extraction after each issue runs (content concepts only).
