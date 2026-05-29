@@ -610,15 +610,46 @@ function parseContentType(raw: string): DailyGrindContentType {
   return "tactic";
 }
 
-function validateAgainstResearch(items: WorthKnowingItem[], research: ResearchBundle): void {
-  const researchUrls = new Set(research.items.map((r) => r.url));
-  for (const [i, item] of items.entries()) {
-    if (!researchUrls.has(item.sourceUrl)) {
-      throw new Error(
-        `writer: worthKnowing[${i}] sourceUrl "${item.sourceUrl}" does not match any research item url. Model may have invented a source.`,
-      );
+/**
+ * NON-FATAL repair for Worth Knowing source URLs. Previously this threw and
+ * killed the whole issue when the writer cited a URL not in research — which
+ * became much more likely once url_verify started shrinking the research
+ * bundle by dropping dead links. A hallucinated source is recoverable: drop
+ * the offending item (it's inaccurate by definition), and if that leaves the
+ * section thin, backfill from verified-live research items the writer didn't
+ * use. Never throw. Returns the cleaned items + a report for the trace.
+ */
+function repairWorthKnowingUrls(
+  items: WorthKnowingItem[],
+  research: ResearchBundle,
+): { items: WorthKnowingItem[]; droppedCount: number; backfilledCount: number } {
+  const researchByUrl = new Map(research.items.map((r) => [r.url, r]));
+  const valid = items.filter((it) => researchByUrl.has(it.sourceUrl));
+  const droppedCount = items.length - valid.length;
+
+  // Backfill toward 3 from verified research items not already cited, building
+  // HONEST entries from the research item itself (no mismatched body↔URL).
+  let backfilledCount = 0;
+  if (valid.length < 3) {
+    const usedUrls = new Set(valid.map((v) => v.sourceUrl));
+    for (const r of research.items) {
+      if (valid.length >= 3) break;
+      if (usedUrls.has(r.url)) continue;
+      const stat = r.keyStats?.[0];
+      valid.push({
+        category: "Industry",
+        headline: r.title,
+        ...(stat ? { stat: stat.number, statLabel: stat.label, statColor: "gold" as const } : {}),
+        sourceUrl: r.url,
+        sourceName: r.source,
+        body: r.summary,
+        myTake: r.notableQuote ? `Worth noting: ${r.notableQuote}` : "One to track.",
+      });
+      usedUrls.add(r.url);
+      backfilledCount++;
     }
   }
+  return { items: valid, droppedCount, backfilledCount };
 }
 
 function findDuplicateSourceUrls(items: WorthKnowingItem[]): string[] {
@@ -2238,8 +2269,26 @@ Pick from those for the Worth Knowing slots. Use the URL verbatim.)`;
       });
     }
   }
-  // Final validation — if still invalid, this throws (an unrecoverable case).
-  validateAgainstResearch(content.worthKnowing, research);
+  // Final repair (NON-FATAL): drop any worth-knowing item still pointing at a
+  // URL not in (verified) research, backfilling from unused research items.
+  // Never throws — a hallucinated source must not kill the whole issue.
+  {
+    const before = content.worthKnowing.length;
+    const repaired = repairWorthKnowingUrls(content.worthKnowing, research);
+    if (repaired.droppedCount > 0 || repaired.backfilledCount > 0) {
+      content = { ...content, worthKnowing: repaired.items };
+      pipeline.push({
+        name: "worth_knowing_repair",
+        status: "warning",
+        notes: `dropped ${repaired.droppedCount} item(s) with invalid/hallucinated source URLs; backfilled ${repaired.backfilledCount} from verified research (was ${before}, now ${repaired.items.length})`,
+        output: {
+          dropped: repaired.droppedCount,
+          backfilled: repaired.backfilledCount,
+          finalCount: repaired.items.length,
+        },
+      });
+    }
+  }
 
   // Worth Knowing distinctness retry: if the writer cited the same story 2-3
   // ways, do one targeted retry pointing at specific UNUSED research items.
@@ -2285,8 +2334,12 @@ ${unused.slice(0, 5).map((u) => `- ${u.source}: ${u.title} (${u.url})`).join("\n
         try {
           let retryContent = parseContent(retryBlock.text);
           retryContent = deepStripDashes(retryContent);
-          validateAgainstResearch(retryContent.worthKnowing, research);
-          if (findDuplicateSourceUrls(retryContent.worthKnowing).length === 0) {
+          // Accept the retry only if every URL is real research AND distinct.
+          const researchUrlSet2 = new Set(research.items.map((r) => r.url));
+          const allValid = retryContent.worthKnowing.every((w) =>
+            researchUrlSet2.has(w.sourceUrl),
+          );
+          if (allValid && findDuplicateSourceUrls(retryContent.worthKnowing).length === 0) {
             content = retryContent;
             dupeRetrySucceeded = true;
           }
