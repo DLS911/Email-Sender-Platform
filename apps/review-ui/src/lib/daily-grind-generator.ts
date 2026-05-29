@@ -1074,18 +1074,40 @@ async function runTopicProposer(
   // the proposer must pick a topic the writer can actually shape into that
   // form. A procedural compliance audit cannot be told as a 2-beat story; a
   // narrative advisor-scene cannot become a one-line checklist.
-  const formatHints: Record<FormatStyle, string> = {
-    deep_dive: `Format will be DEEP DIVE — pick a topic with ONE central mechanism worth taking 4-6 sentences to explain. Good fit: a single under-appreciated dynamic (e.g. "how AUM-tied fees distort COI behavior"). Bad fit: a checklist topic with 8 unrelated items.`,
-    quick_hits: `Format will be QUICK HITS — pick a topic that naturally breaks into 6-8 short, scannable items. Good fit: red-flag lists, warning signs, audit checklists, things to remove/add. Bad fit: one complex argument or a single narrative.`,
-    contrarian: `Format will be CONTRARIAN — pick a topic where there's a clear "what everyone does" the issue can dismantle. Good fit: industry-default behaviors (scripted referral asks, "stay the course" speeches, COI lunches). Bad fit: technical procedures with no popular convention to overturn.`,
-    story: `Format will be STORY — pick a topic that can be TOLD AS A SINGLE ADVISOR SCENE with a specific moment. Good fit: a phone call, a meeting, a discovery, a decision an advisor made. Bad fit: regulatory/compliance audits, technical procedures, multi-item checklists — those have no scene.`,
-    data: `Format will be DATA — pick a topic where research gives you multiple concrete figures. Good fit: industry studies, percentages, dollar gaps, time studies. Bad fit: voice/positioning topics where numbers don't naturally appear.`,
+  const formatHints: Record<FormatStyle, { topicGuidance: string; preferredContentTypes: string[] }> = {
+    deep_dive: {
+      topicGuidance: `Pick a topic with ONE central mechanism worth taking 4-6 sentences to explain. Good fit: a single under-appreciated dynamic (e.g. "how AUM-tied fees distort COI behavior"). Bad fit: a checklist topic with 8 unrelated items.`,
+      preferredContentTypes: ["special", "take", "story"],
+    },
+    quick_hits: {
+      topicGuidance: `Pick a topic that naturally breaks into 6-8 short, scannable items. Good fit: red-flag lists, warning signs, audit checklists, things-to-remove. Bad fit: one complex argument or a single narrative.`,
+      preferredContentTypes: ["tactic", "special"],
+    },
+    contrarian: {
+      topicGuidance: `Pick a topic where there's a clear "what everyone does" the issue can dismantle. Good fit: industry-default behaviors (scripted referral asks, "stay the course" speeches, COI lunches). Bad fit: technical procedures with no popular convention to overturn.`,
+      preferredContentTypes: ["take", "rant"],
+    },
+    story: {
+      topicGuidance: `Pick a topic that can be TOLD AS A SINGLE ADVISOR SCENE with a specific moment — a phone call, a meeting, a discovery, a decision an advisor made. The topic must have a HUMAN at its center, not a procedure. Bad fit (do NOT pick these): regulatory/compliance audits, agreement reviews, technical procedures, multi-item checklists — those have no scene to drop the reader into.`,
+      preferredContentTypes: ["story", "take"],
+    },
+    data: {
+      topicGuidance: `Pick a topic where research gives you multiple concrete figures. Good fit: industry studies, percentages, dollar gaps, time studies. Bad fit: voice/positioning topics where numbers don't naturally appear.`,
+      preferredContentTypes: ["tactic", "special"],
+    },
   };
   const fsHint = formatStyle ? formatHints[formatStyle] : undefined;
+  // Format style OVERRIDES Day-of-Week affinity when they conflict — a locked
+  // format=story on a Monday should NOT produce a Tactic just because DOW says
+  // Mondays favor Tactic. The format determines the shape; the content type
+  // must be compatible with the shape.
+  const formatSection = fsHint
+    ? `\n\n## Format Style (LOCKED — this OVERRIDES the Day-of-Week affinity above)\n${fsHint.topicGuidance}\n\n**Preferred contentType for this format:** ${fsHint.preferredContentTypes.join(" or ")}. Even if Day-of-Week affinity above recommends a different contentType, prefer one of these — picking a contentType that fights the format produces a confused issue.`
+    : "";
   const fullPrompt = [
     userPrompt,
-    dowHint ? `\n\n## Day-of-Week Affinity\n${dowHint}` : "",
-    fsHint ? `\n\n## Format Style (LOCKED — pick a fitting topic)\n${fsHint}` : "",
+    dowHint ? `\n\n## Day-of-Week Affinity (general bias — overridden by Format Style below when they conflict)\n${dowHint}` : "",
+    formatSection,
   ].join("");
 
   const start = Date.now();
