@@ -42,6 +42,26 @@ no Slack/email notify. The spec's core safety property is absent.
 
 ## TIER 1 — Content quality / variety (what Mark actually sees)
 
+### A+B+C. Format variety — DONE (`d2ae3fc`, `04cba8c`, `dde5a9f`, `be23e786`, `e8d9023`)
+- **A**: formatStyle drives writer structure with 5 genuinely divergent shapes
+  (deep_dive 2-3 long steps; quick_hits 6-8 one-liners; contrarian 3 belief→
+  backfire→replacement; story 2 narrative beats with mid-scene open + return;
+  data 4-5 figure-led steps). Format style is the structural authority and
+  overrides the content-type step-count.
+- **B**: pickFormatStyle deterministic rotation with date-seeded tie-break;
+  format_style_assign runs BEFORE topic_proposer (spec-aligned ordering); the
+  proposer is now FORMAT-AWARE and picks a topic + paired contentType
+  (story→story/take, quick_hits→tactic, etc.) — DOW affinity defers to format
+  on conflict. Verified: story format produced genuine narrative prose
+  ("Solo practitioner, mid-40s ... mentioned during their annual review ...
+  the way you mention the weather"); quick_hits produced 8 one-sentence steps.
+- **C**: trifecta-scorer Haiku block (~5s, ~$0.005) scores Number/Unspoken/Flip
+  on hook+share+voice, picks the winner, template renders only that ONE.
+  Verified June 10: unspoken won 9.0/10, HTML has exactly 1 label and 0 of
+  the other two. Other 2 preserved in JSON for trace/learning per spec.
+
+
+
 ### A. Format Style layer — MISSING — `TODO` (highest content impact)
 Spec 04:433-458. Every issue should carry a `formatStyle`
 (deep_dive | quick_hits | contrarian | story | data) separate from content type:
