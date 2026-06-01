@@ -38,6 +38,12 @@ export type DailyGrindContent = {
     theNumber: { stat: string; description: string; sourceUrl: string; sourceName: string };
     theUnspoken: string;
     theFlip: { conventional: string; reality: string };
+    /**
+     * When set, the renderer shows ONLY this one opening (spec ship-1-of-3 per
+     * 04:605-647). The other two are preserved in the JSON for trace/learning.
+     * Omitted → renders all three stacked (legacy behaviour).
+     */
+    selectedType?: "number" | "unspoken" | "flip";
   };
   firstPull: { paragraphs: string[] };
   worthKnowing: WorthKnowingItem[];
@@ -226,13 +232,22 @@ export function renderDailyGrindHtml(
             </td>
           </tr>
 
-          <!-- OPENING TRIFECTA -->
+          <!-- OPENING TRIFECTA (spec: ship 1 of 3 when selectedType is set; otherwise legacy stack) -->
           <tr>
             <td style="padding: 24px 40px 0 40px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border: 1px solid #e8e4de;">
-                ${renderTheNumber(content.openingTrifecta.theNumber)}
-                ${renderTheUnspoken(content.openingTrifecta.theUnspoken)}
-                ${renderTheFlip(content.openingTrifecta.theFlip)}
+                ${(() => {
+                  const sel = content.openingTrifecta.selectedType;
+                  if (sel === "number") return renderTheNumber(content.openingTrifecta.theNumber);
+                  if (sel === "unspoken") return renderTheUnspoken(content.openingTrifecta.theUnspoken);
+                  if (sel === "flip") return renderTheFlip(content.openingTrifecta.theFlip);
+                  // Legacy: render all three stacked when selectedType isn't set.
+                  return [
+                    renderTheNumber(content.openingTrifecta.theNumber),
+                    renderTheUnspoken(content.openingTrifecta.theUnspoken),
+                    renderTheFlip(content.openingTrifecta.theFlip),
+                  ].join("\n                ");
+                })()}
               </table>
             </td>
           </tr>
@@ -373,17 +388,31 @@ function renderText(content: DailyGrindContent, inputs: RenderInputs): string {
   lines.push("THE DAILY GRIND");
   lines.push(inputs.issueDate);
   lines.push("");
-  lines.push("=== OPENING TRIFECTA ===");
-  lines.push("");
-  lines.push(`THE NUMBER: ${content.openingTrifecta.theNumber.stat}`);
-  lines.push(content.openingTrifecta.theNumber.description);
-  lines.push("");
-  lines.push("THE UNSPOKEN");
-  lines.push(content.openingTrifecta.theUnspoken);
-  lines.push("");
-  lines.push("THE FLIP");
-  lines.push(`Conventional: "${content.openingTrifecta.theFlip.conventional}"`);
-  lines.push(`Reality: ${content.openingTrifecta.theFlip.reality}`);
+  // OPENING: when selectedType is set, render only the winning opening; else legacy stack.
+  const sel = content.openingTrifecta.selectedType;
+  if (sel === "number") {
+    lines.push(`THE NUMBER: ${content.openingTrifecta.theNumber.stat}`);
+    lines.push(content.openingTrifecta.theNumber.description);
+  } else if (sel === "unspoken") {
+    lines.push("THE UNSPOKEN");
+    lines.push(content.openingTrifecta.theUnspoken);
+  } else if (sel === "flip") {
+    lines.push("THE FLIP");
+    lines.push(`Conventional: "${content.openingTrifecta.theFlip.conventional}"`);
+    lines.push(`Reality: ${content.openingTrifecta.theFlip.reality}`);
+  } else {
+    lines.push("=== OPENING TRIFECTA ===");
+    lines.push("");
+    lines.push(`THE NUMBER: ${content.openingTrifecta.theNumber.stat}`);
+    lines.push(content.openingTrifecta.theNumber.description);
+    lines.push("");
+    lines.push("THE UNSPOKEN");
+    lines.push(content.openingTrifecta.theUnspoken);
+    lines.push("");
+    lines.push("THE FLIP");
+    lines.push(`Conventional: "${content.openingTrifecta.theFlip.conventional}"`);
+    lines.push(`Reality: ${content.openingTrifecta.theFlip.reality}`);
+  }
   lines.push("");
   lines.push("=== FIRST PULL ===");
   lines.push("");

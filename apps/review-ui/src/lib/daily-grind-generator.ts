@@ -25,6 +25,7 @@ import { buildPersonaRevisionPrompt } from "./pipeline-blocks/persona-revision";
 import { applySurgicalRewrites } from "./pipeline-blocks/surgical-rewrites";
 import { verifyUrls } from "./pipeline-blocks/url-verify";
 import { findSimilarConceptsForTexts } from "./daily-grind-brain";
+import { scoreTrifecta } from "./pipeline-blocks/trifecta-scorer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildAssembleHtmlPrompt,
@@ -845,6 +846,13 @@ function parseContent(rawText: string): DailyGrindContent {
         sourceUrl: typeof theNumber.sourceUrl === "string" ? theNumber.sourceUrl.trim() : "",
         sourceName: typeof theNumber.sourceName === "string" ? theNumber.sourceName.trim() : "",
       },
+      // selectedType is set downstream by the trifecta_scorer; the writer
+      // doesn't produce it. Parsed leniently for back-compat.
+      ...(trifecta.selectedType === "number" ||
+      trifecta.selectedType === "unspoken" ||
+      trifecta.selectedType === "flip"
+        ? { selectedType: trifecta.selectedType as "number" | "unspoken" | "flip" }
+        : {}),
       theUnspoken: requireString(trifecta, "theUnspoken", "openingTrifecta"),
       theFlip: {
         conventional: requireString(theFlip, "conventional", "openingTrifecta.theFlip"),
@@ -3700,6 +3708,47 @@ export async function generateDailyGrindIssue(opts: {
   // timeout. Still runs when persona_panel had concerns or wasn't able to
   // produce a verdict.
   let finalContent = writer.content;
+
+  // STAGE: opening_trifecta_score (spec 04:605-647 + 645 selection logic).
+  // The writer produced all three openings (Number/Unspoken/Flip); pick the
+  // ONE that ships. Losers preserved in JSON for trace/learning. When
+  // selectedType is set on openingTrifecta, the renderer ships only that one.
+  let trifectaPassed: boolean | null = null;
+  try {
+    const trifStart = Date.now();
+    const trifResult = await scoreTrifecta(client, finalContent);
+    finalContent = {
+      ...finalContent,
+      openingTrifecta: {
+        ...finalContent.openingTrifecta,
+        selectedType: trifResult.winner,
+      },
+    };
+    const winnerScore =
+      trifResult.scores.find((s) => s.opening === trifResult.winner)?.combined ?? 0;
+    trifectaPassed = winnerScore >= 6; // spec L388: trifecta_passed in PASS verdict
+    pipeline.push({
+      name: "opening_trifecta_score",
+      status: trifectaPassed ? "success" : "warning",
+      latencyMs: Date.now() - trifStart,
+      notes: `winner=${trifResult.winner} (${winnerScore.toFixed(1)}/10). ${trifResult.rationale}`,
+      input: { candidates: ["number", "unspoken", "flip"] },
+      output: {
+        winner: trifResult.winner,
+        winnerScore,
+        trifectaPassed,
+        scores: trifResult.scores,
+        rationale: trifResult.rationale,
+      },
+    });
+  } catch (err) {
+    pipeline.push({
+      name: "opening_trifecta_score",
+      status: "warning",
+      notes: `trifecta scoring failed: ${err instanceof Error ? err.message : String(err)} — shipping stacked all 3 (legacy fallback)`,
+    });
+  }
+
   let voiceReviewCost = { input: 0, output: 0, latency: 0 };
   let sharpenCost = { input: 0, output: 0, latency: 0 };
   const personaPassed = writer.panelResult?.verdict === "pass";
@@ -4075,6 +4124,9 @@ export async function generateDailyGrindIssue(opts: {
     }
     if (stage.name === "topic_dedup_check" && stage.status === "warning") {
       warnings.push(`topic_dedup_check: ${stage.notes ?? "topic too similar to prior content"}`);
+    }
+    if (stage.name === "opening_trifecta_score" && stage.status === "warning") {
+      warnings.push(`opening_trifecta_score: ${stage.notes ?? "winning opening below quality threshold"}`);
     }
     if (stage.name === "url_verify" && stage.status === "warning") {
       const droppedArr = (stage.output as Record<string, unknown> | undefined)?.dropped;
