@@ -93,7 +93,7 @@ template; Friday issues identical to other days.
 Spec 04:567. Writer should emit `headline_options: string[]` (3). We emit one
 (plus a banned-pattern rewrite).
 
-### G. Source quality tier — MISSING — `TODO`
+### G. Source quality tier — DONE (`f34604b`, `9ca07b2`)
 URL verification (shipped `fb28887`) guarantees accuracy (live + deep + contains
 the stat) but not prestige. Add a deterministic domain tier table (Tier 1
 Kitces/Cerulli/SEC/FINRA/InvestmentNews; Tier 2 ThinkAdvisor/FA-Mag; Tier 3
