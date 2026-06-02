@@ -9,6 +9,12 @@ import {
   type DailyGrindContent,
   renderDailyGrindHtml,
 } from "./daily-grind-html-template";
+import {
+  UNSUBSCRIBE_PLACEHOLDER,
+  isSuppressed,
+  listUnsubscribeHeaders,
+  rewriteUnsubscribeUrl,
+} from "./send-compliance";
 
 type TestSubscriber = {
   id: string;
@@ -380,12 +386,20 @@ async function sendOne(
   rendered: { html: string; text: string; subject: string },
 ): Promise<string> {
   const fromAddress = process.env.RESEND_FROM_ADDRESS ?? "daily@send.castorabbott.com";
+  // Replace the render-time placeholder with this recipient's signed URL.
+  const personalised = rewriteUnsubscribeUrl(
+    rendered.html,
+    rendered.text,
+    recipient.email,
+    "daily-grind",
+  );
   const result = await resend.emails.send({
     from: `Mark <${fromAddress}>`,
     to: [recipient.email],
     subject: rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
+    html: personalised.html,
+    text: personalised.text,
+    headers: listUnsubscribeHeaders(recipient.email, "daily-grind"),
   });
   if (result.error) {
     throw new Error(`resend_send: ${result.error.message ?? JSON.stringify(result.error)}`);
@@ -528,7 +542,7 @@ export async function runDailyGrindGenerate(
     const renderStart = Date.now();
     const renderedOutput = renderDailyGrindHtml(issue.content, {
       issueDate: targetDate,
-      unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",
+      unsubscribeUrl: UNSUBSCRIBE_PLACEHOLDER,
       webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
     });
     pipeline.push({
@@ -663,6 +677,13 @@ export async function runDailyGrindSend(
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   for (const row of due) {
+    // Suppression gate (item K). Even an active subscriber row gets skipped if
+    // their address has been added to suppression_list (hard bounce, spam
+    // complaint, unsubscribe). Fail-open on transient DB errors.
+    if (await isSuppressed(db, row.subscriber.email)) {
+      result.skipped.push({ email: row.subscriber.email, reason: "suppressed" });
+      continue;
+    }
     try {
       // overrideIssueDate (when set via cron query param) lets us preview a
       // specific issue date instead of today's. Used for testing new issues
@@ -827,7 +848,7 @@ export async function runDailyGrindCron(
     result.issueGenerated = true;
     const renderedOutput = renderDailyGrindHtml(issue.content, {
       issueDate,
-      unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",
+      unsubscribeUrl: UNSUBSCRIBE_PLACEHOLDER,
       webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
     });
     rendered = renderedOutput;
@@ -840,6 +861,10 @@ export async function runDailyGrindCron(
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   for (const row of due) {
+    if (await isSuppressed(db, row.subscriber.email)) {
+      result.skipped.push({ email: row.subscriber.email, reason: "suppressed" });
+      continue;
+    }
     try {
       const resendId = await sendOne(resend, row.subscriber, rendered);
       await markSent(db, row.subscriber.id, row.localDate);

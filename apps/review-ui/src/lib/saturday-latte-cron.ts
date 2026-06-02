@@ -18,6 +18,12 @@ import {
   type SaturdayLatteContent,
   renderSaturdayLatteHtml,
 } from "./saturday-latte-html-template";
+import {
+  UNSUBSCRIBE_PLACEHOLDER,
+  isSuppressed,
+  listUnsubscribeHeaders,
+  rewriteUnsubscribeUrl,
+} from "./send-compliance";
 
 type LatteSubscriber = {
   id: string;
@@ -303,12 +309,19 @@ async function sendOne(
   rendered: { html: string; text: string; subject: string },
 ): Promise<string> {
   const fromAddress = process.env.RESEND_FROM_ADDRESS ?? "latte@send.castorabbott.com";
+  const personalised = rewriteUnsubscribeUrl(
+    rendered.html,
+    rendered.text,
+    recipient.email,
+    "latte",
+  );
   const result = await resend.emails.send({
     from: `Mark <${fromAddress}>`,
     to: [recipient.email],
     subject: rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
+    html: personalised.html,
+    text: personalised.text,
+    headers: listUnsubscribeHeaders(recipient.email, "latte"),
   });
   if (result.error) {
     throw new Error(`resend_send: ${result.error.message ?? JSON.stringify(result.error)}`);
@@ -386,7 +399,7 @@ export async function runLatteGenerate(
     });
     const rendered = renderSaturdayLatteHtml(issue.content, {
       issueDate: targetDate,
-      unsubscribeUrl: "https://send.castorabbott.com/unsubscribe?test=true",
+      unsubscribeUrl: UNSUBSCRIBE_PLACEHOLDER,
       webArchiveUrl: "https://castorabbott.com/newsletter/latte/",
     });
     await persistIssue(db, targetDate, issue, rendered);
@@ -457,6 +470,10 @@ export async function runLatteSend(
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   for (const row of due) {
+    if (await isSuppressed(db, row.subscriber.email)) {
+      result.skipped.push({ email: row.subscriber.email, reason: "suppressed" });
+      continue;
+    }
     try {
       const fresh = await loadCachedIssue(db, row.localDate);
       let rendered: { html: string; text: string; subject: string };
