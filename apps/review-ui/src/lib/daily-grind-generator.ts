@@ -26,6 +26,7 @@ import { applySurgicalRewrites } from "./pipeline-blocks/surgical-rewrites";
 import { verifyUrls } from "./pipeline-blocks/url-verify";
 import { findSimilarConceptsForTexts } from "./daily-grind-brain";
 import { scoreTrifecta } from "./pipeline-blocks/trifecta-scorer";
+import { evaluateSourceQuality, sortByTier } from "./pipeline-blocks/source-quality";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildAssembleHtmlPrompt,
@@ -3654,6 +3655,37 @@ export async function generateDailyGrindIssue(opts: {
     }
   }
 
+  // ─── source_quality_check (item G) ────────────────────────────────────────
+  // Deterministic domain prestige ranking. Re-orders surviving research items
+  // so Tier 1/2 (Kitces, Cerulli, SEC, FINRA, InvestmentNews / ThinkAdvisor,
+  // FA-Mag, FinancialPlanning, AdvisorHub, etc.) come BEFORE Tier 3 (content
+  // marketing, SEO domains) — raises the chance the writer cites reputable
+  // sources in Worth Knowing. Warns when fewer than 2 of the survivors are
+  // reputable. Never hard-drops to sourceless.
+  {
+    const beforeOrder = research.bundle.items.map((r) => r.url);
+    const quality = evaluateSourceQuality(
+      research.bundle.items.map((r) => ({ url: r.url, source: r.source })),
+    );
+    research.bundle.items = sortByTier(research.bundle.items);
+    const reorderedHappened =
+      research.bundle.items.map((r) => r.url).join("|") !== beforeOrder.join("|");
+    pipeline.push({
+      name: "source_quality_check",
+      status: quality.verdict === "good" ? "success" : "warning",
+      notes:
+        quality.verdict === "good"
+          ? `Tier 1: ${quality.countsByTier.tier1}, Tier 2: ${quality.countsByTier.tier2}, Tier 3: ${quality.countsByTier.tier3}${reorderedHappened ? " (reordered Tier 1/2 first)" : ""}`
+          : `${quality.warning}${reorderedHappened ? " (Tier 1/2 reordered first)" : ""}`,
+      input: { perItem: quality.perItem },
+      output: {
+        countsByTier: quality.countsByTier,
+        verdict: quality.verdict,
+        reorderedToPreferReputable: reorderedHappened,
+      },
+    });
+  }
+
   // Content type was locked by the topic_proposer (Stage 1) BEFORE research.
   // No second picker call needed — research was guided by the proposed topic,
   // and the writer phase below uses lockedContentType to load the correct
@@ -4127,6 +4159,9 @@ export async function generateDailyGrindIssue(opts: {
     }
     if (stage.name === "opening_trifecta_score" && stage.status === "warning") {
       warnings.push(`opening_trifecta_score: ${stage.notes ?? "winning opening below quality threshold"}`);
+    }
+    if (stage.name === "source_quality_check" && stage.status === "warning") {
+      warnings.push(`source_quality_check: ${stage.notes ?? "low Tier 1/2 source coverage"}`);
     }
     if (stage.name === "url_verify" && stage.status === "warning") {
       const droppedArr = (stage.output as Record<string, unknown> | undefined)?.dropped;
