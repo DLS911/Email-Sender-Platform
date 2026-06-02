@@ -20,14 +20,31 @@ Currently low real-world risk because the only recipients are 3 internal Castor
 Abbott addresses (Mark, Matt, Carmine). Becomes a hard blocker the moment a real
 advisor is added.
 
-### J. Unsubscribe + suppression — MISSING — `TODO` (CAN-SPAM hazard)
+### J. Unsubscribe + suppression — DONE (`64f5c65`)
+Real `/api/unsubscribe` route (GET + RFC 8058 POST one-click), HMAC tokens
+signed with CRON_SECRET (no new env var), `List-Unsubscribe` +
+`List-Unsubscribe-Post` headers on every send, render-time placeholder
+rewritten to per-recipient signed URL at send time, suppression_list gate
+checked before every send (both Daily Grind paths + Latte). Verified e2e:
+valid token → 200 + suppress upserted; bad token → 400; one-click → JSON ack;
+forced send to suppressed-but-active address → `skipped: suppressed`.
+
+### J-old reference: Unsubscribe + suppression placeholder text
 Spec 06. No subscribe/confirm/unsubscribe route exists. Email footer links are
 static placeholders (`daily-grind-cron.ts:492` → `/unsubscribe?test=true`). No
 `List-Unsubscribe` header in `sendOne`. The `suppression_list` table exists but
 is never queried. **A recipient cannot unsubscribe, and nothing stops us emailing
 a suppressed address.**
 
-### K. Bounce / complaint suppression — MISSING — `TODO`
+### K. Bounce / complaint suppression — DONE (`64f5c65`)
+Resend webhook now acts on events: hard bounce → upserts suppression_list with
+reason=bounce-hard; spam complaint → upserts with reason=complained. Soft
+bounces still logged but don't suppress (transient). Webhook always returns
+200 so Resend doesn't retry on transient DB errors. Combined with item J's
+send-time gate, a hard-bounced or complained address stops getting emailed on
+the next send cycle.
+
+### K-old reference: placeholder text
 Spec 06. The Resend webhook verifies signatures and normalizes
 `bounced`/`complained` events, then **only logs them** (`webhooks/resend/route.ts:28-37`).
 No subscriber state change, no suppression. A hard-bounced or complained address
