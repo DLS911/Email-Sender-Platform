@@ -267,6 +267,9 @@ async function persistIssue(
       output_tokens: totalOutput,
       cost_usd: issue.meta.totalCostUsd,
       latency_ms: totalLatency,
+      // Explicitly set generated_at on every write so the staleness-detection
+      // guard in cache_check sees the correct age after upsert-replace.
+      generated_at: new Date().toISOString(),
       research_sources: {
         destinations: issue.research.destinations.map((r) => ({ source: r.source, url: r.url })),
         products: issue.research.products.map((r) => ({ source: r.source, url: r.url })),
@@ -378,12 +381,28 @@ export async function runLatteGenerate(
 
   try {
     const db = getServiceRoleClient();
+    // Staleness-detection cache check (added 2026-06-15 after test rows shipped
+    // stale content on the DG side; same guard applied here for Latte).
+    // Any cached row older than STALE_HOURS is treated as a miss so a fresh
+    // generation runs; prevents old test/ad-hoc rows from silently shipping.
+    const STALE_HOURS = 12;
     if (!opts.regenerate) {
-      const existing = await loadCachedIssue(db, targetDate);
+      const { data: existing } = await db
+        .from("saturday_latte_issues")
+        .select("issue_date, cover_story_headline, generated_at")
+        .eq("issue_date", targetDate)
+        .maybeSingle();
       if (existing) {
-        result.reusedExisting = true;
-        result.headline = existing.cover_story_headline;
-        return result;
+        const generatedAt = existing.generated_at ? new Date(existing.generated_at) : null;
+        const ageHours = generatedAt
+          ? (Date.now() - generatedAt.getTime()) / (1000 * 60 * 60)
+          : Number.POSITIVE_INFINITY;
+        if (ageHours <= STALE_HOURS) {
+          result.reusedExisting = true;
+          result.headline = existing.cover_story_headline;
+          return result;
+        }
+        // else: stale — fall through and regenerate.
       }
     }
 

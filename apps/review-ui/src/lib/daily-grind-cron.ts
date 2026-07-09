@@ -352,6 +352,10 @@ async function persistIssue(
       output_tokens: totalOutput,
       cost_usd: issue.meta.totalCostUsd,
       latency_ms: totalLatency,
+      // Explicitly set generated_at on every write — DB default only applies on
+      // INSERT, so upsert-replace would otherwise leave the old timestamp and
+      // defeat the staleness-detection guard in cache_check.
+      generated_at: new Date().toISOString(),
       generation_meta: {
         contentType: issue.content.contentType,
         researchWebSearches: issue.meta.researchWebSearches,
@@ -460,19 +464,41 @@ export async function runDailyGrindGenerate(
     const db = getServiceRoleClient();
 
     // Stage: cache_check
+    // Includes STALENESS DETECTION (added 2026-06-15 after test rows shipped
+    // stale content). Any cached row older than STALE_HOURS is treated as a
+    // cache miss so a fresh generation runs — this prevents ad-hoc/test rows
+    // written days ago from silently shipping when the production date arrives.
     const cacheStart = Date.now();
+    const STALE_HOURS = 12;
     if (!opts.regenerate) {
-      const existing = await loadCachedIssue(db, targetDate);
+      // Include generated_at so we can measure age.
+      const { data: existing } = await db
+        .from("daily_grind_issues")
+        .select("issue_date, headline, generated_at")
+        .eq("issue_date", targetDate)
+        .maybeSingle();
       if (existing) {
+        const generatedAt = existing.generated_at ? new Date(existing.generated_at) : null;
+        const ageHours = generatedAt
+          ? (Date.now() - generatedAt.getTime()) / (1000 * 60 * 60)
+          : Number.POSITIVE_INFINITY;
+        if (ageHours <= STALE_HOURS) {
+          pipeline.push({
+            name: "cache_check",
+            status: "success",
+            latencyMs: Date.now() - cacheStart,
+            notes: `cache hit, reusing existing issue (${ageHours.toFixed(1)}h old, threshold ${STALE_HOURS}h) — skipping downstream stages`,
+          });
+          result.reusedExisting = true;
+          result.headline = existing.headline;
+          return result;
+        }
         pipeline.push({
           name: "cache_check",
-          status: "success",
+          status: "retried",
           latencyMs: Date.now() - cacheStart,
-          notes: `cache hit, reusing existing issue (skipping all downstream stages)`,
+          notes: `STALE cache row for ${targetDate} (${ageHours.toFixed(1)}h old > ${STALE_HOURS}h threshold, headline="${existing.headline}") — regenerating fresh`,
         });
-        result.reusedExisting = true;
-        result.headline = existing.headline;
-        return result;
       }
     }
     pipeline.push({
