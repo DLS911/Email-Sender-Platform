@@ -296,6 +296,8 @@ async function persistIssue(
         imagesLatencyMs: issue.meta.imagesLatencyMs,
         urlsValidated: issue.meta.urlsValidated,
         urlsDropped: issue.meta.urlsDropped,
+        authorScopeViolationsFound: issue.meta.authorScopeViolationsFound,
+        authorScopeViolationsApplied: issue.meta.authorScopeViolationsApplied,
         ...(issue.meta.imagePromptsSource ? { imagePromptsSource: issue.meta.imagePromptsSource } : {}),
         ...(issue.meta.imagePromptsError ? { imagePromptsError: issue.meta.imagePromptsError } : {}),
         ...(issue.meta.imagesError ? { imagesError: issue.meta.imagesError } : {}),
