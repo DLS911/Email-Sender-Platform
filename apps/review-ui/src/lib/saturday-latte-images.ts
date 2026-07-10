@@ -60,8 +60,13 @@ function getStorageClient(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+// Style suffix — appended to every writer-supplied prompt before Gemini
+// renders. Deliberately calibrated AWAY from the AI-editorial default look
+// (flat "slightly desaturated + subtle film grain" plates) and TOWARD real
+// editorial photography (Garden & Gun / Kinfolk / National Geographic
+// Traveler register). Tuned 2026-07-09 after Mark flagged images as AI-ish.
 const LATTE_IMAGE_STYLE_SUFFIX =
-  ". Editorial photography style. Warm natural lighting. Documentary feel, not stock photo. Slightly desaturated. Subtle film grain. Square framing 1:1. NO TEXT, NO LOGOS, NO PEOPLE'S FACES visible. Atmospheric and grounded.";
+  ". Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler — real editorial photography by a photographer with taste. Medium-format film aesthetic: Portra 400 warmth for humans, interiors, and food; Ektar 100 for landscape. Colors feel lived-in, not filtered — warm skin tones, natural greens, honest blues. Motivated light with specific character: window light with the direction visible, low golden-hour sun raking across texture, or diffuse overcast from an identifiable side. Compose off-center with negative space and a rule-of-thirds anchor — the subject is NEVER dead center. One clear focal point per frame; the eye lands somewhere specific. Natural imperfection welcomed and encouraged: dust on a beam, a crumb on the counter, a slightly worn edge, uneven shadow falloff, one thing not quite in its place. Depth of field driven by real optics (50mm at f/2.8 or 90mm at f/4 look), not the flat plasticky bokeh AI models default to. Textures are honest — wood grain, weave in linen, pitting in cast iron, real skin. Square 1:1 framing. Hands, backs, silhouettes, and angled-away shots are fine and welcome; no clearly identifiable faces of real people; no on-image text or captions; no visible brand logos. REJECT (do NOT produce): HDR-look processing, over-saturated color, plastic or over-smoothed textures, perfectly-symmetric composition, dead-center subject, stock-photo staging, artificially shallow depth of field with unnatural bokeh, 'teal-and-orange' cinematic grading, over-styled food arrangements, or the flat generic AI-editorial plate look.";
 
 type GeminiResponse = {
   candidates?: Array<{

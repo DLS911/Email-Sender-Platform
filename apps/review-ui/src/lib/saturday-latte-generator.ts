@@ -411,20 +411,28 @@ The published Latte hyperlinks named restaurants, hotels, and attractions in the
 
 Every issue MUST include an "imagePrompts" object at the end of your JSON with EXACTLY 7 prompts in 5 fields. These prompts will be passed to an image generation model — they are NOT optional, they are NOT examples for the writer to follow. Produce real prompts based on TODAY's actual content.
 
-Each prompt is 15-30 words. Each must be:
-- Concrete and visual (a thing in a place, not an abstract idea)
-- Cinematic / editorial (warm light, documentary feel)
-- Real-world identifiable scene (e.g. "Spanish moss draped over a Savannah square at low winter sun" — NOT "a beautiful Southern city")
-- For products: the product in context (e.g. "wood-grilled oysters with herb butter on a black cast iron pan in a kitchen window light")
+Each prompt is 15-35 words. Prompts must produce real editorial photography (Garden & Gun / Kinfolk / National Geographic Traveler register) — not AI-generic "cinematic" plates. Every prompt MUST specify at least these three:
+
+1. **Specific quality of light + time of day.** Not "warm light" — "low sun at 6:30pm through the western windows," or "overcast Tuesday morning diffuse light from the north," or "kitchen window light at 4pm, autumn." Named light does the work of atmosphere.
+2. **A single focal subject or one specific interaction.** A hand doing a thing. A single object worn from use. The steam off a cup. One dish being finished. Not a wide scene with everything in it — ONE thing the eye lands on.
+3. **A physical detail or texture the eye catches.** Dust on a wood beam. A worn patina on a bar top. Flour on a marble slab. One dried leaf on the sidewalk. The imperfection is the anti-AI signal.
+
+Also useful when the piece calls for it: attribution to the SPECIFIC place named in the story (not a generic version of that kind of place). If the story is about Whitefish, MT in early season, the hero prompt names Whitefish (or its clearly identifying feature) — not "a mountain town."
+
+DO NOT use these hollow words in prompts (they push the model to the AI-editorial default): "beautiful," "cinematic," "editorial," "charming," "picturesque," "atmospheric," "cozy," "warm and inviting." Say what SPECIFICALLY is beautiful — the light, the surface, the gesture.
 
 The 5 image fields (one prompt per field, tastingMenu has 3 sub-prompts):
-- hero: the cover story's primary place/mood, wide framing
-- coverDetail: a specific detail from the cover story (restaurant interior, marsh, doorway)
-- tastingMenu: array of 3 prompts, one per tasting menu item, showing each item in context
-- hostsCorner: the actual cooking technique or its result (matching this issue's moveTitle)
-- theDrive: the specific car you picked, in an evocative real-world setting
+- hero: the cover story's primary place, one focal element, specific light + time of day
+- coverDetail: a specific ONE-thing detail from the cover story (a hand on a rail, oysters on ice, a specific doorway with light hitting it)
+- tastingMenu: array of 3 prompts, one per tasting menu item, showing each item in a real use context
+- hostsCorner: the actual cooking technique in progress or its result — a hand, a pan, one moment
+- theDrive: the specific car you picked, in a specific real-world setting with a specific quality of light
 
-DO NOT use placeholder text or bracketed templates like "[scene from cover story]". WRITE THE ACTUAL PROMPT based on the content you just produced. If your cover story is about Eureka Springs Arkansas, your hero prompt is "Quiet brick streets of historic Eureka Springs at dawn, Ozark hills in the background, autumn leaves on the sidewalk."
+DO NOT use placeholder text or bracketed templates like "[scene from cover story]". WRITE THE ACTUAL PROMPT based on the content you just produced.
+
+Example (Eureka Springs cover story):
+- Weak (AI-default): "Quiet brick streets of historic Eureka Springs at dawn, atmospheric, cinematic."
+- Strong: "Empty brick main street of Eureka Springs at 6:15am, low fog off the Ozarks in the background, first sunlight catching the copper trim on a storefront awning, one dried oak leaf on the curb."
 
 ## OUTPUT FORMAT — return ONLY this JSON, no preamble:
 
