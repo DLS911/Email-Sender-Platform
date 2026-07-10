@@ -25,11 +25,12 @@ async function handle(req: Request): Promise<NextResponse> {
   }
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "1";
+  const overrideIssueDate = url.searchParams.get("overrideIssueDate") ?? undefined;
 
-  logger.info("cron.saturday_latte.start", { via: auth.via, force });
+  logger.info("cron.saturday_latte.start", { via: auth.via, force, overrideIssueDate });
 
   try {
-    const result = await runLatteSend({ force });
+    const result = await runLatteSend({ force, ...(overrideIssueDate ? { overrideIssueDate } : {}) });
     logger.info("cron.saturday_latte.complete", {
       subscribers_checked: result.subscribersChecked,
       subscribers_due_now: result.subscribersDueNow,

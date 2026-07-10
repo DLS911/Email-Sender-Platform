@@ -437,9 +437,10 @@ export async function runLatteGenerate(
 // ─── Public: send ──────────────────────────────────────────────────────────
 
 export async function runLatteSend(
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; overrideIssueDate?: string } = {},
 ): Promise<LatteSendResult> {
   const force = opts.force ?? false;
+  const overrideIssueDate = opts.overrideIssueDate;
   const db = getServiceRoleClient();
   const nowUtc = new Date();
 
@@ -494,26 +495,29 @@ export async function runLatteSend(
       continue;
     }
     try {
-      const fresh = await loadCachedIssue(db, row.localDate);
+      // overrideIssueDate (test-only) lets a manual send preview a specific
+      // Latte issue instead of today's local Saturday. Matches the DG cron.
+      const lookupDate = overrideIssueDate ?? row.localDate;
+      const fresh = await loadCachedIssue(db, lookupDate);
       let rendered: { html: string; text: string; subject: string };
       let usedFallback = false;
-      let actualIssueDate = row.localDate;
+      let actualIssueDate = lookupDate;
 
       if (fresh && fresh.sections && typeof fresh.sections === "object") {
         rendered = { html: fresh.html, text: fresh.text_body, subject: fresh.subject };
       } else {
-        const recent = await loadMostRecentCachedIssue(db, row.localDate);
+        const recent = await loadMostRecentCachedIssue(db, lookupDate);
         if (!recent || !recent.html) {
           result.errors.push({
             email: row.subscriber.email,
-            error: `no cached issue for ${row.localDate} and no fallback available`,
+            error: `no cached issue for ${lookupDate} and no fallback available`,
           });
           continue;
         }
         usedFallback = true;
         actualIssueDate = recent.issue_date;
         rendered = {
-          html: injectFallbackNote(recent.html, row.localDate, recent.issue_date),
+          html: injectFallbackNote(recent.html, lookupDate, recent.issue_date),
           text: recent.text_body,
           subject: recent.subject,
         };
