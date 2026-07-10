@@ -333,6 +333,43 @@ const STRUCTURAL_INSTRUCTIONS = `
 
 ---
 
+# HARD RULE — AUTHOR CREDIBILITY (READ THIS FIRST, IT OVERRIDES DEFAULT WRITING INSTINCTS)
+
+The voice modules above establish the scoped author credibility rule. Repeating it here because the writer forgets it under the pressure of producing sensory prose. This is the single most common failure mode in weekend content and subscribers CATCH it.
+
+**Mark's authentic first-person scope (personal presence PERMITTED):**
+- Home: coastal Florida salt canal, dock, boat, mornings on the water
+- Family: wife, four kids ages 13-20 (no toddlers, no booster seats)
+- Skiing (ONLY these mountains): Big Sky, Whitefish, Jackson, Telluride, Steamboat, Park City, Kicking Horse
+- Cars (ONLY these owned/driven): Porsche 924, 944, 968, Cayenne Turbo; Audi S4, Audi S6 Avant; BMW X3M Competition; Lincoln Navigator; golf cart
+- Home cooking / hosting: cast iron, pizza steel, Peloton Power Zone, Yeti heavy use, Costco Kirkland, Lodge, Friday pizza on the patio
+- Faith / Sabbath rhythm
+- Coastal FL neighbors within golf-cart distance
+
+**Everywhere else, Mark HAS NOT BEEN.** The Cover Story destination is almost always outside his scope (that is the point of the section). Palm Springs, Marfa, Sedona, Charleston, Aspen, Napa, Bermuda, Positano, Kyoto, Savannah, Charleston, Asheville, Sun Valley, Vail, Beaver Creek, Whistler, Banff, Zermatt, Chamonix, Wyoming ranch towns, Montana river towns not named above — Mark has not personally been there. If it is not on the scope list above, treat it as OUT OF SCOPE.
+
+**Forbidden sentence patterns for out-of-scope places, restaurants, hotels, or experiences:**
+- "When I was there…" / "On my last visit…" / "The last time we went…"
+- "We stayed at…" / "We ate at…" / "We had…" / "We ordered…" (about restaurants/hotels/venues Mark hasn't been to)
+- "I remember when…" / "Years ago I…" / "I've been going for…" / "The first time I went…"
+- "The trip when we…" / "On our drive down…" / "On our way out we…"
+- Any composite personal-experience scene at a Cover Story location that isn't in the scope list
+
+**Required substitutions (use these for out-of-scope material):**
+- "An advisor I work with in [city] has been going for years and says…"
+- "A friend who's been renting the same place every October told me…"
+- "The client who spent three summers there described it as…"
+- "The write-up I trust most is [publisher]'s piece — what stuck with me was…"
+- "A neighbor here in Florida keeps a place there and swears by…"
+- "A reader emailed me last spring about…"
+- "The guide I keep hearing named is [name], and what people say is…"
+
+**The sanity check.** Before you finalize the Cover Story: read every first-person sentence. For each one, ask "is the referenced place, restaurant, hotel, or activity ON the scope list?" If no, rewrite it as an attributed statement from a named or class-named third party. The piece can still be atmospheric, sensory, and specific — it just has to be attributed. Attribution does not weaken the voice; PRETENDING weakens it.
+
+**One more thing.** The Garden & Gun style module above tells you to name specific businesses, guides, seasons, and details. Do that. Names give the piece gravity. But when the piece is about a place Mark has not been, the WRITER attributes those names via a third party. "Steve at Palmer's Fish House told a friend of mine to skip the raw bar and go straight to the oyster stew" is fine. "When we ate at Palmer's Fish House, Steve told us…" is not.
+
+---
+
 # OUTPUT STRUCTURE (in addition to all voice modules above)
 
 You produce a complete Saturday Morning Latte issue as JSON. Use the research bundle below as your source material.
@@ -426,7 +463,7 @@ The 5 image fields (one prompt per field, tastingMenu has 3 sub-prompts):
 - coverDetail: a specific ONE-thing detail from the cover story (a hand on a rail, oysters on ice, a specific doorway with light hitting it)
 - tastingMenu: array of 3 prompts, one per tasting menu item, showing each item in a real use context
 - hostsCorner: the actual cooking technique in progress or its result — a hand, a pan, one moment
-- theDrive: the specific car you picked, in a specific real-world setting with a specific quality of light
+- theDrive: the specific car in a specific real-world setting with specific light. **CAR ACCURACY IS CRITICAL** — image models default to earlier generations if not told exactly which era to render, and readers who know cars notice immediately. Every theDrive prompt MUST include (a) the specific GENERATION CODE if the model has one — BMW M2 G87 (2023+) vs F87 (2016-2021), Porsche 911 992 (2020+) vs 991 vs 997 vs 996, Corvette C8 (2020+) vs C7, Miata ND (2016+) vs NC vs NB, GR Corolla, RS6 C8, M3 G80, etc.; (b) 2-3 identifying visual features of THAT specific generation — e.g., "boxy flared fenders and slim laser headlights of the G87 M2, quad exhaust tips, kidney grille in body color"; "mid-engine cockpit and side scoops of the C8 Corvette"; "993-generation Porsche 911 with polyellipsoid headlamps and integrated bumpers"; (c) an iconic period-correct color (Zandvoort Blue for G87 M2, Signal Green for 992 GT3, Grigio Nardo for RS6, etc.). Do NOT let the model default to an older or newer body — pin the era hard.
 
 DO NOT use placeholder text or bracketed templates like "[scene from cover story]". WRITE THE ACTUAL PROMPT based on the content you just produced.
 
@@ -857,26 +894,29 @@ Return ONLY this JSON:
 
 // ─── Image prompts fallback (Haiku) ────────────────────────────────────────
 
-const IMAGE_PROMPT_SYSTEM_PROMPT = `You produce 7 image generation prompts for a Saturday Morning Latte newsletter issue, based on the issue's content. Each prompt is 15-30 words, concrete and visual, editorial photography style.
+const IMAGE_PROMPT_SYSTEM_PROMPT = `You produce 7 image generation prompts for a Saturday Morning Latte newsletter issue, based on the issue's content. Each prompt is 15-35 words, concrete and visual, editorial photography style (Garden & Gun / Kinfolk / Nat Geo Traveler register).
 
 Rules:
 - NO text in the prompts (text in generated images breaks the editorial look)
-- NO logos, NO people's faces
+- NO logos, NO clearly identifiable faces
 - Real-world identifiable scenes (e.g. "Spanish moss draped over a Savannah square at low winter sun" — NOT "a beautiful Southern city")
 - For products: the product in context (e.g. "wood-grilled oysters with herb butter on a black cast iron pan, kitchen window light")
-- Warm natural lighting, documentary feel, slightly desaturated
+- Motivated warm natural lighting, documentary feel, one focal element per frame, off-center composition
+- Avoid the hollow words "beautiful," "cinematic," "editorial," "charming," "picturesque," "atmospheric," "cozy," "warm and inviting" — say WHAT specifically is worth looking at
+
+**CAR ACCURACY (for theDrive):** model-year fidelity is required. Image models default to earlier generations if not told. Every theDrive prompt MUST include (a) the GENERATION CODE (G87 M2, 992 911, C8 Corvette, ND Miata, G80 M3, C8 RS6, etc.), (b) 2-3 identifying visual features of THAT generation (fender flares, headlight shape, exhaust layout, roofline), and (c) a period-correct iconic color when applicable. Do NOT let the model render a generic or earlier-gen body.
 
 The 7 slots, output as JSON only:
 {
-  "hero": "wide atmospheric scene from the cover story location",
-  "coverDetail": "specific detail from cover story (interior, doorway, marsh, etc.)",
+  "hero": "wide atmospheric scene from the cover story location, with specific light + one focal element",
+  "coverDetail": "one specific detail from cover story (a hand on a rail, oysters on ice, a doorway at 4pm light)",
   "tastingMenu": [
-    "prompt for tasting menu item 1",
-    "prompt for tasting menu item 2",
-    "prompt for tasting menu item 3"
+    "prompt for tasting menu item 1 in real use context",
+    "prompt for tasting menu item 2 in real use context",
+    "prompt for tasting menu item 3 in real use context"
   ],
-  "hostsCorner": "the cooking technique or its plated result",
-  "theDrive": "the specific car in an evocative real-world setting"
+  "hostsCorner": "the cooking technique in progress or its result — hand, pan, one moment",
+  "theDrive": "the specific car with GENERATION CODE and 2-3 identifying visual features of that generation, in an evocative real-world setting with specific light. Example: '2024 BMW M2 G87 — boxy flared fenders, slim laser headlights, quad exhaust tips, in Zandvoort Blue, parked at a coastal Florida marina at 7:30am with mist over the water and a single dock line in the foreground.'"
 }
 
 Return ONLY the JSON. No preamble.`;
@@ -942,6 +982,170 @@ Return ONLY the 7-field JSON specified in the system prompt.`;
   };
 }
 
+// ─── Author-scope guard (Haiku) ────────────────────────────────────────────
+// Post-write pass that catches Cover Story / Host's Corner / The Drive
+// sentences where the writer asserted Mark's first-person presence at a
+// place, restaurant, or experience outside his authentic scope, and rewrites
+// them as attributed statements. The writer usually gets this right after
+// the STRUCTURAL_INSTRUCTIONS header — but not always, and this is the most
+// visible failure mode when it slips. Cheap Haiku call (~$0.002/issue).
+
+const AUTHOR_SCOPE_MODEL = "claude-haiku-4-5-20251001";
+const AUTHOR_SCOPE_MAX_TOKENS = 3000;
+
+const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Saturday Morning Latte. Your only job is to find sentences that assert Mark's first-person presence at a place, restaurant, hotel, city, or specific experience OUTSIDE his authentic scope, and rewrite them as attributed statements without losing sensory density.
+
+**Mark's authentic scope (first-person presence PERMITTED here — do NOT flag these):**
+- Home: coastal Florida salt canal, dock, boat, mornings on the water
+- Family: wife, four kids ages 13-20 (no toddlers)
+- Skiing (ONLY these mountains): Big Sky, Whitefish, Jackson, Telluride, Steamboat, Park City, Kicking Horse
+- Cars owned/driven: Porsche 924, 944, 968, Cayenne Turbo; Audi S4, Audi S6 Avant; BMW X3M Competition; Lincoln Navigator; golf cart
+- Home cooking / hosting: cast iron, pizza steel, Peloton Power Zone, Yeti heavy use, Costco Kirkland, Lodge, Friday pizza on the patio
+- Faith / Sabbath rhythm
+- Coastal FL neighbors within golf-cart distance
+
+**Everything else is OUT of scope.** The Cover Story destination is almost always out of scope — that is the point of the section.
+
+**Flag these sentence patterns when the referent is OUT OF SCOPE:**
+- "When I was there…" / "On my last visit…" / "The last time we went…"
+- "We stayed at…" / "We ate at…" / "We had…" / "We ordered…" (about specific out-of-scope venues)
+- "I remember when…" / "Years ago I…" / "I've been going for…" / "The first time I went…"
+- "The trip when we…" / "On our drive down…" / "On our way out…"
+- Composite personal-experience scenes at the Cover Story location when that location is out of scope
+
+**Rewrite rules:**
+- Keep sensory density — specific details, named businesses, timing, textures.
+- Attribute via a class-named third party: "an advisor I work with in Denver," "a friend who's been going every October," "the client who spent three summers there," "the write-up I trust most is [publisher]'s piece," "a neighbor here in Florida keeps a place there and says…"
+- Preserve paragraph shape and cadence. Do not compress or delete named restaurants, hotels, or places. Just change the SPEAKER.
+- Do not use em dashes. Use commas, periods, or parentheses.
+
+Return ONLY this JSON:
+{
+  "violations": [
+    {
+      "section": "coverStory" | "hostsCorner" | "theDrive",
+      "original": "the exact sentence or short passage that violates (verbatim from the input)",
+      "rewrite": "the attributed rewrite"
+    }
+  ]
+}
+
+If no violations, return {"violations":[]}. Do not include preamble or markdown fences.`;
+
+type AuthorScopeViolation = {
+  section: "coverStory" | "hostsCorner" | "theDrive";
+  original: string;
+  rewrite: string;
+};
+
+async function enforceAuthorScope(
+  client: Anthropic,
+  content: SaturdayLatteContent,
+): Promise<{ content: SaturdayLatteContent; violationsFound: number; violationsApplied: number }> {
+  const passages = [
+    `## CoverStoryHeadline\n${content.coverStoryHeadline}`,
+    `## CoverStoryParagraphs\n${content.coverStoryParagraphs.join("\n\n")}`,
+    `## HostsCorner\n${content.hostsCorner.leadIn}\n\n${content.hostsCorner.moveBody}`,
+    `## TheDrive\n${content.theDrive.body}`,
+  ].join("\n\n");
+
+  let response;
+  try {
+    response = await client.messages.create({
+      model: AUTHOR_SCOPE_MODEL,
+      max_tokens: AUTHOR_SCOPE_MAX_TOKENS,
+      temperature: 0.1,
+      system: AUTHOR_SCOPE_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: passages }],
+    });
+  } catch (err) {
+    console.error(
+      "latte.author_scope_call_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { content, violationsFound: 0, violationsApplied: 0 };
+  }
+
+  const firstBlock = response.content[0];
+  if (!firstBlock || firstBlock.type !== "text") {
+    return { content, violationsFound: 0, violationsApplied: 0 };
+  }
+
+  let violations: AuthorScopeViolation[] = [];
+  try {
+    const parsed = JSON.parse(extractJsonObject(firstBlock.text)) as {
+      violations?: AuthorScopeViolation[];
+    };
+    violations = Array.isArray(parsed.violations) ? parsed.violations : [];
+  } catch (err) {
+    console.error(
+      "latte.author_scope_parse_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { content, violationsFound: 0, violationsApplied: 0 };
+  }
+
+  if (violations.length === 0) {
+    return { content, violationsFound: 0, violationsApplied: 0 };
+  }
+
+  let coverParagraphs = [...content.coverStoryParagraphs];
+  let hostsLeadIn = content.hostsCorner.leadIn;
+  let hostsBody = content.hostsCorner.moveBody;
+  let driveBody = content.theDrive.body;
+  let applied = 0;
+
+  for (const v of violations) {
+    if (!v?.original || !v?.rewrite || typeof v.original !== "string" || typeof v.rewrite !== "string") {
+      continue;
+    }
+    const original = v.original.trim();
+    const rewrite = v.rewrite.replace(/—/g, ",").trim();
+    if (original === "" || rewrite === "") continue;
+
+    if (v.section === "coverStory") {
+      let hit = false;
+      coverParagraphs = coverParagraphs.map((p) => {
+        if (p.includes(original)) {
+          hit = true;
+          return p.split(original).join(rewrite);
+        }
+        return p;
+      });
+      if (hit) applied++;
+    } else if (v.section === "hostsCorner") {
+      if (hostsLeadIn.includes(original)) {
+        hostsLeadIn = hostsLeadIn.split(original).join(rewrite);
+        applied++;
+      } else if (hostsBody.includes(original)) {
+        hostsBody = hostsBody.split(original).join(rewrite);
+        applied++;
+      }
+    } else if (v.section === "theDrive") {
+      if (driveBody.includes(original)) {
+        driveBody = driveBody.split(original).join(rewrite);
+        applied++;
+      }
+    }
+  }
+
+  const revised: SaturdayLatteContent = {
+    ...content,
+    coverStoryParagraphs: coverParagraphs,
+    hostsCorner: {
+      ...content.hostsCorner,
+      leadIn: hostsLeadIn,
+      moveBody: hostsBody,
+    },
+    theDrive: {
+      ...content.theDrive,
+      body: driveBody,
+    },
+  };
+
+  return { content: revised, violationsFound: violations.length, violationsApplied: applied };
+}
+
 // ─── Public ────────────────────────────────────────────────────────────────
 
 export type SaturdayLatteIssue = {
@@ -965,6 +1169,8 @@ export type SaturdayLatteIssue = {
     imagesError?: string;
     urlsValidated: number;
     urlsDropped: number;
+    authorScopeViolationsFound: number;
+    authorScopeViolationsApplied: number;
     totalCostUsd: number;
     researchLatencyMs: number;
     writerLatencyMs: number;
@@ -1016,6 +1222,12 @@ export async function generateSaturdayLatteIssue(opts: {
     (writer.inputTokens / 1_000_000) * ANTHROPIC_INPUT_PER_M +
     (writer.outputTokens / 1_000_000) * ANTHROPIC_OUTPUT_PER_M;
 
+  // Author-scope guard: rewrite first-person presence claims about places
+  // outside Mark's authentic scope as attributed statements. Best-effort;
+  // if the guard fails, keep the writer's original content.
+  const scope = await enforceAuthorScope(client, writer.content);
+  const scopedContent = scope.content;
+
   // Image generation phase: fire 7 DALL-E 3 calls in parallel, upload to
   // Supabase Storage. Best-effort — if any fail, the email still renders
   // (the template handles missing image slots gracefully).
@@ -1024,7 +1236,7 @@ export async function generateSaturdayLatteIssue(opts: {
   let imagesGenerated = 0;
   let imagesFailed = 0;
   let imagesError: string | null = null;
-  let contentWithImages = writer.content;
+  let contentWithImages = scopedContent;
 
   // Image prompts: try the writer's output first, fall back to a focused
   // Haiku call if the writer skipped them.
@@ -1033,7 +1245,7 @@ export async function generateSaturdayLatteIssue(opts: {
   let imagePromptsError: string | null = null;
   if (!imagePrompts) {
     try {
-      imagePrompts = await generateImagePromptsWithHaiku(client, writer.content);
+      imagePrompts = await generateImagePromptsWithHaiku(client, scopedContent);
       imagePromptsSource = "haiku";
     } catch (err) {
       imagePromptsError = err instanceof Error ? err.message : String(err);
@@ -1052,7 +1264,7 @@ export async function generateSaturdayLatteIssue(opts: {
     ...research.bundle.cars.map((r) => r.url),
   ].filter((u) => u && u.trim() !== "");
 
-  const urlValidationPromise = validateContentUrls(writer.content, allResearchUrls);
+  const urlValidationPromise = validateContentUrls(scopedContent, allResearchUrls);
 
   if (imagePrompts) {
     try {
@@ -1181,6 +1393,8 @@ export async function generateSaturdayLatteIssue(opts: {
       ...(imagesError ? { imagesError } : {}),
       urlsValidated: urlValidation.validated,
       urlsDropped: urlValidation.dropped,
+      authorScopeViolationsFound: scope.violationsFound,
+      authorScopeViolationsApplied: scope.violationsApplied,
       totalCostUsd: research.costUsd + writerCost + imagesCostUsd,
       researchLatencyMs: research.latencyMs,
       writerLatencyMs: writer.latencyMs,

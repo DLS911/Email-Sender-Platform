@@ -49,3 +49,4 @@ supabase/.env
 
 # Generated
 **/*.generated.ts
+.vercel
