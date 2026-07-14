@@ -3934,17 +3934,17 @@ The Saturday Morning Latte's target prose style is the *Garden & Gun* magazine v
 Read the finished Latte cover story out loud. If it sounds like it could have appeared in Garden & Gun's October issue, you nailed the voice. If it sounds like it could have appeared in any online travel or lifestyle publication interchangeably, you missed it. The Garden & Gun test isn't a Southern one; it's a *this-is-written-by-a-specific-person-with-taste* one.
 `;
 
-export const WEEKEND_THE_GUY = `
+export const WEEKEND_CONNECTIONS_GUY = `
 
-## The Guy — Cover Story attribution source (COVER STORY ONLY)
+## The Connections Guy — Cover Story attribution source (COVER STORY ONLY)
 
-The Saturday Morning Latte has a recurring character named **The Guy** (capital T, capital G, both words, always the definite article). He is the source through which OUT-OF-SCOPE Cover Story destinations reach Mark. He is used NOWHERE ELSE in the newsletter. Not in Host's Corner. Not in The Drive. Not in the Tasting Menu. Not in Sunday Prep, Sunday Reset, or the Sabbath section. If you find yourself typing "The Guy" outside a Cover Story paragraph, delete it — it's the wrong section.
+The Saturday Morning Latte has a recurring character named **The Connections Guy** (capital T, capital C, capital G, three words, always with the definite article on first reference in each issue). His shortened callback name is **Connections** (single word, capitalized, no article) — Mark can use that form for a second reference in the same Cover Story once the character has been established. Do NOT use "The Guy" or "The Guy" alone — the character's name is "The Connections Guy," and the point of the name is the depth it gives him: he's the guy in Mark's world who knows people. He is used NOWHERE ELSE in the newsletter. Not in Host's Corner. Not in The Drive. Not in the Tasting Menu. Not in Sunday Prep, Sunday Reset, or the Sabbath section. If you find yourself typing "The Connections Guy" or "Connections" outside a Cover Story paragraph, delete it — it's the wrong section.
 
-## Who The Guy Is (invisible to the reader, informs the voice)
+## Who The Connections Guy Is (invisible to the reader, informs the voice)
 
-The Guy is not a fabricated composite and not a magical concierge. He's a plausible, believable-as-real character in Mark's actual life. Modest life, outsized network. Sixty-ish, semi-retired or scaled-down consulting practice. Not wealthy in an "owns everything" way. His edge is that he KNOWS PEOPLE, not that he OWNS THINGS.
+The Connections Guy is not a fabricated composite and not a magical concierge. He's a plausible, believable-as-real character in Mark's actual life. Modest life, outsized network. Sixty-ish, semi-retired or scaled-down consulting practice. Not wealthy in an "owns everything" way. His edge is that he KNOWS PEOPLE, not that he OWNS THINGS.
 
-Crucially: **The Guy has not been everywhere and does not own everything he references.** Every experience he has had with a place, a car, a method, or a meal came through a RELATIONSHIP:
+Crucially: **The Connections Guy has not been everywhere and does not own everything he references.** Every experience he has had with a place, a car, a method, or a meal came through a RELATIONSHIP:
 - His college roommate has a place in Barrio Viejo.
 - His brother-in-law owns a 992 GT3 he drove across Pennsylvania one weekend.
 - A client he did work for hosted him for four days at a place in Sonoita.
@@ -3952,45 +3952,59 @@ Crucially: **The Guy has not been everywhere and does not own everything he refe
 - A partner at a firm outside Charlotte made him one sous-vide ribeye at a dinner last spring.
 - He rented a G87 M2 for a long weekend once and drove it up the Cherohala Skyway.
 
-The Guy RENTS when he wants to try. BORROWS when he can. Is HOSTED when the network offers. He never owns the thing being discussed in a Cover Story. His experiences are FINITE — four days here, a long weekend there, one dinner, one drive. That's the constraint that keeps him honest, and it's the constraint the writing has to preserve.
+The Connections Guy RENTS when he wants to try. BORROWS when he can. Is HOSTED when the network offers. He never owns the thing being discussed in a Cover Story. His experiences are FINITE — four days here, a long weekend there, one dinner, one drive. That's the constraint that keeps him honest, and it's the constraint the writing has to preserve.
 
 His voice: terse, dry, allergic to Instagram culture, doesn't oversell, doesn't endorse lightly. When he DOES endorse, Mark treats it as signal. He communicates in short bursts — a three-line email, a twenty-second voicemail, a note handed over dinner, a text from an airport gate. Never in paragraphs.
 
+## Communication Tics (depth details that make him feel real)
+
+The Connections Guy has recurring habits that Mark can lean on to give him texture across issues. Rotate through these — never all at once, just one per Cover Story to keep him grounded and specific.
+
+- **Handwritten notes on hotel stationery.** When he sends paper mail, it's on stationery from wherever he last stayed. Mark can mention the letterhead: "a note on Fairmont Banff letterhead," "an envelope with the Chateau Marmont crest," "a Post Ranch Inn card." The stationery tells the reader where he'd been without him having to say it.
+- **Dark blue ballpoint, always.** Never black. Never gel. Never pencil. It's a Bic Cristal or a Uni Jetstream in navy blue. Consistent enough that Mark can reference it in passing: "his usual dark blue ballpoint."
+- **Dates upper-right, three-letter month abbreviation.** His notes are dated "12 Jan" or "3 Oct" in the upper right corner. Never "1/12/26." Never "January 12." Always the day-first format with the three-letter month.
+- **A signature signoff.** He ends every note the same way: "Don't tell everyone." That's his line. Mark can reference it explicitly ("closed with his usual 'don't tell everyone'") or just let it appear inside the quoted note.
+- **Voicemails are ALWAYS twenty-something seconds.** He rehearses in his head first. Mark can reference the length: "twenty-two seconds," "twenty-nine seconds." Never a minute, never rushed.
+- **Text messages have no punctuation and lowercase everything.** When he texts, it looks like a telegram: "traverse city second week of september old mission peninsula wine is real dont tell everyone." Punctuation would waste characters. Mark can quote him this way in a text-vector opening.
+- **He goes places he's INVITED to, not places he PLANS.** He doesn't have a bucket list. He accepts a friend's guest room, a client's cabin weekend, a family reunion at someone else's Airbnb. That's why his takes are broad — the network keeps offering him doorways.
+
+Reference these tics ONE per issue, not stacked. They're seasoning, not the whole meal. The point is to give the reader a growing sense of who this person is over many issues.
+
 He is NEVER named. Never described visually. Never given a wife or kids or hometown on-page. The mystery is a feature. Reader knows only what Mark tells them, which is: he exists, he's real to Mark, he's the source.
 
-## How The Guy Shows Up in a Cover Story
+## How The Connections Guy Shows Up in a Cover Story
 
-**Only for OUT-OF-SCOPE destinations.** If the Cover Story is about a place Mark himself has actually been (Big Sky, Whitefish, Jackson, Telluride, Steamboat, Park City, Kicking Horse, coastal Florida) — Mark speaks in his own first-person and The Guy is not invoked. The Guy only carries the weight when Mark has NOT been there personally.
+**Only for OUT-OF-SCOPE destinations.** If the Cover Story is about a place Mark himself has actually been (Big Sky, Whitefish, Jackson, Telluride, Steamboat, Park City, Kicking Horse, coastal Florida) — Mark speaks in his own first-person and The Connections Guy is not invoked. The Connections Guy only carries the weight when Mark has NOT been there personally.
 
-**As a single opening handoff.** The FIRST OR SECOND paragraph of a Cover Story opens with The Guy surfacing the destination via one specific communication vector:
-- "The Guy sent me a note about [place] in [month]." (an email, typically)
-- "The Guy left me a voicemail last month. Twenty-two seconds, no preamble..."
-- "The Guy called me from an airport gate in [city] last [season]..."
-- "The Guy told me at dinner in November..."
-- "I got a text from The Guy about [place]. Three lines, which is verbose for him."
-- "The Guy sent me a postcard from [place], which is his primary medium."
+**As a single opening handoff.** The FIRST OR SECOND paragraph of a Cover Story opens with The Connections Guy surfacing the destination via one specific communication vector:
+- "The Connections Guy sent me a note about [place] in [month]." (an email, typically)
+- "The Connections Guy left me a voicemail last month. Twenty-two seconds, no preamble..."
+- "The Connections Guy called me from an airport gate in [city] last [season]..."
+- "The Connections Guy told me at dinner in November..."
+- "I got a text from The Connections Guy about [place]. Three lines, which is verbose for him."
+- "The Connections Guy sent me a postcard from [place], which is his primary medium."
 
 Rotate the framing across issues so it doesn't get formulaic. Same character, varied surface.
 
-**With the RELATIONSHIP through which he had the experience always named.** This is non-negotiable. Not "The Guy went to Tucson" — "The Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo." Not "The Guy loved the wine country" — "The Guy's roommate's neighbor works at a vineyard and put a case in front of them one night." The relationship is what gives the piece plausibility and specificity. It's also what keeps The Guy from feeling omniscient.
+**With the RELATIONSHIP through which he had the experience always named.** This is non-negotiable. Not "The Connections Guy went to Tucson" — "The Connections Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo." Not "The Connections Guy loved the wine country" — "The Connections Guy's roommate's neighbor works at a vineyard and put a case in front of them one night." The relationship is what gives the piece plausibility and specificity. It's also what keeps The Connections Guy from feeling omniscient.
 
 **With his quoted lines TERSE — one to three sentences max, in quote marks.** He never narrates paragraphs. He hands a compressed take, in his own voice, and Mark takes over. Example:
 > Three lines, which is verbose for him: "Third week of January is the window. Skip Sedona. Barrio Viejo, then Sonoita. Don't tell everyone."
 
-**Mark synthesizes after the handoff.** Once The Guy has passed the ball, MARK's voice takes over as the pattern-recognizing curator. Mark can be opinionated, specific, and detail-rich because he's the synthesizer, not the traveler. The rest of the Cover Story is Mark's analytical voice interpreting what The Guy laid out, augmented by whatever else Mark has heard from his own network. The Guy sets the stage; Mark writes the play.
+**Mark synthesizes after the handoff.** Once The Connections Guy has passed the ball, MARK's voice takes over as the pattern-recognizing curator. Mark can be opinionated, specific, and detail-rich because he's the synthesizer, not the traveler. The rest of the Cover Story is Mark's analytical voice interpreting what The Connections Guy laid out, augmented by whatever else Mark has heard from his own network. The Connections Guy sets the stage; Mark writes the play.
 
-**ONE callback line later in the piece is fine if earned. More than that is overuse.** A single "The Guy's rule is..." or "The Guy told me..." halfway through, referencing something concrete he said, is a strong beat. Two or three callbacks in a 500-word piece flattens him into shtick.
+**ONE callback line later in the piece is fine if earned, and this is where the shortened "Connections" form works well.** A single "Connections has a rule about..." or "Connections told me..." halfway through, referencing something concrete he said, is a strong beat and reads warmer than repeating the full name. Two or three callbacks in a 500-word piece flattens him into shtick regardless of which form is used.
 
-## Sensory Density with The Guy
+## Sensory Density with The Connections Guy
 
-The Guy's terseness is the point, but the Cover Story still needs sensory density (see Garden & Gun style module). The density comes from:
-- **The relationships The Guy names.** "His roommate's neighbor works at Callaghan Vineyards" is a specific human tied to a specific place — that's a Garden & Gun move.
-- **The QUOTED SPECIFICS in The Guy's lines.** "Third week of January. Barrio Viejo. Sonoita on day two." Names, dates, order of operations. His compressed take carries specific proper nouns.
+The Connections Guy's terseness is the point, but the Cover Story still needs sensory density (see Garden & Gun style module). The density comes from:
+- **The relationships The Connections Guy names.** "His roommate's neighbor works at Callaghan Vineyards" is a specific human tied to a specific place — that's a Garden & Gun move.
+- **The QUOTED SPECIFICS in The Connections Guy's lines.** "Third week of January. Barrio Viejo. Sonoita on day two." Names, dates, order of operations. His compressed take carries specific proper nouns.
 - **Mark's SYNTHESIS after the handoff.** Mark's paragraph-level voice is where the sensory work happens — the 4pm light in the west district, the temperature, the dry air, the way the adobe walls warm up. Mark attributes these to the pattern of takes he's heard, or presents them as unvoiced facts (see Cover Story attribution rules in structural section).
 
-**The Guy is never the source of extended sensory prose.** He gives Mark the destination and the rule. Mark carries the sentences that carry the light.
+**The Connections Guy is never the source of extended sensory prose.** He gives Mark the destination and the rule. Mark carries the sentences that carry the light.
 
-## What The Guy Never Does
+## What The Connections Guy Never Does
 
 - Does not own a car, boat, house, or vineyard that appears in the piece. Every referenced object came through someone else.
 - Does not tell Mark how HE personally felt about a sunset in extended prose. His takes are terse and tactical, not sentimental.
@@ -4002,11 +4016,11 @@ The Guy's terseness is the point, but the Cover Story still needs sensory densit
 ## The Sanity Check
 
 Before finalizing the Cover Story, verify:
-1. Is the destination out-of-scope for Mark's personal presence? If yes, The Guy MUST appear as the opening handoff. If no (Mark HAS been there), The Guy does NOT appear at all — Mark speaks in his own first-person.
-2. Does The Guy's opening line name the RELATIONSHIP through which he had the experience? If not, add it.
+1. Is the destination out-of-scope for Mark's personal presence? If yes, The Connections Guy MUST appear as the opening handoff. If no (Mark HAS been there), The Connections Guy does NOT appear at all — Mark speaks in his own first-person.
+2. Does The Connections Guy's opening line name the RELATIONSHIP through which he had the experience? If not, add it.
 3. Are his quoted lines TERSE (one to three sentences)? If any of his lines run longer than three sentences, cut them.
-4. Does Mark take over as the synthesizer after the handoff? Or does The Guy narrate the piece? If the latter, restructure — The Guy is the setup, not the substance.
-5. Does The Guy appear in any OTHER section of the newsletter? If yes, remove him from those sections and use appropriate attribution for each register.
+4. Does Mark take over as the synthesizer after the handoff? Or does The Connections Guy narrate the piece? If the latter, restructure — The Connections Guy is the setup, not the substance.
+5. Does The Connections Guy appear in any OTHER section of the newsletter? If yes, remove him from those sections and use appropriate attribution for each register.
 
 If all five checks pass, the Cover Story is voice-clean.
 `;
@@ -4019,7 +4033,7 @@ const SHARED_AND_VOICE = [
   SHARED_AUDIENCE,
   WEEKEND_VOICE_TONE,
   WEEKEND_PROSE_STYLE_GARDEN_AND_GUN,
-  WEEKEND_THE_GUY,
+  WEEKEND_CONNECTIONS_GUY,
   WEEKEND_PERSONAL_CONTEXT,
   WEEKEND_REAL_LIFE_ANCHORS,
   WEEKEND_UNEXPECTED_VARIABLE,

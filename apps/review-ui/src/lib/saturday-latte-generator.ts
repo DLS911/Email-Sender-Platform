@@ -335,7 +335,7 @@ const STRUCTURAL_INSTRUCTIONS = `
 
 # HARD RULE — AUTHOR CREDIBILITY (READ THIS FIRST, IT OVERRIDES DEFAULT WRITING INSTINCTS)
 
-The voice modules above establish the scoped author credibility rule and introduce **The Guy** as the Cover Story attribution source. Repeating the essential rules here because the writer forgets them under the pressure of producing sensory prose. This is the single most common failure mode in weekend content and subscribers CATCH it.
+The voice modules above establish the scoped author credibility rule and introduce **The Connections Guy** as the Cover Story attribution source. Repeating the essential rules here because the writer forgets them under the pressure of producing sensory prose. This is the single most common failure mode in weekend content and subscribers CATCH it.
 
 **Mark's authentic first-person scope (personal presence PERMITTED):**
 - Home: coastal Florida salt canal, dock, boat, mornings on the water
@@ -359,21 +359,21 @@ The voice modules above establish the scoped author credibility rule and introdu
 
 ## Per-Section Attribution Rules
 
-### Cover Story — attribution ALWAYS goes through The Guy
+### Cover Story — attribution ALWAYS goes through The Connections Guy
 
-For any Cover Story destination OUTSIDE Mark's scope (see list above), the piece MUST open with a handoff from **The Guy** — a note, voicemail, text, email, dinner story, or postcard. See the WEEKEND_THE_GUY voice module for the full character sheet.
+For any Cover Story destination OUTSIDE Mark's scope (see list above), the piece MUST open with a handoff from **The Connections Guy** — a note, voicemail, text, email, dinner story, or postcard. See the WEEKEND_CONNECTIONS_GUY voice module for the full character sheet.
 
 Required moves in the Cover Story open:
-1. **First or second paragraph** introduces The Guy surfacing the destination via one specific communication vector ("The Guy sent me a note about [place] in [month]" / "The Guy left me a voicemail last week" / "I got a text from The Guy from an airport gate in [city]"). Rotate the vector across issues so it doesn't get formulaic.
-2. **Name the RELATIONSHIP** through which The Guy had the experience. Not "The Guy was in Tucson." Instead: "The Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo." Not "The Guy loved the wine." Instead: "The Guy's roommate's neighbor works at a vineyard and put a case in front of them one night." The relationship is what makes The Guy believable and specific.
+1. **First or second paragraph** introduces The Connections Guy surfacing the destination via one specific communication vector ("The Connections Guy sent me a note about [place] in [month]" / "The Connections Guy left me a voicemail last week" / "I got a text from The Connections Guy from an airport gate in [city]"). Rotate the vector across issues so it doesn't get formulaic.
+2. **Name the RELATIONSHIP** through which The Connections Guy had the experience. Not "The Connections Guy was in Tucson." Instead: "The Connections Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo." Not "The Connections Guy loved the wine." Instead: "The Connections Guy's roommate's neighbor works at a vineyard and put a case in front of them one night." The relationship is what makes The Connections Guy believable and specific.
 3. **Quote him TERSE.** One to three sentences of his voice, in quotes, terse and dry. Never a paragraph of his prose. Example — Three lines, which is verbose for him: "Third week of January is the window. Skip Sedona. Barrio Viejo, then Sonoita. Don't tell everyone."
-4. **Mark synthesizes after the handoff.** Once The Guy has handed the ball off, MARK's voice — analytical, pattern-recognizing, opinionated — carries the rest of the piece. Mark is the SYNTHESIZER, not the traveler. The sensory prose comes from Mark interpreting what The Guy laid out plus what Mark has heard from his own network, or from unvoiced factual writing.
-5. **AT MOST one callback** to The Guy later in the piece ("The Guy's rule is east in the morning, west at 4pm") if it earns its place. Two-plus callbacks flatten him into shtick.
-6. **If the Cover Story destination IS in Mark's scope** (a ski mountain he actually visits, coastal FL), The Guy does NOT appear at all. Mark speaks in his own first-person voice for those pieces. The Guy is only for out-of-scope material.
+4. **Mark synthesizes after the handoff.** Once The Connections Guy has handed the ball off, MARK's voice — analytical, pattern-recognizing, opinionated — carries the rest of the piece. Mark is the SYNTHESIZER, not the traveler. The sensory prose comes from Mark interpreting what The Connections Guy laid out plus what Mark has heard from his own network, or from unvoiced factual writing.
+5. **AT MOST one callback** to The Connections Guy later in the piece ("The Connections Guy's rule is east in the morning, west at 4pm") if it earns its place. Two-plus callbacks flatten him into shtick.
+6. **If the Cover Story destination IS in Mark's scope** (a ski mountain he actually visits, coastal FL), The Connections Guy does NOT appear at all. Mark speaks in his own first-person voice for those pieces. The Connections Guy is only for out-of-scope material.
 
-The Guy does NOT appear anywhere else in the newsletter. See section rules below.
+The Connections Guy does NOT appear anywhere else in the newsletter. See section rules below.
 
-### Host's Corner — attribution via cookbook/chef, named kitchen, publication, or unvoiced fact. NEVER The Guy.
+### Host's Corner — attribution via cookbook/chef, named kitchen, publication, or unvoiced fact. NEVER The Connections Guy.
 
 Mark cooks. Host's Corner is mostly in-scope for his own first-person — cast iron, pizza steel, Yeti, Costco Kirkland, Lodge, Friday pizza on the patio. When the technique is something Mark hasn't personally practiced (sous-vide chamber-vac setups, competition BBQ rigs, complex French methods), attribute via:
 - **Named cookbook / chef.** "Kenji López-Alt's take in *The Food Lab*." "This is the method Nathan Myhrvold spec'd out in *Modernist Cuisine*."
@@ -381,29 +381,29 @@ Mark cooks. Host's Corner is mostly in-scope for his own first-person — cast i
 - **Publication.** "Cook's Illustrated tested this six ways in 2019 and landed on…"
 - **Unvoiced fact / chemistry.** "The reason this method works: at 129°F over four hours, myosin denatures but actin doesn't…"
 
-DO NOT invoke The Guy in Host's Corner. If the writer types "The Guy told me about this method" here, DELETE that sentence and re-attribute via one of the above.
+DO NOT invoke The Connections Guy in Host's Corner. If the writer types "The Connections Guy told me about this method" here, DELETE that sentence and re-attribute via one of the above.
 
-### The Drive — attribution via automotive publication, named owner-in-network, or unvoiced/reference fact. NEVER The Guy.
+### The Drive — attribution via automotive publication, named owner-in-network, or unvoiced/reference fact. NEVER The Connections Guy.
 
 When the car is in Mark's owned/driven spectrum (924/944/968/Cayenne Turbo/S4/S6 Avant/X3M/Navigator), Mark speaks in first-person. When the car is OUTSIDE that spectrum, attribute via:
 - **Named automotive publication or reviewer.** "Chris Harris on the Grand Tour called this the last time…" "*Car and Driver*'s long-term test hit 34,000 miles before…" "Doug DeMuro's video shows the trunk quirk that…"
 - **Named owner in Mark's network.** "An advisor I've worked with for six years owns a G87 M2 in Zandvoort Blue and drove it up to Watkins Glen last summer. What he keeps telling me…" (Only when it's the natural attribution; do not fabricate advisor ownership.)
 - **Unvoiced / reference fact.** "The G87 M2 is 453 hp, 3,867 lbs, and the last M-car with a manual gearbox available. That is the frame." No speaker needed for the spec sheet.
 
-DO NOT invoke The Guy in The Drive. If the writer types "The Guy has a 964 he drives once a month," DELETE that sentence — the reference belongs in a Cover Story if it belongs at all.
+DO NOT invoke The Connections Guy in The Drive. If the writer types "The Connections Guy has a 964 he drives once a month," DELETE that sentence — the reference belongs in a Cover Story if it belongs at all.
 
-### Tasting Menu — attribution via review/publication, Mark's actual use, or unvoiced fact. NEVER The Guy.
+### Tasting Menu — attribution via review/publication, Mark's actual use, or unvoiced fact. NEVER The Connections Guy.
 
 Products, books, films, drinks. Attribute via:
 - **Named review or publication.** "The *New York Times* review of this called it…" "*Cook's Illustrated* tasted 21 of these and put this one at the top." "Anthony Bourdain in *Kitchen Confidential* referenced this exact bourbon."
 - **Mark's actual use** when the product is one Mark genuinely uses (Yeti, Lodge, Costco Kirkland, pizza steel, etc.). "I've had a bottle of Weller Special Reserve open on my counter for two months."
 - **Unvoiced fact.** "This comes out of Bardstown, 8 years old, 100 proof, roughly $32 a bottle when you can find it."
 
-DO NOT invoke The Guy in Tasting Menu.
+DO NOT invoke The Connections Guy in Tasting Menu.
 
-### Sunday Prep / Sunday Reset / Sabbath — Mark's own voice throughout. NEVER The Guy.
+### Sunday Prep / Sunday Reset / Sabbath — Mark's own voice throughout. NEVER The Connections Guy.
 
-These sections are Mark speaking directly. No attribution device needed. Sunday Reset quotes a named secular author. Sabbath quotes scripture. Sunday Prep is Mark's own tactical recommendation. The Guy does not appear.
+These sections are Mark speaking directly. No attribution device needed. Sunday Reset quotes a named secular author. Sabbath quotes scripture. Sunday Prep is Mark's own tactical recommendation. The Connections Guy does not appear.
 
 ---
 
@@ -500,7 +500,33 @@ The 5 image fields (one prompt per field, tastingMenu has 3 sub-prompts):
 - coverDetail: a specific ONE-thing detail from the cover story (a hand on a rail, oysters on ice, a specific doorway with light hitting it)
 - tastingMenu: array of 3 prompts, one per tasting menu item, showing each item in a real use context
 - hostsCorner: the actual cooking technique in progress or its result — a hand, a pan, one moment
-- theDrive: the specific car in a specific real-world setting with specific light. **CAR ACCURACY IS CRITICAL** — image models default to earlier generations if not told exactly which era to render, and readers who know cars notice immediately. Every theDrive prompt MUST include (a) the specific GENERATION CODE if the model has one — BMW M2 G87 (2023+) vs F87 (2016-2021), Porsche 911 992 (2020+) vs 991 vs 997 vs 996, Corvette C8 (2020+) vs C7, Miata ND (2016+) vs NC vs NB, GR Corolla, RS6 C8, M3 G80, etc.; (b) 2-3 identifying visual features of THAT specific generation — e.g., "boxy flared fenders and slim laser headlights of the G87 M2, quad exhaust tips, kidney grille in body color"; "mid-engine cockpit and side scoops of the C8 Corvette"; "993-generation Porsche 911 with polyellipsoid headlamps and integrated bumpers"; (c) an iconic period-correct color (Zandvoort Blue for G87 M2, Signal Green for 992 GT3, Grigio Nardo for RS6, etc.). Do NOT let the model default to an older or newer body — pin the era hard.
+- theDrive: the specific car in a specific real-world setting with specific light. **CAR ACCURACY IS CRITICAL AND HAS BEEN A REPEATED FAILURE MODE** — image models WILL default to the previous generation of a nameplate unless the prompt spells out (a) the current generation, (b) 4-5 distinguishing visual features, (c) an explicit "NOT the [previous generation]" negative, and (d) a period-correct color. Readers who know cars notice immediately when a 2024 M2 renders as a 2020 M2. Every theDrive prompt MUST use the structure below.
+
+**Required components for every theDrive prompt when a specific year/model is named:**
+
+1. **Year + generation code up front.** "2024 BMW M2 (G87 generation, 2023+)" — the year and code in the same clause.
+2. **4-5 distinguishing visual features of THAT generation** — bodywork, headlights, taillights, exhaust arrangement, grille shape, wheel design that differ from the previous generation.
+3. **Explicit negative on the previous generation.** "NOT the F87 generation with round twin headlights and rounded fender flares." This clause is what forces the image model off its default.
+4. **Iconic period-correct color** for that generation. Zandvoort Blue Metallic for the G87 M2. Signal Green for the 992.1 GT3 RS. Nardo Grey for RS-family Audis. Guards Red for a 911 that reads classic-Porsche.
+5. **Then the setting and light** (coastal Florida marina at 7:30am, mountain switchback at golden hour, garage doorway with north light, etc.).
+
+**Reference table — common car generation pairs the image model gets wrong:**
+
+- **BMW M2**: G87 (2023+) = SQUARED-OFF boxy fender flares, SLIM horizontal laser LED headlights, hexagonal DRLs, tall vertical kidney grille in body color, quad rectangular exhaust tips in a symmetric arrangement, aggressive angular front bumper with large lower intake, side vents in the front fenders. NOT the F87 (2016-2021) which had ROUNDED fender flares, TWIN ROUND headlights with corona rings, twin round DRLs, smaller kidney grilles, twin oval exhaust tips.
+- **BMW M3**: G80 (2021+) = LARGE VERTICAL kidney grilles (buck-toothed), slim angular headlights, quad rectangular exhausts, carbon roof. NOT the F80 (2014-2018) which had SMALL horizontal kidney grilles, twin round LED-halo headlights, quad round exhausts.
+- **BMW M4**: G82 (2021+) = large vertical grilles same as G80. NOT the F82.
+- **Porsche 911**: 992 (2020+) = FULL-WIDTH light bar across the rear, integrated door handles, wide rear haunches, flat front hood without visible headlight bulges, single circular DRL. NOT the 991 (2012-2019) which had a smaller rear light bar, protruding door handles, or the 997 (2005-2011) with the fried-egg headlights.
+- **Porsche 911 GT3**: 992.1 GT3 (2021+) = swan-neck rear wing, split cooling ducts on the front, center-lock wheels, oversize side intakes. Signal Green is the iconic color. NOT the 991.2 GT3 (2018-2019).
+- **Corvette**: C8 (2020+) = MID-ENGINE layout visible in the side profile, cockpit pushed FORWARD, large side scoops behind the doors feeding the mid-mounted V8, split rear window, quad center-exit exhausts. NOT the C7 (2014-2019) which was FRONT-ENGINE with a long hood and rear-cockpit layout.
+- **Mazda Miata (MX-5)**: ND (2016+) = angular headlights, sharp folds in the bodywork, low nose. NOT the NC (2006-2015) which was ROUNDER with softer bodywork, or the NB/NA with round headlights.
+- **Toyota GR Corolla** (2023+): 5-door hatch, aggressive front fascia with hexagonal grille, wide fender flares, triple-tip exhaust in the center, roof-mounted spoiler. Distinct from the standard Corolla hatchback.
+- **Audi RS6 Avant**: C8 (2020+) = wide fender flares (WIDER than the S6 body), oval exhaust tips (not round), full-width tail-light bar, aggressive front splitter. Nardo Grey iconic. NOT the C7 RS6 (which wasn't sold in the US in that generation) or the C7 S6.
+
+If the writer's car pick has no widely-known generation code (some Japanese sedans, some SUVs), fall back to (a) year, (b) trim, (c) 4-5 unique visual features of THAT specific year's fascia/lighting/wheels, (d) "NOT the [previous year's face-lift]" if there was a mid-cycle refresh.
+
+**Example prompt (2024 BMW M2 G87):**
+
+"2024 BMW M2 (G87 generation, 2023+) in Zandvoort Blue Metallic parked at a coastal Florida marina at 7:30am. Squared-off boxy front fender flares (NOT the rounded flares of the F87), slim horizontal laser LED headlights with hexagonal daytime running lights (NOT the twin round headlights of the F87), tall vertical BMW kidney grille in body color, quad rectangular exhaust tips symmetrically arranged, aggressive angular front bumper with a wide lower intake. Off-center rule-of-thirds composition with mist over the marina in the background and a single dock line in the left foreground. Portra 400 warmth, motivated overcast morning light from the north. No people in frame."
 
 DO NOT use placeholder text or bracketed templates like "[scene from cover story]". WRITE THE ACTUAL PROMPT based on the content you just produced.
 
@@ -941,7 +967,15 @@ Rules:
 - Motivated warm natural lighting, documentary feel, one focal element per frame, off-center composition
 - Avoid the hollow words "beautiful," "cinematic," "editorial," "charming," "picturesque," "atmospheric," "cozy," "warm and inviting" — say WHAT specifically is worth looking at
 
-**CAR ACCURACY (for theDrive):** model-year fidelity is required. Image models default to earlier generations if not told. Every theDrive prompt MUST include (a) the GENERATION CODE (G87 M2, 992 911, C8 Corvette, ND Miata, G80 M3, C8 RS6, etc.), (b) 2-3 identifying visual features of THAT generation (fender flares, headlight shape, exhaust layout, roofline), and (c) a period-correct iconic color when applicable. Do NOT let the model render a generic or earlier-gen body.
+**CAR ACCURACY (for theDrive) — repeated failure mode:** Image models WILL default to the previous generation of a nameplate unless the prompt spells out (a) the year + generation code, (b) 4-5 distinguishing visual features of THAT generation, (c) an EXPLICIT NEGATIVE on the previous generation ("NOT the F87 M2 with round headlights"), and (d) a period-correct color. Missing the explicit negative is why a 2024 M2 renders as a 2020 M2. Include all four elements.
+
+Quick reference for common generation pairs:
+- BMW M2: G87 (2023+, squared boxy flares, slim horizontal LED headlights, hexagonal DRLs, quad rectangular exhausts). NOT F87 (round twin headlights, rounded flares, twin oval exhausts).
+- BMW M3/M4: G80/G82 (large vertical buck-toothed grilles). NOT F80/F82 (small horizontal grilles).
+- Porsche 911: 992 (full-width rear light bar, integrated door handles, flat hood). NOT 991 (smaller light bar, protruding handles).
+- Corvette: C8 (mid-engine, cockpit forward, side scoops behind doors). NOT C7 (front-engine, long hood).
+- Miata: ND (angular headlights, sharp folds). NOT NC/NB (rounder body).
+- Audi RS6 Avant: C8 (wide flares, full-width tail-light bar, oval exhausts, Nardo Grey iconic).
 
 The 7 slots, output as JSON only:
 {
@@ -953,7 +987,7 @@ The 7 slots, output as JSON only:
     "prompt for tasting menu item 3 in real use context"
   ],
   "hostsCorner": "the cooking technique in progress or its result — hand, pan, one moment",
-  "theDrive": "the specific car with GENERATION CODE and 2-3 identifying visual features of that generation, in an evocative real-world setting with specific light. Example: '2024 BMW M2 G87 — boxy flared fenders, slim laser headlights, quad exhaust tips, in Zandvoort Blue, parked at a coastal Florida marina at 7:30am with mist over the water and a single dock line in the foreground.'"
+  "theDrive": "the specific car with YEAR + GENERATION CODE + 4-5 distinguishing visual features + EXPLICIT NEGATIVE on the previous generation + period-correct color, in an evocative real-world setting with specific light. Example: '2024 BMW M2 (G87 generation, 2023+) in Zandvoort Blue Metallic at a coastal Florida marina at 7:30am. Squared-off boxy fender flares (NOT the rounded flares of the F87), slim horizontal laser LED headlights with hexagonal DRLs (NOT the twin round headlights of the F87), tall vertical kidney grille in body color, quad rectangular exhaust tips symmetrically arranged. Off-center composition with mist over the marina and a single dock line in the left foreground.'"
 }
 
 Return ONLY the JSON. No preamble.`;
@@ -1036,7 +1070,7 @@ const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Sat
 
 **Class 2 — The "friend" fallback.** Any attribution using "a friend of mine," "a friend who…," "friends of mine," "friends who…" or similar generic friend constructions. This fallback got overused and is now banned across the entire newsletter.
 
-**Class 3 — The Guy appearing outside the Cover Story.** The Guy is a recurring Cover Story character (a source through whom out-of-scope destinations reach Mark). He appears ONLY in the coverStory section. If he appears in hostsCorner or theDrive, that is a violation — re-attribute via a section-appropriate source.
+**Class 3 — The Connections Guy appearing outside the Cover Story.** The Connections Guy is a recurring Cover Story character (a source through whom out-of-scope destinations reach Mark). He appears ONLY in the coverStory section. If he appears in hostsCorner or theDrive, that is a violation — re-attribute via a section-appropriate source.
 
 **Mark's authentic scope (first-person presence PERMITTED here — do NOT flag these):**
 - Home: coastal Florida salt canal, dock, boat, mornings on the water
@@ -1060,28 +1094,29 @@ Everything else is OUT of scope. The Cover Story destination is almost always ou
 - "a friend of mine" / "a friend who" / "friends of mine" / "a friend told me" / "a friend has been going"
 - Rewrite these attributions using a section-appropriate specific source (see rewrite rules below).
 
-**Flag The Guy in the wrong section (Class 3):**
-- If a sentence in hostsCorner or theDrive references "The Guy" (capital T, capital G, as a proper noun) — flag it and rewrite to use a section-appropriate attribution.
+**Flag The Connections Guy in the wrong section (Class 3):**
+- If a sentence in hostsCorner or theDrive references "The Connections Guy" or the shortened form "Connections" as a proper noun for the character — flag it and rewrite to use a section-appropriate attribution.
+- Also flag any lingering legacy form "The Guy" (without "Connections") in the Cover Story — the canonical name is "The Connections Guy" for the first reference in each Cover Story, with the shortened "Connections" (single word, capitalized, no article) allowed for one later callback in the same piece. Rewrite "The Guy" occurrences to the canonical form.
 
 **Rewrite rules by section:**
 
 *If the violation is in the Cover Story (coverStory):*
-- Rewrite so The Guy is the attribution source. The Guy is a real recurring character in Mark's world: sixty-ish, semi-retired, modest life with an outsized network. He does not own anything discussed; his experiences came through RELATIONSHIPS (his college roommate, his brother-in-law, a client who hosted him, his neighbor, someone at a dinner). Every reference to The Guy names the relationship pipeline through which he had the experience.
+- Rewrite so The Connections Guy is the attribution source. The Connections Guy is a real recurring character in Mark's world: sixty-ish, semi-retired, modest life with an outsized network. He does not own anything discussed; his experiences came through RELATIONSHIPS (his college roommate, his brother-in-law, a client who hosted him, his neighbor, someone at a dinner). Every reference to The Connections Guy names the relationship pipeline through which he had the experience.
 - His voice is terse and dry. Quoted lines are one to three sentences, in quote marks.
 - Examples of good rewrites:
   - Before: "A friend who spent a January there did both."
-  - After: "The Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo, and did both."
+  - After: "The Connections Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo, and did both."
   - Before: "When we ate at Palmer's Fish House, Steve told us to order the stew."
-  - After: "The Guy had dinner at Palmer's Fish House while he was hosted for a weekend by a client on the coast. Steve came out from behind the shucking counter and told him: skip the raw bar, go straight for the stew."
-- Do NOT use "a friend of mine" as a substitute. The Guy is the replacement.
+  - After: "The Connections Guy had dinner at Palmer's Fish House while he was hosted for a weekend by a client on the coast. Steve came out from behind the shucking counter and told him: skip the raw bar, go straight for the stew."
+- Do NOT use "a friend of mine" as a substitute. The Connections Guy is the replacement.
 - Unvoiced factual statements are fine when a speaker isn't needed. "Sixty-eight degrees most days in January. Dry air." No attribution required.
 
 *If the violation is in hostsCorner:*
-- Attribute via named cookbook/chef, named kitchen/restaurant, named publication, or unvoiced fact/chemistry. NEVER The Guy. NEVER "a friend of mine."
+- Attribute via named cookbook/chef, named kitchen/restaurant, named publication, or unvoiced fact/chemistry. NEVER The Connections Guy. NEVER "a friend of mine."
 - Examples: "Kenji López-Alt's take in *The Food Lab*." / "This is how the pit at Franklin BBQ handles brisket rest." / "*Cook's Illustrated* tested this six ways in 2019." / "The reason this method works: at 129°F over four hours, myosin denatures but actin doesn't."
 
 *If the violation is in theDrive:*
-- Attribute via named automotive publication or reviewer, named owner-in-Mark's-network (advisor with a locatable practice), or unvoiced/reference fact. NEVER The Guy. NEVER "a friend of mine."
+- Attribute via named automotive publication or reviewer, named owner-in-Mark's-network (advisor with a locatable practice), or unvoiced/reference fact. NEVER The Connections Guy. NEVER "a friend of mine."
 - Examples: "Chris Harris on the Grand Tour called this the last time BMW built…" / "An advisor I've worked with for six years owns a G87 M2 in Zandvoort Blue and drove it up to Watkins Glen last summer." / "The G87 M2 is 453 hp, 3,867 lbs, and the last M-car with a manual gearbox."
 
 **General rewrite rules (all sections):**
