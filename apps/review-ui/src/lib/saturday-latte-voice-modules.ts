@@ -3934,6 +3934,83 @@ The Saturday Morning Latte's target prose style is the *Garden & Gun* magazine v
 Read the finished Latte cover story out loud. If it sounds like it could have appeared in Garden & Gun's October issue, you nailed the voice. If it sounds like it could have appeared in any online travel or lifestyle publication interchangeably, you missed it. The Garden & Gun test isn't a Southern one; it's a *this-is-written-by-a-specific-person-with-taste* one.
 `;
 
+export const WEEKEND_THE_GUY = `
+
+## The Guy — Cover Story attribution source (COVER STORY ONLY)
+
+The Saturday Morning Latte has a recurring character named **The Guy** (capital T, capital G, both words, always the definite article). He is the source through which OUT-OF-SCOPE Cover Story destinations reach Mark. He is used NOWHERE ELSE in the newsletter. Not in Host's Corner. Not in The Drive. Not in the Tasting Menu. Not in Sunday Prep, Sunday Reset, or the Sabbath section. If you find yourself typing "The Guy" outside a Cover Story paragraph, delete it — it's the wrong section.
+
+## Who The Guy Is (invisible to the reader, informs the voice)
+
+The Guy is not a fabricated composite and not a magical concierge. He's a plausible, believable-as-real character in Mark's actual life. Modest life, outsized network. Sixty-ish, semi-retired or scaled-down consulting practice. Not wealthy in an "owns everything" way. His edge is that he KNOWS PEOPLE, not that he OWNS THINGS.
+
+Crucially: **The Guy has not been everywhere and does not own everything he references.** Every experience he has had with a place, a car, a method, or a meal came through a RELATIONSHIP:
+- His college roommate has a place in Barrio Viejo.
+- His brother-in-law owns a 992 GT3 he drove across Pennsylvania one weekend.
+- A client he did work for hosted him for four days at a place in Sonoita.
+- His neighbor works at a vineyard.
+- A partner at a firm outside Charlotte made him one sous-vide ribeye at a dinner last spring.
+- He rented a G87 M2 for a long weekend once and drove it up the Cherohala Skyway.
+
+The Guy RENTS when he wants to try. BORROWS when he can. Is HOSTED when the network offers. He never owns the thing being discussed in a Cover Story. His experiences are FINITE — four days here, a long weekend there, one dinner, one drive. That's the constraint that keeps him honest, and it's the constraint the writing has to preserve.
+
+His voice: terse, dry, allergic to Instagram culture, doesn't oversell, doesn't endorse lightly. When he DOES endorse, Mark treats it as signal. He communicates in short bursts — a three-line email, a twenty-second voicemail, a note handed over dinner, a text from an airport gate. Never in paragraphs.
+
+He is NEVER named. Never described visually. Never given a wife or kids or hometown on-page. The mystery is a feature. Reader knows only what Mark tells them, which is: he exists, he's real to Mark, he's the source.
+
+## How The Guy Shows Up in a Cover Story
+
+**Only for OUT-OF-SCOPE destinations.** If the Cover Story is about a place Mark himself has actually been (Big Sky, Whitefish, Jackson, Telluride, Steamboat, Park City, Kicking Horse, coastal Florida) — Mark speaks in his own first-person and The Guy is not invoked. The Guy only carries the weight when Mark has NOT been there personally.
+
+**As a single opening handoff.** The FIRST OR SECOND paragraph of a Cover Story opens with The Guy surfacing the destination via one specific communication vector:
+- "The Guy sent me a note about [place] in [month]." (an email, typically)
+- "The Guy left me a voicemail last month. Twenty-two seconds, no preamble..."
+- "The Guy called me from an airport gate in [city] last [season]..."
+- "The Guy told me at dinner in November..."
+- "I got a text from The Guy about [place]. Three lines, which is verbose for him."
+- "The Guy sent me a postcard from [place], which is his primary medium."
+
+Rotate the framing across issues so it doesn't get formulaic. Same character, varied surface.
+
+**With the RELATIONSHIP through which he had the experience always named.** This is non-negotiable. Not "The Guy went to Tucson" — "The Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo." Not "The Guy loved the wine country" — "The Guy's roommate's neighbor works at a vineyard and put a case in front of them one night." The relationship is what gives the piece plausibility and specificity. It's also what keeps The Guy from feeling omniscient.
+
+**With his quoted lines TERSE — one to three sentences max, in quote marks.** He never narrates paragraphs. He hands a compressed take, in his own voice, and Mark takes over. Example:
+> Three lines, which is verbose for him: "Third week of January is the window. Skip Sedona. Barrio Viejo, then Sonoita. Don't tell everyone."
+
+**Mark synthesizes after the handoff.** Once The Guy has passed the ball, MARK's voice takes over as the pattern-recognizing curator. Mark can be opinionated, specific, and detail-rich because he's the synthesizer, not the traveler. The rest of the Cover Story is Mark's analytical voice interpreting what The Guy laid out, augmented by whatever else Mark has heard from his own network. The Guy sets the stage; Mark writes the play.
+
+**ONE callback line later in the piece is fine if earned. More than that is overuse.** A single "The Guy's rule is..." or "The Guy told me..." halfway through, referencing something concrete he said, is a strong beat. Two or three callbacks in a 500-word piece flattens him into shtick.
+
+## Sensory Density with The Guy
+
+The Guy's terseness is the point, but the Cover Story still needs sensory density (see Garden & Gun style module). The density comes from:
+- **The relationships The Guy names.** "His roommate's neighbor works at Callaghan Vineyards" is a specific human tied to a specific place — that's a Garden & Gun move.
+- **The QUOTED SPECIFICS in The Guy's lines.** "Third week of January. Barrio Viejo. Sonoita on day two." Names, dates, order of operations. His compressed take carries specific proper nouns.
+- **Mark's SYNTHESIS after the handoff.** Mark's paragraph-level voice is where the sensory work happens — the 4pm light in the west district, the temperature, the dry air, the way the adobe walls warm up. Mark attributes these to the pattern of takes he's heard, or presents them as unvoiced facts (see Cover Story attribution rules in structural section).
+
+**The Guy is never the source of extended sensory prose.** He gives Mark the destination and the rule. Mark carries the sentences that carry the light.
+
+## What The Guy Never Does
+
+- Does not own a car, boat, house, or vineyard that appears in the piece. Every referenced object came through someone else.
+- Does not tell Mark how HE personally felt about a sunset in extended prose. His takes are terse and tactical, not sentimental.
+- Does not appear more than three times in a single Cover Story (opening handoff + at most one callback + at most one closing reference).
+- Does not appear in Host's Corner, The Drive, Tasting Menu, Sunday Prep, Sunday Reset, or Sabbath. If the writer is tempted, the fix is to attribute via a different appropriate source for that section (chef/cookbook for Host's Corner, automotive publication or an owning advisor for The Drive, review or Mark's actual use for Tasting Menu).
+- Does not get named. Not now, not ever. Reader may speculate; the newsletter never confirms.
+- Does not have a photograph, illustration, or visual representation. He is only ever a voice.
+
+## The Sanity Check
+
+Before finalizing the Cover Story, verify:
+1. Is the destination out-of-scope for Mark's personal presence? If yes, The Guy MUST appear as the opening handoff. If no (Mark HAS been there), The Guy does NOT appear at all — Mark speaks in his own first-person.
+2. Does The Guy's opening line name the RELATIONSHIP through which he had the experience? If not, add it.
+3. Are his quoted lines TERSE (one to three sentences)? If any of his lines run longer than three sentences, cut them.
+4. Does Mark take over as the synthesizer after the handoff? Or does The Guy narrate the piece? If the latter, restructure — The Guy is the setup, not the substance.
+5. Does The Guy appear in any OTHER section of the newsletter? If yes, remove him from those sections and use appropriate attribution for each register.
+
+If all five checks pass, the Cover Story is voice-clean.
+`;
+
 const SHARED_AND_VOICE = [
   CORE_VOICE_RULES,
   CORE_LLM_OUTPUT_DISCIPLINE,
@@ -3942,6 +4019,7 @@ const SHARED_AND_VOICE = [
   SHARED_AUDIENCE,
   WEEKEND_VOICE_TONE,
   WEEKEND_PROSE_STYLE_GARDEN_AND_GUN,
+  WEEKEND_THE_GUY,
   WEEKEND_PERSONAL_CONTEXT,
   WEEKEND_REAL_LIFE_ANCHORS,
   WEEKEND_UNEXPECTED_VARIABLE,

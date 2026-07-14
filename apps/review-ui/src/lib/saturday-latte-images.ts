@@ -158,11 +158,19 @@ async function generateAndStore(
   slot: string,
   prompt: string,
   issueDate: string,
+  genStamp: string,
 ): Promise<{ url: string }> {
   const img = await generateOneImage(apiKey, prompt);
-  const filename = `${issueDate}/${slot}.${extForMime(img.mimeType)}`;
+  const filename = `${issueDate}/${slot}-${genStamp}.${extForMime(img.mimeType)}`;
   const publicUrl = await uploadToStorage(storage, img.bytes, filename, img.mimeType);
   return { url: publicUrl };
+}
+
+// Short random suffix appended to every image filename so regenerating
+// the same issueDate produces distinct public URLs. Prevents CDN cache
+// staleness from serving the previous run's images.
+function makeGenStamp(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export async function generateLatteImages(opts: {
@@ -177,6 +185,7 @@ export async function generateLatteImages(opts: {
   const storage = getStorageClient();
   const urls: LatteImageUrls = {};
   const failures: Array<{ slot: string; error: string }> = [];
+  const genStamp = makeGenStamp();
 
   const jobs: Array<{
     slot: string;
@@ -242,7 +251,7 @@ export async function generateLatteImages(opts: {
     jobs.map((job) =>
       job.prompt.trim() === ""
         ? Promise.reject(new Error("empty prompt"))
-        : generateAndStore(apiKey, storage, job.slot, job.prompt, opts.issueDate),
+        : generateAndStore(apiKey, storage, job.slot, job.prompt, opts.issueDate, genStamp),
     ),
   );
 

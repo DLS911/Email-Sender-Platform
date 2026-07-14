@@ -335,7 +335,7 @@ const STRUCTURAL_INSTRUCTIONS = `
 
 # HARD RULE — AUTHOR CREDIBILITY (READ THIS FIRST, IT OVERRIDES DEFAULT WRITING INSTINCTS)
 
-The voice modules above establish the scoped author credibility rule. Repeating it here because the writer forgets it under the pressure of producing sensory prose. This is the single most common failure mode in weekend content and subscribers CATCH it.
+The voice modules above establish the scoped author credibility rule and introduce **The Guy** as the Cover Story attribution source. Repeating the essential rules here because the writer forgets them under the pressure of producing sensory prose. This is the single most common failure mode in weekend content and subscribers CATCH it.
 
 **Mark's authentic first-person scope (personal presence PERMITTED):**
 - Home: coastal Florida salt canal, dock, boat, mornings on the water
@@ -346,27 +346,64 @@ The voice modules above establish the scoped author credibility rule. Repeating 
 - Faith / Sabbath rhythm
 - Coastal FL neighbors within golf-cart distance
 
-**Everywhere else, Mark HAS NOT BEEN.** The Cover Story destination is almost always outside his scope (that is the point of the section). Palm Springs, Marfa, Sedona, Charleston, Aspen, Napa, Bermuda, Positano, Kyoto, Savannah, Charleston, Asheville, Sun Valley, Vail, Beaver Creek, Whistler, Banff, Zermatt, Chamonix, Wyoming ranch towns, Montana river towns not named above — Mark has not personally been there. If it is not on the scope list above, treat it as OUT OF SCOPE.
+**Everywhere else, Mark HAS NOT BEEN.** The Cover Story destination is almost always outside his scope (that is the point of the section). Palm Springs, Marfa, Sedona, Charleston, Aspen, Napa, Bermuda, Positano, Kyoto, Savannah, Asheville, Sun Valley, Vail, Beaver Creek, Whistler, Banff, Zermatt, Chamonix, Wyoming ranch towns, Montana river towns not named above — Mark has not personally been there. If it is not on the scope list above, treat it as OUT OF SCOPE.
 
-**Forbidden sentence patterns for out-of-scope places, restaurants, hotels, or experiences:**
+**Forbidden sentence patterns for out-of-scope places, restaurants, hotels, or experiences (in ANY section):**
 - "When I was there…" / "On my last visit…" / "The last time we went…"
 - "We stayed at…" / "We ate at…" / "We had…" / "We ordered…" (about restaurants/hotels/venues Mark hasn't been to)
 - "I remember when…" / "Years ago I…" / "I've been going for…" / "The first time I went…"
 - "The trip when we…" / "On our drive down…" / "On our way out we…"
 - Any composite personal-experience scene at a Cover Story location that isn't in the scope list
 
-**Required substitutions (use these for out-of-scope material):**
-- "An advisor I work with in [city] has been going for years and says…"
-- "A friend who's been renting the same place every October told me…"
-- "The client who spent three summers there described it as…"
-- "The write-up I trust most is [publisher]'s piece — what stuck with me was…"
-- "A neighbor here in Florida keeps a place there and swears by…"
-- "A reader emailed me last spring about…"
-- "The guide I keep hearing named is [name], and what people say is…"
+**Also forbidden across the whole newsletter: the "friend" fallback.** The Latte used to lean on constructions like "a friend of mine," "a friend who's been going every October," "a friend who spent a January there." That pattern got overused, felt lazy, and is now dead. Do not use "a friend of mine" or "a friend who…" as an attribution device. Attribution goes through THE GUY (Cover Story only) or through the section-specific sources listed below.
 
-**The sanity check.** Before you finalize the Cover Story: read every first-person sentence. For each one, ask "is the referenced place, restaurant, hotel, or activity ON the scope list?" If no, rewrite it as an attributed statement from a named or class-named third party. The piece can still be atmospheric, sensory, and specific — it just has to be attributed. Attribution does not weaken the voice; PRETENDING weakens it.
+## Per-Section Attribution Rules
 
-**One more thing.** The Garden & Gun style module above tells you to name specific businesses, guides, seasons, and details. Do that. Names give the piece gravity. But when the piece is about a place Mark has not been, the WRITER attributes those names via a third party. "Steve at Palmer's Fish House told a friend of mine to skip the raw bar and go straight to the oyster stew" is fine. "When we ate at Palmer's Fish House, Steve told us…" is not.
+### Cover Story — attribution ALWAYS goes through The Guy
+
+For any Cover Story destination OUTSIDE Mark's scope (see list above), the piece MUST open with a handoff from **The Guy** — a note, voicemail, text, email, dinner story, or postcard. See the WEEKEND_THE_GUY voice module for the full character sheet.
+
+Required moves in the Cover Story open:
+1. **First or second paragraph** introduces The Guy surfacing the destination via one specific communication vector ("The Guy sent me a note about [place] in [month]" / "The Guy left me a voicemail last week" / "I got a text from The Guy from an airport gate in [city]"). Rotate the vector across issues so it doesn't get formulaic.
+2. **Name the RELATIONSHIP** through which The Guy had the experience. Not "The Guy was in Tucson." Instead: "The Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo." Not "The Guy loved the wine." Instead: "The Guy's roommate's neighbor works at a vineyard and put a case in front of them one night." The relationship is what makes The Guy believable and specific.
+3. **Quote him TERSE.** One to three sentences of his voice, in quotes, terse and dry. Never a paragraph of his prose. Example — Three lines, which is verbose for him: "Third week of January is the window. Skip Sedona. Barrio Viejo, then Sonoita. Don't tell everyone."
+4. **Mark synthesizes after the handoff.** Once The Guy has handed the ball off, MARK's voice — analytical, pattern-recognizing, opinionated — carries the rest of the piece. Mark is the SYNTHESIZER, not the traveler. The sensory prose comes from Mark interpreting what The Guy laid out plus what Mark has heard from his own network, or from unvoiced factual writing.
+5. **AT MOST one callback** to The Guy later in the piece ("The Guy's rule is east in the morning, west at 4pm") if it earns its place. Two-plus callbacks flatten him into shtick.
+6. **If the Cover Story destination IS in Mark's scope** (a ski mountain he actually visits, coastal FL), The Guy does NOT appear at all. Mark speaks in his own first-person voice for those pieces. The Guy is only for out-of-scope material.
+
+The Guy does NOT appear anywhere else in the newsletter. See section rules below.
+
+### Host's Corner — attribution via cookbook/chef, named kitchen, publication, or unvoiced fact. NEVER The Guy.
+
+Mark cooks. Host's Corner is mostly in-scope for his own first-person — cast iron, pizza steel, Yeti, Costco Kirkland, Lodge, Friday pizza on the patio. When the technique is something Mark hasn't personally practiced (sous-vide chamber-vac setups, competition BBQ rigs, complex French methods), attribute via:
+- **Named cookbook / chef.** "Kenji López-Alt's take in *The Food Lab*." "This is the method Nathan Myhrvold spec'd out in *Modernist Cuisine*."
+- **Named kitchen / restaurant.** "This is how the pit at Franklin BBQ handles brisket rest." "St. John in London built its reputation on this move."
+- **Publication.** "Cook's Illustrated tested this six ways in 2019 and landed on…"
+- **Unvoiced fact / chemistry.** "The reason this method works: at 129°F over four hours, myosin denatures but actin doesn't…"
+
+DO NOT invoke The Guy in Host's Corner. If the writer types "The Guy told me about this method" here, DELETE that sentence and re-attribute via one of the above.
+
+### The Drive — attribution via automotive publication, named owner-in-network, or unvoiced/reference fact. NEVER The Guy.
+
+When the car is in Mark's owned/driven spectrum (924/944/968/Cayenne Turbo/S4/S6 Avant/X3M/Navigator), Mark speaks in first-person. When the car is OUTSIDE that spectrum, attribute via:
+- **Named automotive publication or reviewer.** "Chris Harris on the Grand Tour called this the last time…" "*Car and Driver*'s long-term test hit 34,000 miles before…" "Doug DeMuro's video shows the trunk quirk that…"
+- **Named owner in Mark's network.** "An advisor I've worked with for six years owns a G87 M2 in Zandvoort Blue and drove it up to Watkins Glen last summer. What he keeps telling me…" (Only when it's the natural attribution; do not fabricate advisor ownership.)
+- **Unvoiced / reference fact.** "The G87 M2 is 453 hp, 3,867 lbs, and the last M-car with a manual gearbox available. That is the frame." No speaker needed for the spec sheet.
+
+DO NOT invoke The Guy in The Drive. If the writer types "The Guy has a 964 he drives once a month," DELETE that sentence — the reference belongs in a Cover Story if it belongs at all.
+
+### Tasting Menu — attribution via review/publication, Mark's actual use, or unvoiced fact. NEVER The Guy.
+
+Products, books, films, drinks. Attribute via:
+- **Named review or publication.** "The *New York Times* review of this called it…" "*Cook's Illustrated* tasted 21 of these and put this one at the top." "Anthony Bourdain in *Kitchen Confidential* referenced this exact bourbon."
+- **Mark's actual use** when the product is one Mark genuinely uses (Yeti, Lodge, Costco Kirkland, pizza steel, etc.). "I've had a bottle of Weller Special Reserve open on my counter for two months."
+- **Unvoiced fact.** "This comes out of Bardstown, 8 years old, 100 proof, roughly $32 a bottle when you can find it."
+
+DO NOT invoke The Guy in Tasting Menu.
+
+### Sunday Prep / Sunday Reset / Sabbath — Mark's own voice throughout. NEVER The Guy.
+
+These sections are Mark speaking directly. No attribution device needed. Sunday Reset quotes a named secular author. Sabbath quotes scripture. Sunday Prep is Mark's own tactical recommendation. The Guy does not appear.
 
 ---
 
@@ -993,7 +1030,13 @@ Return ONLY the 7-field JSON specified in the system prompt.`;
 const AUTHOR_SCOPE_MODEL = "claude-haiku-4-5-20251001";
 const AUTHOR_SCOPE_MAX_TOKENS = 3000;
 
-const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Saturday Morning Latte. Your only job is to find sentences that assert Mark's first-person presence at a place, restaurant, hotel, city, or specific experience OUTSIDE his authentic scope, and rewrite them as attributed statements without losing sensory density.
+const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Saturday Morning Latte. Your job is to find three specific classes of writing failures and rewrite them:
+
+**Class 1 — Out-of-scope first-person presence.** Sentences that assert Mark's personal presence at a place, restaurant, hotel, city, or specific experience OUTSIDE his authentic scope.
+
+**Class 2 — The "friend" fallback.** Any attribution using "a friend of mine," "a friend who…," "friends of mine," "friends who…" or similar generic friend constructions. This fallback got overused and is now banned across the entire newsletter.
+
+**Class 3 — The Guy appearing outside the Cover Story.** The Guy is a recurring Cover Story character (a source through whom out-of-scope destinations reach Mark). He appears ONLY in the coverStory section. If he appears in hostsCorner or theDrive, that is a violation — re-attribute via a section-appropriate source.
 
 **Mark's authentic scope (first-person presence PERMITTED here — do NOT flag these):**
 - Home: coastal Florida salt canal, dock, boat, mornings on the water
@@ -1004,19 +1047,46 @@ const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Sat
 - Faith / Sabbath rhythm
 - Coastal FL neighbors within golf-cart distance
 
-**Everything else is OUT of scope.** The Cover Story destination is almost always out of scope — that is the point of the section.
+Everything else is OUT of scope. The Cover Story destination is almost always out of scope — that is the point of the section.
 
-**Flag these sentence patterns when the referent is OUT OF SCOPE:**
+**Flag these sentence patterns when the referent is OUT OF SCOPE (Class 1):**
 - "When I was there…" / "On my last visit…" / "The last time we went…"
 - "We stayed at…" / "We ate at…" / "We had…" / "We ordered…" (about specific out-of-scope venues)
 - "I remember when…" / "Years ago I…" / "I've been going for…" / "The first time I went…"
 - "The trip when we…" / "On our drive down…" / "On our way out…"
 - Composite personal-experience scenes at the Cover Story location when that location is out of scope
 
-**Rewrite rules:**
+**Flag any "friend" fallback (Class 2), regardless of section:**
+- "a friend of mine" / "a friend who" / "friends of mine" / "a friend told me" / "a friend has been going"
+- Rewrite these attributions using a section-appropriate specific source (see rewrite rules below).
+
+**Flag The Guy in the wrong section (Class 3):**
+- If a sentence in hostsCorner or theDrive references "The Guy" (capital T, capital G, as a proper noun) — flag it and rewrite to use a section-appropriate attribution.
+
+**Rewrite rules by section:**
+
+*If the violation is in the Cover Story (coverStory):*
+- Rewrite so The Guy is the attribution source. The Guy is a real recurring character in Mark's world: sixty-ish, semi-retired, modest life with an outsized network. He does not own anything discussed; his experiences came through RELATIONSHIPS (his college roommate, his brother-in-law, a client who hosted him, his neighbor, someone at a dinner). Every reference to The Guy names the relationship pipeline through which he had the experience.
+- His voice is terse and dry. Quoted lines are one to three sentences, in quote marks.
+- Examples of good rewrites:
+  - Before: "A friend who spent a January there did both."
+  - After: "The Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo, and did both."
+  - Before: "When we ate at Palmer's Fish House, Steve told us to order the stew."
+  - After: "The Guy had dinner at Palmer's Fish House while he was hosted for a weekend by a client on the coast. Steve came out from behind the shucking counter and told him: skip the raw bar, go straight for the stew."
+- Do NOT use "a friend of mine" as a substitute. The Guy is the replacement.
+- Unvoiced factual statements are fine when a speaker isn't needed. "Sixty-eight degrees most days in January. Dry air." No attribution required.
+
+*If the violation is in hostsCorner:*
+- Attribute via named cookbook/chef, named kitchen/restaurant, named publication, or unvoiced fact/chemistry. NEVER The Guy. NEVER "a friend of mine."
+- Examples: "Kenji López-Alt's take in *The Food Lab*." / "This is how the pit at Franklin BBQ handles brisket rest." / "*Cook's Illustrated* tested this six ways in 2019." / "The reason this method works: at 129°F over four hours, myosin denatures but actin doesn't."
+
+*If the violation is in theDrive:*
+- Attribute via named automotive publication or reviewer, named owner-in-Mark's-network (advisor with a locatable practice), or unvoiced/reference fact. NEVER The Guy. NEVER "a friend of mine."
+- Examples: "Chris Harris on the Grand Tour called this the last time BMW built…" / "An advisor I've worked with for six years owns a G87 M2 in Zandvoort Blue and drove it up to Watkins Glen last summer." / "The G87 M2 is 453 hp, 3,867 lbs, and the last M-car with a manual gearbox."
+
+**General rewrite rules (all sections):**
 - Keep sensory density — specific details, named businesses, timing, textures.
-- Attribute via a class-named third party: "an advisor I work with in Denver," "a friend who's been going every October," "the client who spent three summers there," "the write-up I trust most is [publisher]'s piece," "a neighbor here in Florida keeps a place there and says…"
-- Preserve paragraph shape and cadence. Do not compress or delete named restaurants, hotels, or places. Just change the SPEAKER.
+- Preserve paragraph shape and cadence. Do not compress or delete named restaurants, hotels, or places. Just change the SPEAKER or the ATTRIBUTION device.
 - Do not use em dashes. Use commas, periods, or parentheses.
 
 Return ONLY this JSON:
@@ -1024,6 +1094,7 @@ Return ONLY this JSON:
   "violations": [
     {
       "section": "coverStory" | "hostsCorner" | "theDrive",
+      "class": 1 | 2 | 3,
       "original": "the exact sentence or short passage that violates (verbatim from the input)",
       "rewrite": "the attributed rewrite"
     }
@@ -1034,6 +1105,7 @@ If no violations, return {"violations":[]}. Do not include preamble or markdown 
 
 type AuthorScopeViolation = {
   section: "coverStory" | "hostsCorner" | "theDrive";
+  class?: 1 | 2 | 3;
   original: string;
   rewrite: string;
 };
