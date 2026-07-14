@@ -12,7 +12,11 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { composeWeekendWriterVoice } from "./saturday-latte-voice-modules";
-import { type LatteImagePrompts, generateLatteImages } from "./saturday-latte-images";
+import {
+  type LatteImagePrompts,
+  type LatteImageSubjects,
+  generateLatteImages,
+} from "./saturday-latte-images";
 import { validateContentUrls } from "./saturday-latte-url-validate";
 import type {
   LinkInBody,
@@ -495,11 +499,14 @@ Also useful when the piece calls for it: attribution to the SPECIFIC place named
 
 DO NOT use these hollow words in prompts (they push the model to the AI-editorial default): "beautiful," "cinematic," "editorial," "charming," "picturesque," "atmospheric," "cozy," "warm and inviting." Say what SPECIFICALLY is beautiful — the light, the surface, the gesture.
 
+**SLOT-TO-SUBJECT LOCK-IN (critical — prevents image cross-slot mix-ups):** Each imagePrompt is rendered into a specific section of the newsletter and must UNAMBIGUOUSLY name that section's actual content. Tasting menu prompts especially: two items in the same issue can look similar (e.g., both coffee-adjacent) and Gemini will happily produce interchangeable images unless the prompt names the item explicitly. Every prompt is required to reference the exact subject text from its section, verbatim where possible.
+
 The 5 image fields (one prompt per field, tastingMenu has 3 sub-prompts):
-- hero: the cover story's primary place, one focal element, specific light + time of day
-- coverDetail: a specific ONE-thing detail from the cover story (a hand on a rail, oysters on ice, a specific doorway with light hitting it)
-- tastingMenu: array of 3 prompts, one per tasting menu item, showing each item in a real use context
-- hostsCorner: the actual cooking technique in progress or its result — a hand, a pan, one moment
+
+- **hero**: MUST name the cover story's primary place (the actual city/town from coverStoryHeadline). Plus one focal element and specific light + time of day. Example: "The bluff overlook at Lanesboro, Minnesota, from the Root River Trail at 7am, low sun catching limestone, one cyclist a hundred yards down the trail." Not "a scenic bluff town at sunrise."
+- **coverDetail**: MUST reference a specific ONE-thing detail from THIS cover story's location. Not a generic version of that kind of detail. Example: "The interior of the Commonweal Theatre lobby in Lanesboro at 6pm — brass wall sconces, playbill stack on a walnut table, one folded program left on a leather bench." Not "a small-town theater lobby."
+- **tastingMenu**: array of 3 prompts, one per tasting menu item. **Each prompt MUST include the exact title of its tasting menu item, verbatim from tastingMenu[i].title.** This is non-negotiable — it is the only reliable defense against two similar-category items (two coffee items, two books, two films) rendering as interchangeable images. Example for a "Worth Trying: Fellow Ode Brew Grinder Gen 2" item: "The Fellow Ode Brew Grinder Gen 2 on a butcher-block counter beside a pour-over kettle, morning window light, one dark coffee bean on the counter." NOT: "a coffee grinder on a kitchen counter." The item's exact product/book/film name must appear inside the prompt.
+- **hostsCorner**: MUST reference the specific technique from hostsCorner.moveTitle by name. Example for "The Cold-Start Cast Iron Steak": "A room-temperature ribeye in a cold cast iron skillet on a gas burner, first ninety seconds of the cold-start method, small pool of rendered fat around the meat, kitchen window light at 5pm." Not "a steak searing on cast iron."
 - theDrive: the specific car in a specific real-world setting with specific light. **CAR ACCURACY IS CRITICAL AND HAS BEEN A REPEATED FAILURE MODE** — image models WILL default to the previous generation of a nameplate unless the prompt spells out (a) the current generation, (b) 4-5 distinguishing visual features, (c) an explicit "NOT the [previous generation]" negative, and (d) a period-correct color. Readers who know cars notice immediately when a 2024 M2 renders as a 2020 M2. Every theDrive prompt MUST use the structure below.
 
 **Required components for every theDrive prompt when a specific year/model is named:**
@@ -977,16 +984,18 @@ Quick reference for common generation pairs:
 - Miata: ND (angular headlights, sharp folds). NOT NC/NB (rounder body).
 - Audi RS6 Avant: C8 (wide flares, full-width tail-light bar, oval exhausts, Nardo Grey iconic).
 
+**SLOT-TO-SUBJECT LOCK-IN (critical):** Each prompt must EXPLICITLY name its section's subject. For tasting menu items especially — two items in one issue may be visually similar (both coffee-adjacent, both books, both films) and must be forced to render as distinct images. Include the exact title of each tasting menu item inside its prompt. Include the specific technique name inside the hostsCorner prompt. Include the specific place name inside hero and coverDetail.
+
 The 7 slots, output as JSON only:
 {
-  "hero": "wide atmospheric scene from the cover story location, with specific light + one focal element",
-  "coverDetail": "one specific detail from cover story (a hand on a rail, oysters on ice, a doorway at 4pm light)",
+  "hero": "wide scene naming the cover story's specific place, with specific light + one focal element",
+  "coverDetail": "one specific detail from THIS cover story's specific place, named",
   "tastingMenu": [
-    "prompt for tasting menu item 1 in real use context",
-    "prompt for tasting menu item 2 in real use context",
-    "prompt for tasting menu item 3 in real use context"
+    "prompt that names the EXACT TITLE of tasting menu item 1 verbatim, shown in a real use context",
+    "prompt that names the EXACT TITLE of tasting menu item 2 verbatim, shown in a real use context",
+    "prompt that names the EXACT TITLE of tasting menu item 3 verbatim, shown in a real use context"
   ],
-  "hostsCorner": "the cooking technique in progress or its result — hand, pan, one moment",
+  "hostsCorner": "the specific technique from moveTitle by name, in progress or its result",
   "theDrive": "the specific car with YEAR + GENERATION CODE + 4-5 distinguishing visual features + EXPLICIT NEGATIVE on the previous generation + period-correct color, in an evocative real-world setting with specific light. Example: '2024 BMW M2 (G87 generation, 2023+) in Zandvoort Blue Metallic at a coastal Florida marina at 7:30am. Squared-off boxy fender flares (NOT the rounded flares of the F87), slim horizontal laser LED headlights with hexagonal DRLs (NOT the twin round headlights of the F87), tall vertical kidney grille in body color, quad rectangular exhaust tips symmetrically arranged. Off-center composition with mist over the marina and a single dock line in the left foreground.'"
 }
 
@@ -1375,8 +1384,19 @@ export async function generateSaturdayLatteIssue(opts: {
 
   if (imagePrompts) {
     try {
+      const subjects: LatteImageSubjects = {
+        coverStoryLocation: scopedContent.coverStoryHeadline,
+        tastingMenuTitles: [
+          scopedContent.tastingMenu[0]?.title ?? "",
+          scopedContent.tastingMenu[1]?.title ?? "",
+          scopedContent.tastingMenu[2]?.title ?? "",
+        ],
+        hostsCornerMove: scopedContent.hostsCorner.moveTitle,
+        theDriveCar: scopedContent.theDrive.car,
+      };
       const imageResult = await generateLatteImages({
         prompts: imagePrompts,
+        subjects,
         issueDate: opts.issueDate,
       });
       imagesCostUsd = imageResult.costUsd;

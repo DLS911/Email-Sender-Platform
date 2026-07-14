@@ -36,6 +36,17 @@ export type LatteImagePrompts = {
   theDrive: string;
 };
 
+// Section+subject metadata prepended to every Gemini prompt to lock the
+// rendered image to the correct slot. Prevents two similar-category
+// tasting menu items (e.g., two coffee-adjacent picks) from rendering
+// as interchangeable images. Subjects are pulled from writer content.
+export type LatteImageSubjects = {
+  coverStoryLocation: string; // e.g., "Lanesboro, Minnesota"
+  tastingMenuTitles: string[]; // 3 titles, one per tasting menu slot
+  hostsCornerMove: string; // e.g., "The Cold-Start Cast Iron Steak"
+  theDriveCar: string; // e.g., "2024 Porsche 911 Carrera T (992)"
+};
+
 export type LatteImageUrls = {
   hero?: string;
   coverDetail?: string;
@@ -93,8 +104,9 @@ type GeminiResponse = {
 async function generateOneImage(
   apiKey: string,
   slotPrompt: string,
+  sectionTag: string,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const fullPrompt = `${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
+  const fullPrompt = `${sectionTag}\n\n${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
   const response = await fetch(GEMINI_ENDPOINT(GEMINI_MODEL, apiKey), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -157,13 +169,59 @@ async function generateAndStore(
   storage: SupabaseClient,
   slot: string,
   prompt: string,
+  sectionTag: string,
   issueDate: string,
   genStamp: string,
 ): Promise<{ url: string }> {
-  const img = await generateOneImage(apiKey, prompt);
+  const img = await generateOneImage(apiKey, prompt, sectionTag);
   const filename = `${issueDate}/${slot}-${genStamp}.${extForMime(img.mimeType)}`;
   const publicUrl = await uploadToStorage(storage, img.bytes, filename, img.mimeType);
   return { url: publicUrl };
+}
+
+// Build the section+subject tag prepended to every prompt sent to Gemini.
+// The tag names the newsletter section and the specific subject the image
+// must render, locking the slot even if the writer's prompt drifted.
+function sectionTagFor(slot: string, subjects: LatteImageSubjects): string {
+  const parts: string[] = [];
+  switch (slot) {
+    case "hero":
+      parts.push(
+        `[Saturday Morning Latte — Cover Story HERO image] Subject: the town or place named "${subjects.coverStoryLocation}". This image is the top banner under the Cover Story headline; it must clearly show this specific location.`,
+      );
+      break;
+    case "cover-detail":
+      parts.push(
+        `[Saturday Morning Latte — Cover Story DETAIL image] Subject: one specific detail from "${subjects.coverStoryLocation}". This image sits mid-way through the Cover Story body; it must depict a physical detail of that specific place, not a generic version.`,
+      );
+      break;
+    case "tasting-1":
+      parts.push(
+        `[Saturday Morning Latte — Tasting Menu #1 image] Subject: "${subjects.tastingMenuTitles[0] ?? ""}". This image sits under the first tasting menu item; it MUST render THIS EXACT product, book, film, or drink, not a similar-category alternative. Two tasting menu items in this issue may look alike (both books, both coffee-adjacent, etc.); this image must be unambiguously about the specific item named.`,
+      );
+      break;
+    case "tasting-2":
+      parts.push(
+        `[Saturday Morning Latte — Tasting Menu #2 image] Subject: "${subjects.tastingMenuTitles[1] ?? ""}". This image sits under the second tasting menu item; it MUST render THIS EXACT product, book, film, or drink, not a similar-category alternative. Two tasting menu items in this issue may look alike; this image must be unambiguously about the specific item named.`,
+      );
+      break;
+    case "tasting-3":
+      parts.push(
+        `[Saturday Morning Latte — Tasting Menu #3 image] Subject: "${subjects.tastingMenuTitles[2] ?? ""}". This image sits under the third tasting menu item; it MUST render THIS EXACT product, book, film, or drink, not a similar-category alternative. Two tasting menu items in this issue may look alike; this image must be unambiguously about the specific item named.`,
+      );
+      break;
+    case "hosts-corner":
+      parts.push(
+        `[Saturday Morning Latte — Host's Corner image] Subject: the cooking technique "${subjects.hostsCornerMove}". This image sits inside the Host's Corner section; it must depict THIS specific technique in progress or its result, not a generic kitchen scene.`,
+      );
+      break;
+    case "the-drive":
+      parts.push(
+        `[Saturday Morning Latte — The Drive image] Subject: the car "${subjects.theDriveCar}". This image sits inside The Drive section; it must render THIS EXACT car, correct year and generation, not a different generation of the same nameplate.`,
+      );
+      break;
+  }
+  return parts.join("\n");
 }
 
 // Short random suffix appended to every image filename so regenerating
@@ -175,6 +233,7 @@ function makeGenStamp(): string {
 
 export async function generateLatteImages(opts: {
   prompts: LatteImagePrompts;
+  subjects: LatteImageSubjects;
   issueDate: string;
   googleApiKey?: string;
 }): Promise<ImageGenResult> {
@@ -251,7 +310,15 @@ export async function generateLatteImages(opts: {
     jobs.map((job) =>
       job.prompt.trim() === ""
         ? Promise.reject(new Error("empty prompt"))
-        : generateAndStore(apiKey, storage, job.slot, job.prompt, opts.issueDate, genStamp),
+        : generateAndStore(
+            apiKey,
+            storage,
+            job.slot,
+            job.prompt,
+            sectionTagFor(job.slot, opts.subjects),
+            opts.issueDate,
+            genStamp,
+          ),
     ),
   );
 
