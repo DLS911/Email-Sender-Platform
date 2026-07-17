@@ -21,6 +21,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
+import { fetchCarReferenceImage } from "./saturday-latte-car-image";
 
 const STORAGE_BUCKET = "Latte Images";
 const GEMINI_MODEL = "gemini-2.5-flash-image";
@@ -101,17 +102,15 @@ type GeminiResponse = {
   };
 };
 
-async function generateOneImage(
+async function callGemini(
   apiKey: string,
-  slotPrompt: string,
-  sectionTag: string,
+  parts: Array<Record<string, unknown>>,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const fullPrompt = `${sectionTag}\n\n${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
   const response = await fetch(GEMINI_ENDPOINT(GEMINI_MODEL, apiKey), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      contents: [{ role: "user", parts }],
       generationConfig: {
         responseModalities: ["IMAGE"],
       },
@@ -128,14 +127,83 @@ async function generateOneImage(
     throw new Error(`gemini image: blocked — ${data.promptFeedback.blockReason}`);
   }
 
-  const parts = data.candidates?.[0]?.content?.parts ?? [];
-  for (const part of parts) {
+  const outParts = data.candidates?.[0]?.content?.parts ?? [];
+  for (const part of outParts) {
     if (part.inlineData?.data) {
       const bytes = Uint8Array.from(Buffer.from(part.inlineData.data, "base64"));
       return { bytes, mimeType: part.inlineData.mimeType ?? "image/png" };
     }
   }
   throw new Error("gemini image: no inline image data in response");
+}
+
+async function generateOneImage(
+  apiKey: string,
+  slotPrompt: string,
+  sectionTag: string,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const fullPrompt = `${sectionTag}\n\n${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
+  return callGemini(apiKey, [{ text: fullPrompt }]);
+}
+
+/**
+ * Reference-driven image generation for the theDrive slot. Fetches a real
+ * press photo of the car from Google Custom Search, then asks Gemini to
+ * keep the car body faithful to the reference while placing it in our
+ * editorial setting. This solves the repeated failure mode of text-only
+ * Gemini rendering the wrong generation of a named nameplate.
+ *
+ * If reference lookup fails, falls back to text-only generation so an
+ * issue still ships with some image rather than a broken slot.
+ */
+async function generateDriveImageWithReference(
+  apiKey: string,
+  slotPrompt: string,
+  sectionTag: string,
+  carName: string,
+): Promise<{ bytes: Uint8Array; mimeType: string; usedReference: boolean; referenceUrl?: string }> {
+  let reference: Awaited<ReturnType<typeof fetchCarReferenceImage>> | null = null;
+  try {
+    reference = await fetchCarReferenceImage(carName);
+  } catch (err) {
+    console.error(
+      "latte.car_reference_lookup_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  if (!reference) {
+    const result = await generateOneImage(apiKey, slotPrompt, sectionTag);
+    return { ...result, usedReference: false };
+  }
+
+  const editingInstruction = `${sectionTag}
+
+REFERENCE-IMAGE MODE: The image below is a real press photo of the car this slot is about ("${carName}"). Use it as the ground truth for the CAR ITSELF — body proportions, headlights, tail lights, fenders, wheels, badging, and generation-specific styling must match this reference. Do NOT substitute an earlier or later generation of the same nameplate. The car body in your output must be visually consistent with this reference photo.
+
+Then place this exact car into the setting and light described below. You may change: the background, the light quality, the time of day, the composition, the depth of field, the surface the car is on, and any props in the scene. You must NOT change: the year, the generation, the body shape, the headlight design, the wheel design, or any other identifying feature of the car itself.
+
+EDITORIAL SETTING PROMPT:
+${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
+
+  const base64 = Buffer.from(reference.bytes).toString("base64");
+  const parts = [
+    { text: editingInstruction },
+    { inlineData: { mimeType: reference.mimeType, data: base64 } },
+  ];
+
+  try {
+    const result = await callGemini(apiKey, parts);
+    return { ...result, usedReference: true, referenceUrl: reference.sourceUrl };
+  } catch (err) {
+    // If Gemini rejects the edit call, retry once with text-only
+    console.error(
+      "latte.car_reference_edit_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    const fallback = await generateOneImage(apiKey, slotPrompt, sectionTag);
+    return { ...fallback, usedReference: false, referenceUrl: reference.sourceUrl };
+  }
 }
 
 async function uploadToStorage(
@@ -170,13 +238,24 @@ async function generateAndStore(
   slot: string,
   prompt: string,
   sectionTag: string,
+  subjects: LatteImageSubjects,
   issueDate: string,
   genStamp: string,
-): Promise<{ url: string }> {
-  const img = await generateOneImage(apiKey, prompt, sectionTag);
+): Promise<{ url: string; usedReference?: boolean; referenceUrl?: string }> {
+  let img: { bytes: Uint8Array; mimeType: string; usedReference?: boolean; referenceUrl?: string };
+  if (slot === "the-drive" && subjects.theDriveCar.trim() !== "") {
+    img = await generateDriveImageWithReference(apiKey, prompt, sectionTag, subjects.theDriveCar);
+  } else {
+    const result = await generateOneImage(apiKey, prompt, sectionTag);
+    img = result;
+  }
   const filename = `${issueDate}/${slot}-${genStamp}.${extForMime(img.mimeType)}`;
   const publicUrl = await uploadToStorage(storage, img.bytes, filename, img.mimeType);
-  return { url: publicUrl };
+  return {
+    url: publicUrl,
+    ...(img.usedReference !== undefined ? { usedReference: img.usedReference } : {}),
+    ...(img.referenceUrl ? { referenceUrl: img.referenceUrl } : {}),
+  };
 }
 
 // Build the section+subject tag prepended to every prompt sent to Gemini.
@@ -316,6 +395,7 @@ export async function generateLatteImages(opts: {
             job.slot,
             job.prompt,
             sectionTagFor(job.slot, opts.subjects),
+            opts.subjects,
             opts.issueDate,
             genStamp,
           ),
