@@ -30,7 +30,10 @@ export default function HomePage() {
             <a href="/concepts">→ Brain concepts (framework + content)</a>
           </li>
           <li>
-            <a href="/stats">→ Engagement stats</a>
+            <a href="/stats">→ Engagement stats (mock)</a>
+          </li>
+          <li>
+            <a href="/engagement">→ Engagement (live: opens, clicks, deliverability)</a>
           </li>
           <li>
             <a href="/tour">→ What's wired vs. what's coming</a>

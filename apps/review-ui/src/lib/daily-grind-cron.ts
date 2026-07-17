@@ -388,6 +388,7 @@ async function sendOne(
   resend: Resend,
   recipient: TestSubscriber,
   rendered: { html: string; text: string; subject: string },
+  issueDate: string,
 ): Promise<string> {
   const fromAddress = process.env.RESEND_FROM_ADDRESS ?? "daily@send.castorabbott.com";
   // Replace the render-time placeholder with this recipient's signed URL.
@@ -404,6 +405,12 @@ async function sendOne(
     html: personalised.html,
     text: personalised.text,
     headers: listUnsubscribeHeaders(recipient.email, "daily-grind"),
+    // Tags flow back on every webhook event so the engagement dashboard
+    // can bucket opens/clicks by brand + issue_date without a lookup.
+    tags: [
+      { name: "brand", value: "daily_grind" },
+      { name: "issue_date", value: issueDate },
+    ],
   });
   if (result.error) {
     throw new Error(`resend_send: ${result.error.message ?? JSON.stringify(result.error)}`);
@@ -744,7 +751,7 @@ export async function runDailyGrindSend(
         };
       }
 
-      const resendId = await sendOne(resend, row.subscriber, rendered);
+      const resendId = await sendOne(resend, row.subscriber, rendered, actualIssueDate);
       await markSent(db, row.subscriber.id, row.localDate);
       const sentEntry: { email: string; issueDate: string; resendId: string; fallback?: boolean } =
         { email: row.subscriber.email, issueDate: row.localDate, resendId };
@@ -892,7 +899,7 @@ export async function runDailyGrindCron(
       continue;
     }
     try {
-      const resendId = await sendOne(resend, row.subscriber, rendered);
+      const resendId = await sendOne(resend, row.subscriber, rendered, issueDate);
       await markSent(db, row.subscriber.id, row.localDate);
       result.sent.push({ email: row.subscriber.email, issueDate: row.localDate, resendId });
     } catch (err) {

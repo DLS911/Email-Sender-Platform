@@ -312,6 +312,7 @@ async function sendOne(
   resend: Resend,
   recipient: LatteSubscriber,
   rendered: { html: string; text: string; subject: string },
+  issueDate: string,
 ): Promise<string> {
   const fromAddress = process.env.RESEND_FROM_ADDRESS ?? "latte@send.castorabbott.com";
   const personalised = rewriteUnsubscribeUrl(
@@ -327,6 +328,14 @@ async function sendOne(
     html: personalised.html,
     text: personalised.text,
     headers: listUnsubscribeHeaders(recipient.email, "latte"),
+    // Tags flow back on every webhook event so the engagement dashboard
+    // can bucket opens/clicks by brand + issue_date without a lookup.
+    // Resend tag values must be [A-Za-z0-9_-] so we slug the issue_date
+    // (which is already ISO-format, safe).
+    tags: [
+      { name: "brand", value: "saturday_latte" },
+      { name: "issue_date", value: issueDate },
+    ],
   });
   if (result.error) {
     throw new Error(`resend_send: ${result.error.message ?? JSON.stringify(result.error)}`);
@@ -525,7 +534,7 @@ export async function runLatteSend(
         };
       }
 
-      const resendId = await sendOne(resend, row.subscriber, rendered);
+      const resendId = await sendOne(resend, row.subscriber, rendered, actualIssueDate);
       await markSent(db, row.subscriber.id, row.localDate);
       const sentEntry: { email: string; issueDate: string; resendId: string; fallback?: boolean } =
         { email: row.subscriber.email, issueDate: row.localDate, resendId };
