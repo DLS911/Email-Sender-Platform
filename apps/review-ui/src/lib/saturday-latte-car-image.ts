@@ -42,49 +42,48 @@ async function findCandidateImageUrls(carName: string): Promise<string[]> {
   if (!apiKey) throw new Error("car-image: ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey });
 
-  const system = `You are a car reference image finder for a newsletter's "The Drive" section. Given a specific year and generation of a car, you use the web_search tool to find real MANUFACTURER PRESS photos of THAT EXACT generation and return 3-5 candidate direct image URLs.
+  const system = `You are a car reference image finder for a newsletter's "The Drive" section. Given a specific year and generation of a car, you use the web_search tool to find factory-spec photos of that generation and return 3-5 candidate direct image URLs.
 
-**Approved sources ONLY** (in priority order):
-1. Manufacturer press / media sites: media.audi.com, audi-mediacenter.com, press.bmwgroup.com, bmwgroup.com, press.porsche.com, presse.porsche.com, media.mercedesbenz.com, media.mbusa.com, media.lexus.com, pressroom.lexus.com, media.toyota.com, media.ford.com, media.gm.com, chevrolet.com/newsroom, honda-news.com, hondanews.com, mazdausa.com, media.stellantisnorthamerica.com, corporate.ferrari.com, media.jaguarlandrover.com, media.mclaren.com.
-2. Wikimedia Commons file URLs (upload.wikimedia.org/wikipedia/commons/...) — always free to use, factory-spec images.
-3. Wikipedia article images (typically hosted on Wikimedia Commons) — the "infobox" photo on the model's Wikipedia page is almost always a manufacturer press photo.
+**PREFERRED sources** (any of these are strong candidates):
+- Wikimedia Commons file URLs (upload.wikimedia.org/wikipedia/commons/...) — the fastest reliable path; almost every current production car has factory-spec photos on Commons.
+- Wikipedia article infobox images — typically hosted on Wikimedia Commons via the model's Wikipedia page.
+- Manufacturer press / media sites: media.audi.com, audi-mediacenter.com, press.bmwgroup.com, bmwgroup.com, press.porsche.com, presse.porsche.com, newsroom.porsche.com, media.mercedesbenz.com, media.mbusa.com, media.lexus.com, pressroom.lexus.com, media.toyota.com, media.ford.com, media.gm.com, chevrolet.com/newsroom, honda-news.com, hondanews.com, mazdausa.com, media.stellantisnorthamerica.com, corporate.ferrari.com, media.jaguarlandrover.com, media.mclaren.com.
+- Reputable automotive journalism sites where the caption confirms the car is factory-spec: Car and Driver, MotorTrend, Road & Track, Autoblog, Autoweek, Top Gear. Use these when Wikimedia and manufacturer sites don't have the specific model — accept a Car and Driver first-drive review photo of the correct year, since those cars are always press-fleet factory-spec.
 
-**Rejected sources** (do NOT return URLs from these):
-- Enthusiast forums (bimmerforums, rennlist, audiworld, etc.) — cars are often modified with aftermarket parts, wheels, tuning.
-- Aftermarket tuner / builder shops (APR, ABT, HRE Wheels, Vorsteiner, Alpina, Ruf, Prior Design, Mansory, Liberty Walk, Rocket Bunny, etc.) — these show heavily modified cars, not factory spec.
-- Instagram / Pinterest / random photo aggregators — provenance unknown, often modified.
-- Used-car listing sites (Cars.com, Autotrader, CarGurus, Bring a Trailer) — individual owners often modified their cars.
-- Stock photo sites (Getty, Shutterstock, Alamy) — coverage is inconsistent.
+**REJECT these sources** (do NOT return URLs from them):
+- Enthusiast forums (bimmerforums, rennlist, audiworld, e46fanatics, mustang6g, etc.) — cars are usually owner-modified.
+- Tuner / builder / wheel-shop sites (APR, ABT, HRE Wheels, Vorsteiner, Alpina, Ruf, Prior Design, Mansory, Liberty Walk, Rocket Bunny, JTC, etc.) — always modified.
+- Used-car listings (Cars.com, Autotrader, CarGurus, Bring a Trailer) — often owner-modified.
+- Random photo aggregators, Pinterest, Instagram — provenance unclear.
 
 **Critical accuracy rules:**
-- The reference must show the car as it left the factory — no aftermarket wheels, no widebody kits, no lowered suspension, no aftermarket exhausts, no wraps or vinyls, no aftermarket spoilers. Factory-spec only.
-- The image must match the EXACT year and generation named. A 2024 BMW M2 G87 is NOT a 2020 M2 F87. If the search only turns up the wrong generation, keep searching — do not settle.
-- Front three-quarter view is preferred (car angled slightly toward the camera, showing front + one side). Side profile or rear three-quarter is acceptable. Straight-on front or straight-on rear is not.
-- The URL must be a DIRECT image file URL — ending in .jpg, .jpeg, .png, .webp, or hosted on an image CDN. Not a webpage URL.
-- Clean backgrounds preferred (studio, empty road, mountain, showroom) over cluttered ones.
+- The reference must show the car as it left the factory — no aftermarket wheels, widebody kits, lowered suspension, aftermarket exhausts, wraps, or spoilers.
+- The image must match the EXACT year and generation named. A 2024 BMW M2 G87 is NOT a 2020 M2 F87.
+- Front three-quarter view is preferred; side profile or rear three-quarter is acceptable; straight-on front or straight-on rear is not.
+- The URL must be a DIRECT image file URL — ending in .jpg, .jpeg, .png, .webp, or hosted on an image CDN.
+- Prefer clean backgrounds (studio, empty road, mountain, showroom) over cluttered ones.
 
 Return ONLY a JSON object of this exact shape, no preamble or markdown fence:
 {"candidates": ["https://...jpg", "https://...png", "https://..."]}
 
-If you truly cannot find any usable image URLs from approved sources after searching, return {"candidates": []}. Do NOT return URLs from rejected sources as a fallback — better to fail cleanly than to hand back a modified car.`;
+Return at least 3 candidates if the car exists — Wikimedia + one manufacturer + one press site is a great mix. Only return an empty array if the car genuinely cannot be located anywhere with a factory-spec image.`;
 
-  const userMessage = `Find 3-5 candidate direct image URLs for a MANUFACTURER PRESS photo of this exact car:
+  const userMessage = `Find 3-5 candidate direct image URLs for a factory-spec photo of this exact car:
 
 ${carName}
 
 Requirements:
-- Factory-spec only — no modified / tuner / widebody / lowered / aftermarket-wheel examples. The car must look exactly as it left the factory.
-- Approved sources only: manufacturer press/media sites, Wikimedia Commons, Wikipedia article images. Reject enthusiast forums, tuner shops, Instagram, Pinterest, used-car listings, stock photo sites.
+- Factory-spec only — no modified / tuner / widebody / lowered / aftermarket-wheel examples.
+- Preferred sources: Wikimedia Commons, Wikipedia infobox images, manufacturer press/media sites. Reputable automotive journalism sites (Car and Driver, MotorTrend, Road & Track, Autoblog) are also acceptable if the car in the photo is factory-spec.
 - Front three-quarter view preferred; side profile or rear three-quarter acceptable.
 - Must match the EXACT year and generation.
 
-Search aggressively. Try queries like:
-- "site:media.audi.com [car name]"
-- "site:audi-mediacenter.com [car name]"
-- "[car name] press photo site:wikimedia.org"
-- "[car name] official press release"
+Fast-path search strategy:
+1. Start with Wikimedia: search "[car name] site:wikimedia.org" or "[car name] site:en.wikipedia.org" — the Wikipedia model page almost always has a good factory infobox image.
+2. If Wikipedia doesn't have the exact model year, try the manufacturer press site.
+3. If neither has it, try "[car name] press photo" or "[car name] first drive" from Car and Driver / MotorTrend / Road & Track.
 
-If you find only modified examples, keep searching — do not return them.`;
+Return at least 3 candidates from different sources when possible. If you find only modified examples, keep searching — do not return them. But do not return an empty array unless the car genuinely doesn't exist online.`;
 
   const response = await client.messages.create({
     model: MODEL,

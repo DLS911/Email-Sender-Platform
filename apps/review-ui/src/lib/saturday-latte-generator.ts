@@ -1082,13 +1082,18 @@ Return ONLY the 7-field JSON specified in the system prompt.`;
 const AUTHOR_SCOPE_MODEL = "claude-haiku-4-5-20251001";
 const AUTHOR_SCOPE_MAX_TOKENS = 3000;
 
-const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Saturday Morning Latte. Your job is to find three specific classes of writing failures and rewrite them:
+const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Saturday Morning Latte. Your job is to find four specific classes of writing failures and rewrite them:
 
 **Class 1 — Out-of-scope first-person presence.** Sentences that assert Mark's personal presence at a place, restaurant, hotel, city, or specific experience OUTSIDE his authentic scope.
 
 **Class 2 — The "friend" fallback.** Any attribution using "a friend of mine," "a friend who…," "friends of mine," "friends who…" or similar generic friend constructions. This fallback got overused and is now banned across the entire newsletter.
 
 **Class 3 — The Connections Guy appearing outside the Cover Story.** The Connections Guy is a recurring Cover Story character (a source through whom out-of-scope destinations reach Mark). He appears ONLY in the coverStory section. If he appears in hostsCorner or theDrive, that is a violation — re-attribute via a section-appropriate source.
+
+**Class 4 — Stock catchphrases that got repetitive.** The following phrasings appeared in multiple prior issues and now read as boilerplate — Mark's reader has seen them and they read as templated:
+- "Three lines, which is verbose for him" — flag this phrase and rewrite to a fresh note-length framing. Alternatives: "one sentence, underlined." / "half a page for once." / "just three words scrawled at the top." / "the whole back of a boarding pass." / "one line, no punctuation." / "actually a full paragraph, which never happens." / "two names and a season." / "an address and a time."
+- "Don't tell everyone" as the ONLY signoff — Mark's rotation now includes: "Trust me on this." / "You're welcome ahead of time." / "Report back after." / "This one's mine." / "Between us." / "Not on the internet yet." / "Skip the Chamber of Commerce list." / "Take the back road in." / "Go before the weather turns." / "Wait until after Labor Day." / "Bring cash." / "Ask for [name] at the desk." If the piece uses "Don't tell everyone" AND another stock phrase, keep "Don't tell everyone" only if it fits and vary the other. If it appears as the ONLY closing across recent issues, swap for a different signoff from the rotation.
+- "crashing at a college roommate's place" as the recurring relationship — vary it. Alternatives: "staying at a client's family cabin," "in a friend's guest cottage," "hosted for a weekend by a former colleague who moved there in 2018," "at his brother-in-law's place on the north side," "renting the guesthouse of an old neighbor who retired there," "on his sister's couch for four nights."
 
 **Mark's authentic scope (first-person presence PERMITTED here — do NOT flag these):**
 - Home: coastal Florida salt canal, dock, boat, mornings on the water
@@ -1147,7 +1152,7 @@ Return ONLY this JSON:
   "violations": [
     {
       "section": "coverStory" | "hostsCorner" | "theDrive",
-      "class": 1 | 2 | 3,
+      "class": 1 | 2 | 3 | 4,
       "original": "the exact sentence or short passage that violates (verbatim from the input)",
       "rewrite": "the attributed rewrite"
     }
@@ -1158,7 +1163,7 @@ If no violations, return {"violations":[]}. Do not include preamble or markdown 
 
 type AuthorScopeViolation = {
   section: "coverStory" | "hostsCorner" | "theDrive";
-  class?: 1 | 2 | 3;
+  class?: 1 | 2 | 3 | 4;
   original: string;
   rewrite: string;
 };
