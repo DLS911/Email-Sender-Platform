@@ -300,6 +300,7 @@ async function persistIssue(
         authorScopeViolationsApplied: issue.meta.authorScopeViolationsApplied,
         driveReferenceUrl: issue.meta.driveReferenceUrl ?? null,
         driveUsedReference: issue.meta.driveUsedReference ?? false,
+        imageValidatorVerdicts: issue.meta.imageValidatorVerdicts ?? [],
         ...(issue.meta.imagePromptsSource ? { imagePromptsSource: issue.meta.imagePromptsSource } : {}),
         ...(issue.meta.imagePromptsError ? { imagePromptsError: issue.meta.imagePromptsError } : {}),
         ...(issue.meta.imagesError ? { imagesError: issue.meta.imagesError } : {}),

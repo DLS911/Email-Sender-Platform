@@ -337,11 +337,14 @@ export async function pickReferenceForScene(
       temperature: 0.1,
       system: `You are picking the best reference photo for an editorial car image edit. You will be shown several candidate photos of the same car and a description of the target scene / shot type. Pick the ONE candidate whose POSE and ANGLE most closely matches what the target scene needs.
 
+CRITICAL PRINCIPLE: The image editing model will preserve the reference car's pose, but if it has to rotate the car (e.g. reference is a rear view but scene needs to show the front), the model will SYNTHESIZE the missing angles and DRIFT AWAY from the correct year/generation. To avoid drift, ONLY pick a pose that already shows what the scene needs. If unsure, prefer 3/4 front (safest, matches most scenes, keeps the face preserved).
+
 Guidelines:
-- Panning-shot / cornering / mid-turn scenes want side-profile or 3/4 rear-angled poses that read as "in motion."
-- Static beauty shots want 3/4 front poses with clean composition.
-- Garage / driveway scenes want front-facing or 3/4 front poses.
-- Racetrack / apex scenes want side or rear-quarter action poses.
+- Panning-shot / cornering / mid-turn / apex / drifting / motorsport scenes → pick a SIDE PROFILE or 3/4 rear-angled action pose that already reads as "in motion."
+- Static beauty shots / parked / showroom / dealership / driveway / garage / arriving scenes → pick a 3/4 FRONT pose (this is the safest default — preserves the face which is where generation-specific styling is most identifiable).
+- Racetrack / apex / cornering / paddock scenes → pick a side or 3/4 rear action pose.
+- Scenic road / mountain / coastal / cruise / open highway (car IS moving but slowly, no panning) → prefer 3/4 front (the face is the identifying feature; motion is implied by scene, not by camera panning).
+- If scene ambiguity is unclear → default to 3/4 front.
 
 Return ONLY the number (1-based index) of the winning candidate. No explanation.`,
       messages: [

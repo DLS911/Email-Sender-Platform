@@ -1299,6 +1299,13 @@ export type SaturdayLatteIssue = {
     imagesError?: string;
     driveReferenceUrl?: string | null;
     driveUsedReference?: boolean;
+    imageValidatorVerdicts?: Array<{
+      slot: string;
+      attempts: number;
+      passed: boolean;
+      finalReason?: string;
+      usedFallbackToReference?: boolean;
+    }>;
     urlsValidated: number;
     urlsDropped: number;
     authorScopeViolationsFound: number;
@@ -1370,6 +1377,13 @@ export async function generateSaturdayLatteIssue(opts: {
   let imagesError: string | null = null;
   let driveReferenceUrl: string | null = null;
   let driveUsedReference = false;
+  let imageValidatorVerdicts: Array<{
+    slot: string;
+    attempts: number;
+    passed: boolean;
+    finalReason?: string;
+    usedFallbackToReference?: boolean;
+  }> = [];
   let contentWithImages = scopedContent;
 
   // Image prompts: try the writer's output first, fall back to a focused
@@ -1409,6 +1423,11 @@ export async function generateSaturdayLatteIssue(opts: {
           scopedContent.tastingMenu[1]?.title ?? "",
           scopedContent.tastingMenu[2]?.title ?? "",
         ],
+        tastingMenuLabels: [
+          scopedContent.tastingMenu[0]?.label ?? "",
+          scopedContent.tastingMenu[1]?.label ?? "",
+          scopedContent.tastingMenu[2]?.label ?? "",
+        ],
         hostsCornerMove: scopedContent.hostsCorner.moveTitle,
         theDriveCar: scopedContent.theDrive.car,
       };
@@ -1422,6 +1441,7 @@ export async function generateSaturdayLatteIssue(opts: {
       imagesFailed = imageResult.failures.length;
       driveReferenceUrl = imageResult.driveReferenceUrl ?? null;
       driveUsedReference = imageResult.driveUsedReference ?? false;
+      imageValidatorVerdicts = imageResult.validatorVerdicts ?? [];
       // Count successes by counting set keys in urls (tasting menu counted per slot)
       const tmCount = imageResult.urls.tastingMenu
         ? imageResult.urls.tastingMenu.filter((u) => u && u.trim() !== "").length
@@ -1540,6 +1560,7 @@ export async function generateSaturdayLatteIssue(opts: {
       ...(imagesError ? { imagesError } : {}),
       driveReferenceUrl,
       driveUsedReference,
+      imageValidatorVerdicts,
       urlsValidated: urlValidation.validated,
       urlsDropped: urlValidation.dropped,
       authorScopeViolationsFound: scope.violationsFound,

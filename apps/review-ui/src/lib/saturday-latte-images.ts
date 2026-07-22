@@ -22,6 +22,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
 import { fetchCarReferenceImage } from "./saturday-latte-car-image";
+import {
+  type ImageValidatorContext,
+  type ImageValidatorVerdict,
+  validateImage,
+} from "./saturday-latte-image-validator";
+import { fetchSubjectReferenceImage } from "./saturday-latte-subject-reference";
 
 const STORAGE_BUCKET = "Latte Images";
 const GEMINI_MODEL = "gemini-2.5-flash-image";
@@ -44,6 +50,7 @@ export type LatteImagePrompts = {
 export type LatteImageSubjects = {
   coverStoryLocation: string; // e.g., "Lanesboro, Minnesota"
   tastingMenuTitles: string[]; // 3 titles, one per tasting menu slot
+  tastingMenuLabels?: string[]; // 3 labels (e.g., "Worth Watching") - used to derive validator kind
   hostsCornerMove: string; // e.g., "The Cold-Start Cast Iron Steak"
   theDriveCar: string; // e.g., "2024 Porsche 911 Carrera T (992)"
 };
@@ -65,6 +72,14 @@ export type ImageGenResult = {
   driveReferenceUrl?: string | null;
   /** True if the drive slot was populated from a press photo (accuracy guaranteed); false if it fell back to text-only Gemini (may be inaccurate). */
   driveUsedReference?: boolean;
+  /** Per-slot validator verdicts (attempts, whether validator passed, final reason). Populated for every slot when the validator is enabled. */
+  validatorVerdicts?: Array<{
+    slot: string;
+    attempts: number;
+    passed: boolean;
+    finalReason?: string;
+    usedFallbackToReference?: boolean;
+  }>;
 };
 
 function getStorageClient(): SupabaseClient {
@@ -346,6 +361,166 @@ function extForMime(mimeType: string): string {
   return "png";
 }
 
+function tastingKindFor(label?: string): "book" | "film" | "product" | "drink" | "unknown" {
+  if (!label) return "unknown";
+  const l = label.toLowerCase();
+  if (l.includes("reading")) return "book";
+  if (l.includes("watching")) return "film";
+  if (l.includes("drinking")) return "drink";
+  if (l.includes("trying")) return "product";
+  if (l.includes("listening")) return "product";
+  return "unknown";
+}
+
+function validatorContextFor(slot: string, subjects: LatteImageSubjects): ImageValidatorContext | null {
+  switch (slot) {
+    case "hero":
+      return { slot: "hero", subject: subjects.coverStoryLocation };
+    case "cover-detail":
+      return { slot: "coverDetail", subject: subjects.coverStoryLocation };
+    case "hosts-corner":
+      return { slot: "hostsCorner", subject: subjects.hostsCornerMove };
+    case "the-drive":
+      return { slot: "theDrive", subject: subjects.theDriveCar };
+    case "tasting-1":
+      return {
+        slot: "tastingMenu",
+        subject: subjects.tastingMenuTitles[0] ?? "",
+        tastingKind: tastingKindFor(subjects.tastingMenuLabels?.[0]),
+      };
+    case "tasting-2":
+      return {
+        slot: "tastingMenu",
+        subject: subjects.tastingMenuTitles[1] ?? "",
+        tastingKind: tastingKindFor(subjects.tastingMenuLabels?.[1]),
+      };
+    case "tasting-3":
+      return {
+        slot: "tastingMenu",
+        subject: subjects.tastingMenuTitles[2] ?? "",
+        tastingKind: tastingKindFor(subjects.tastingMenuLabels?.[2]),
+      };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Try to fetch a Wikipedia reference image for a tasting menu item and
+ * run a background-only edit so the actual product/book/film shows up
+ * rather than a Gemini fabrication. If the Wikipedia lookup fails,
+ * falls through to text-only generation.
+ */
+async function generateTastingImageWithReference(
+  apiKey: string,
+  slotPrompt: string,
+  sectionTag: string,
+  subject: string,
+  kind: "book" | "film" | "product" | "drink" | "unknown",
+): Promise<{ bytes: Uint8Array; mimeType: string; usedReference: boolean; referenceUrl?: string }> {
+  const kindHint =
+    kind === "film"
+      ? "film"
+      : kind === "book"
+        ? "novel"
+        : kind === "product"
+          ? "product"
+          : kind === "drink"
+            ? ""
+            : "";
+
+  let reference: Awaited<ReturnType<typeof fetchSubjectReferenceImage>> = null;
+  try {
+    reference = await fetchSubjectReferenceImage(subject, kindHint);
+  } catch (err) {
+    console.warn(
+      "latte.tasting_reference_lookup_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  if (!reference) {
+    const gen = await generateOneImage(apiKey, slotPrompt, sectionTag);
+    return { ...gen, usedReference: false };
+  }
+
+  const preservationNote =
+    kind === "film"
+      ? "This is the official movie POSTER for the film. Preserve it exactly as the reference shows - do not modify the artwork or the title text. Show the poster displayed on a TV screen, a laptop screen, a framed print on a wall, or a movie theater lobby poster board. The rest of the frame can be an editorial living-room or viewing scene per the editorial-setting prompt below."
+      : kind === "book"
+        ? "This is the official BOOK COVER for the book. Preserve the cover art and title text exactly. Show the book resting on a surface (wooden table, windowsill, bedside table) with editorial-appropriate context per the setting prompt below."
+        : kind === "product"
+          ? "This is the official product photo. Preserve the product form factor, proportions, color, branding, and any physical details exactly (handle placement, port locations, dimensions). The product must appear as it actually exists - do not invent broken/modified variants. Place the product in the editorial context described in the setting prompt below."
+          : "Preserve the subject exactly as the reference shows. Place it in the editorial context described in the setting prompt below.";
+
+  const instruction = `${sectionTag}
+
+=== REFERENCE-IMAGE MODE for Tasting Menu ===
+
+The image below is a real reference of "${subject}" pulled from Wikipedia.
+
+${preservationNote}
+
+You may change the SURROUNDING SCENE (background, light, other props, framing) per the editorial setting prompt below. You may NOT change any aspect of the reference subject itself (its form factor, artwork, title text, branding, or physical details).
+
+The output must be a 1:1 SQUARE aspect ratio image.
+
+=== EDITORIAL SETTING ===
+
+${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
+
+REMINDER: the subject "${subject}" must appear per the reference image. Only the surrounding editorial scene may change.`;
+
+  const base64 = Buffer.from(reference.bytes).toString("base64");
+  try {
+    const edited = await callGemini(apiKey, [
+      { text: instruction },
+      { inlineData: { mimeType: reference.mimeType, data: base64 } },
+    ]);
+    return {
+      bytes: edited.bytes,
+      mimeType: edited.mimeType,
+      usedReference: true,
+      referenceUrl: reference.sourceUrl,
+    };
+  } catch (err) {
+    console.warn(
+      "latte.tasting_edit_failed_using_reference_direct",
+      err instanceof Error ? err.message : String(err),
+    );
+    return {
+      bytes: reference.bytes,
+      mimeType: reference.mimeType,
+      usedReference: true,
+      referenceUrl: reference.sourceUrl,
+    };
+  }
+}
+
+async function generateForSlot(
+  apiKey: string,
+  slot: string,
+  prompt: string,
+  sectionTag: string,
+  subjects: LatteImageSubjects,
+): Promise<{ bytes: Uint8Array; mimeType: string; usedReference?: boolean; referenceUrl?: string }> {
+  if (slot === "the-drive" && subjects.theDriveCar.trim() !== "") {
+    return generateDriveImageWithReference(apiKey, prompt, sectionTag, subjects.theDriveCar);
+  }
+  if (slot.startsWith("tasting-")) {
+    const idx = slot === "tasting-1" ? 0 : slot === "tasting-2" ? 1 : slot === "tasting-3" ? 2 : -1;
+    if (idx >= 0) {
+      const subject = subjects.tastingMenuTitles[idx] ?? "";
+      const label = subjects.tastingMenuLabels?.[idx] ?? "";
+      const kind = tastingKindFor(label);
+      if (subject.trim() !== "") {
+        return generateTastingImageWithReference(apiKey, prompt, sectionTag, subject, kind);
+      }
+    }
+  }
+  return generateOneImage(apiKey, prompt, sectionTag);
+}
+
 async function generateAndStore(
   apiKey: string,
   storage: SupabaseClient,
@@ -355,20 +530,85 @@ async function generateAndStore(
   subjects: LatteImageSubjects,
   issueDate: string,
   genStamp: string,
-): Promise<{ url: string; usedReference?: boolean; referenceUrl?: string }> {
-  let img: { bytes: Uint8Array; mimeType: string; usedReference?: boolean; referenceUrl?: string };
-  if (slot === "the-drive" && subjects.theDriveCar.trim() !== "") {
-    img = await generateDriveImageWithReference(apiKey, prompt, sectionTag, subjects.theDriveCar);
-  } else {
-    const result = await generateOneImage(apiKey, prompt, sectionTag);
-    img = result;
+): Promise<{
+  url: string;
+  usedReference?: boolean;
+  referenceUrl?: string;
+  verdict?: {
+    attempts: number;
+    passed: boolean;
+    finalReason?: string;
+    usedFallbackToReference?: boolean;
+  };
+}> {
+  const ctx = validatorContextFor(slot, subjects);
+
+  // Attempt 1
+  let img = await generateForSlot(apiKey, slot, prompt, sectionTag, subjects);
+  let attempts = 1;
+  let verdict: ImageValidatorVerdict | null = null;
+
+  if (ctx) {
+    verdict = await validateImage(img.bytes, img.mimeType, ctx);
   }
+
+  // Attempt 2 with retry hint if attempt 1 failed validation
+  if (ctx && verdict && !verdict.ok) {
+    console.warn("latte.image_validator_fail_attempt1", {
+      slot,
+      reason: verdict.reason,
+      hint: verdict.retryHint,
+    });
+    attempts = 2;
+    const sharpenedPrompt = `${prompt}
+
+CRITICAL FIX ON RETRY: A previous attempt to generate this exact image failed validation. The specific problem was: ${verdict.reason}. ${verdict.retryHint ? `To fix: ${verdict.retryHint}.` : ""} Do NOT repeat that failure this time.`;
+    img = await generateForSlot(apiKey, slot, sharpenedPrompt, sectionTag, subjects);
+    verdict = await validateImage(img.bytes, img.mimeType, ctx);
+  }
+
+  // If STILL failed after retry and we're on theDrive, fall back to
+  // reference-photo direct (which is always accurate even if compositionally
+  // generic). For other slots we upload the last attempt anyway.
+  let usedFallbackToReference = false;
+  if (ctx && verdict && !verdict.ok && slot === "the-drive" && img.referenceUrl) {
+    console.warn("latte.image_validator_fail_final_using_reference", {
+      slot,
+      final_reason: verdict.reason,
+    });
+    try {
+      const fallbackRef = await fetchCarReferenceImage(subjects.theDriveCar, prompt);
+      img = {
+        bytes: fallbackRef.bytes,
+        mimeType: fallbackRef.mimeType,
+        usedReference: true,
+        referenceUrl: fallbackRef.sourceUrl,
+      };
+      usedFallbackToReference = true;
+    } catch (err) {
+      console.error(
+        "latte.image_reference_fallback_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   const filename = `${issueDate}/${slot}-${genStamp}.${extForMime(img.mimeType)}`;
   const publicUrl = await uploadToStorage(storage, img.bytes, filename, img.mimeType);
   return {
     url: publicUrl,
     ...(img.usedReference !== undefined ? { usedReference: img.usedReference } : {}),
     ...(img.referenceUrl ? { referenceUrl: img.referenceUrl } : {}),
+    ...(ctx
+      ? {
+          verdict: {
+            attempts,
+            passed: verdict?.ok ?? true,
+            ...(verdict?.reason ? { finalReason: verdict.reason } : {}),
+            ...(usedFallbackToReference ? { usedFallbackToReference: true } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -519,6 +759,7 @@ export async function generateLatteImages(opts: {
   let successCount = 0;
   let driveReferenceUrl: string | null = null;
   let driveUsedReference = false;
+  const validatorVerdicts: NonNullable<ImageGenResult["validatorVerdicts"]> = [];
   for (let i = 0; i < jobs.length; i++) {
     const job = jobs[i]!;
     const res = results[i]!;
@@ -528,6 +769,17 @@ export async function generateLatteImages(opts: {
       if (job.slot === "the-drive") {
         driveReferenceUrl = res.value.referenceUrl ?? null;
         driveUsedReference = res.value.usedReference ?? false;
+      }
+      if (res.value.verdict) {
+        validatorVerdicts.push({
+          slot: job.slot,
+          attempts: res.value.verdict.attempts,
+          passed: res.value.verdict.passed,
+          ...(res.value.verdict.finalReason ? { finalReason: res.value.verdict.finalReason } : {}),
+          ...(res.value.verdict.usedFallbackToReference
+            ? { usedFallbackToReference: true }
+            : {}),
+        });
       }
     } else {
       failures.push({
@@ -544,5 +796,6 @@ export async function generateLatteImages(opts: {
     failures,
     driveReferenceUrl,
     driveUsedReference,
+    validatorVerdicts,
   };
 }
