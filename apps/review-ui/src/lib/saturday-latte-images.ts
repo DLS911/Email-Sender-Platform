@@ -21,6 +21,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
+import Anthropic from "@anthropic-ai/sdk";
 import { fetchCarReferenceImage } from "./saturday-latte-car-image";
 import {
   type ImageValidatorContext,
@@ -377,6 +378,61 @@ function extForMime(mimeType: string): string {
   return "png";
 }
 
+/**
+ * Ask Haiku to describe the specific visual signature of a film. Fed
+ * into the keyframe generation prompt so Gemini can produce a still
+ * that mimics the film's ACTUAL cinematography, not the generic AI
+ * "golden hour hero shot" default.
+ *
+ * Returns a compact profile: director + cinematographer, color palette,
+ * framing conventions, camera format, distinctive visual habits. Kept
+ * to ~150 words so the Gemini prompt doesn't get too long.
+ *
+ * Returns null on failure (no film-style info baked into the prompt;
+ * falls back to poster mode).
+ */
+async function researchFilmVisualStyle(filmTitle: string): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 400,
+      temperature: 0.2,
+      system: `You describe the specific visual/cinematographic signature of a named film or TV series in a compact profile. The description will be fed to an image generation model to help it produce a keyframe that mimics THIS film's actual look — not a generic AI approximation.
+
+Focus on what makes THIS film look different from other films:
+- Director + cinematographer names (when notable)
+- Color palette (warm ochres / muted blues / high-contrast B&W / saturated candy / earth tones / etc.)
+- Framing conventions (symmetric center-framed / wide vistas with tiny figures / handheld intimate / static wide / etc.)
+- Camera format (IMAX / anamorphic / 16mm grainy / digital clean)
+- Lighting habits (naturalistic overcast / hard directional sun / practical warm sources / low-key noir)
+- Any signature visual habits (Wes Anderson dollhouse symmetry / Villeneuve monumental scale / Fincher's cold precision / Malick's magic hour / Refn's neon)
+- What the film REJECTS (not teal-and-orange, not shallow-focus if it's wide-and-deep, etc.)
+
+Return ~150 words of dense, useful visual description. If you don't know the film well enough to describe it accurately, return the literal string "UNKNOWN" instead of guessing.`,
+      messages: [
+        {
+          role: "user",
+          content: `Describe the visual/cinematographic signature of: ${filmTitle}`,
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    text = text.trim();
+    if (!text || text.toUpperCase() === "UNKNOWN" || text.length < 30) return null;
+    return text;
+  } catch (err) {
+    console.warn(
+      "latte.film_style_research_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+
 function tastingKindFor(label?: string): "book" | "film" | "product" | "drink" | "unknown" {
   if (!label) return "unknown";
   const l = label.toLowerCase();
@@ -460,17 +516,44 @@ async function generateTastingImageWithReference(
     return { ...gen, usedReference: false };
   }
 
-  // For films: always use the actual Wikipedia poster in a poster-native
-  // portrait setting. Keyframe mode was removed because Wikipedia has no
-  // real film stills (they're copyrighted studio material) and Gemini's
-  // AI-approximated "keyframes" read as generic AI content. Poster mode
-  // works reliably; we vary the poster's SETTING across issues (framed
-  // wall, cinema lobby, sidewalk kiosk, movie room, held by person) to
-  // avoid visual monotony.
+  // For films: rotate 50/50 between poster mode and keyframe mode.
+  // - Poster mode: Wikipedia poster in a poster-native portrait setting.
+  // - Keyframe mode: Gemini generates a landscape "still" from the film,
+  //   guided by a per-film visual-style research pass so the still
+  //   mimics the SPECIFIC film's actual cinematography rather than
+  //   defaulting to generic AI-golden-hour aesthetics.
+  // If the visual-style research returns null (film not well-enough-
+  // known), fall back to poster mode for this issue.
+  let filmUseKeyframe = kind === "film" ? Math.random() < 0.5 : false;
+  let filmVisualStyle: string | null = null;
+  if (filmUseKeyframe) {
+    filmVisualStyle = await researchFilmVisualStyle(subject);
+    if (!filmVisualStyle) {
+      console.info("latte.film_style_unknown_falling_back_to_poster", { film: subject });
+      filmUseKeyframe = false;
+    }
+  }
 
   const preservationNote =
     kind === "film"
-      ? "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Rotate the setting across issues so the same setting isn't reused — pick ONE from: a framed print on a residential wall (movie room, hallway, apartment, home theater), an easel outside a cinema at dusk, an A-frame poster stand on a sidewalk, an art-house lobby wall with warm interior light, a bulletin-board-style community poster wall, held/carried by a person shown from behind (no face), a movie theater lobby marquee-adjacent poster board, or a poster shop / gallery display. **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. **DO NOT generate a Gemini-imagined 'key frame' from the film** — the poster IS the reference; use it as-is in its actual artwork. The scene around the poster should be editorial per the setting prompt below (warm interior light, dusk cinema queue, morning coffee shop, etc.)."
+      ? filmUseKeyframe && filmVisualStyle
+        ? `This slot is a "keyframe" from the film "${subject}" — a plausible still shot from the movie, displayed on a TV/laptop/tablet screen in an editorial home-viewing setting per the setting prompt below.
+
+**CRITICAL: this must look like a REAL still from THIS SPECIFIC film, not a generic AI-cinematic image.** Real film stills are shot with real cameras by real cinematographers with distinctive visual signatures. AI defaults to generic "golden-hour hero-shot" aesthetics that read as fake.
+
+**Visual-style profile for THIS film (research summary):**
+${filmVisualStyle}
+
+**Mimic that visual style exactly.** Match the color palette, framing conventions, lighting habits, and camera format described above. If the profile says "warm ochres and desaturated earth tones," use those — DO NOT default to teal-and-orange. If the profile says "symmetric center-framed," use that — DO NOT invent asymmetric handheld. If the profile says "wide vistas with tiny figures for scale," use that — DO NOT default to close-up hero shots.
+
+**Add real-camera character** — visible film grain (if the film was shot on 35mm/IMAX/16mm), realistic lens flare only where a real camera would produce it, focus fall-off consistent with the film's aperture choices, no plastic AI over-smoothing, no HDR-look processing, no cinematic teal-orange color grading unless the film actually uses it.
+
+**Composition rule:** the still should look like a paused frame from the actual movie. Real film compositions are often IMPERFECT (an actor slightly off-center, a foreground element partially cropped, ambient details in the environment). Perfectly-composed hero-shot symmetry is the AI tell.
+
+**Reference the poster (attached below) for:** the film's color palette, the type of subject matter, the character(s) if identifiable, the general mood. But DO NOT put the poster on the TV — render a landscape KEY FRAME the poster's palette and subject matter would come from.
+
+The scene around the TV/laptop is the editorial viewing context: cozy living room, dim lamps, a mug on the coffee table, a couch in the foreground, warm evening light.`
+        : "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Rotate the setting across issues — pick ONE from: a framed print on a residential wall (movie room, hallway, apartment, home theater), an easel outside a cinema at dusk, an A-frame poster stand on a sidewalk, an art-house lobby wall with warm interior light, a bulletin-board-style community poster wall, held/carried by a person shown from behind (no face), a movie theater lobby marquee-adjacent poster board, or a poster shop / gallery display. **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. The scene around the poster should be editorial per the setting prompt below."
       : kind === "book"
         ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. Show the book resting on a surface (wooden table, windowsill, bedside table, leather armchair) with editorial-appropriate context per the setting prompt below."
         : kind === "product"
