@@ -102,6 +102,19 @@ const LATTE_IMAGE_STYLE_SUFFIX =
 - **Hot pans show heat effects appropriately.** Steam only from wet food or actively boiling water; not from a dry cast iron with a raw steak just placed on it.
 - **Fabric drapes with weight and gravity.** Linen falls in soft folds toward the floor, not defying gravity.
 
+**KITCHEN LOGIC (for Host's Corner and any food frame).**
+- **Hot cookware sits on a heat-appropriate surface.** A cast iron skillet, hot pan, or dutch oven that's actively cooking goes on the STOVE. A hot pan that's been removed from the stove goes on a TRIVET, a STONE surface, an INDUCTION mat, or a cast iron rack. It NEVER goes directly on bare wood — that would burn/scar the wood. If depicting an active cooking scene, put the pan on the stove; if depicting a finished/plated dish, the pan should be off-frame or on a trivet.
+- **Grease, oil, and cooking liquids appear only where cooking would produce them.** Inside the pan (rendered fat, sauce, glaze) or on the food itself (pan drippings on a plated steak). NOT as random puddles on the cutting board, counter, or table adjacent to the pan. A grease puddle sitting on bare wood next to a pan is nonsensical — cooks would wipe it up immediately, and no cooking process deposits grease onto adjacent surfaces.
+- **Cutting boards and counters stay clean** except for the specific food or action shown. A prep scene shows the ingredient being prepped and small realistic debris FROM THAT PREP (garlic paper flakes from crushing garlic, a few onion skins from mincing onion). Not random unrelated bits.
+- **Utensils and tools appear only where they'd realistically be.** A whisk in a mixing bowl is fine. A whisk sitting alone on a windowsill next to a coffee cup is nonsensical.
+
+**HUMAN SUBJECT PERSPECTIVE (for any frame containing people).**
+- **People doing actions face the object of their action.** A tennis player is oriented toward the ball or the other player. A cook is looking at the pan or the ingredient. A reader's gaze falls on the book. A driver looks at the road.
+- **If depicting a movie or TV scene, the subjects in the frame respect the actual composition of that scene.** Actors in Challengers face each other during a tennis rally, not away. Actors in a two-person conversation face each other or a middle point.
+- **Bodies orient consistently with actions.** A tennis player mid-swing has racquet, arm, and gaze all aligned toward the ball. Not disconnected body parts pointing different directions.
+- **No zombie stares.** Human faces looking at nothing in particular in the middle distance are the classic AI tell. Either the person's gaze has a clear target in the frame, or the person is turned away / photographed from behind / silhouette-only.
+- If the correct perspective is hard to render, prefer angles that show the person from behind, in silhouette, or with the face partially obscured — that avoids the mid-distance zombie stare entirely.
+
 === EDITORIAL STYLE ===
 
 Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler — real editorial photography by a photographer with taste. Medium-format film aesthetic: Portra 400 warmth for humans, interiors, and food; Ektar 100 for landscape. Colors feel lived-in, not filtered — warm skin tones, natural greens, honest blues. Motivated light with specific character: window light with the direction visible, low golden-hour sun raking across texture, or diffuse overcast from an identifiable side. Compose off-center with negative space and a rule-of-thirds anchor — the subject is NEVER dead center. One clear focal point per frame; the eye lands somewhere specific. Natural imperfection welcomed: dust on a beam, a slightly worn edge, uneven shadow falloff, one thing not quite in its place. Depth of field driven by real optics (50mm at f/2.8 or 90mm at f/4 look), not the flat plasticky bokeh AI models default to. Textures are honest — wood grain, weave in linen, pitting in cast iron, real skin. Square 1:1 framing. Hands, backs, silhouettes, and angled-away shots are fine and welcome; no clearly identifiable faces of real people; no on-image text or captions.
@@ -179,22 +192,22 @@ async function generateOneImage(
 /**
  * Reference-driven image generation for the theDrive slot.
  *
- * PREVIOUS approach (reference photo + Gemini edit) failed twice in prod:
- * Gemini stripped M-specific styling details (fender flares, quad
- * exhausts, aggressive front bumpers), rendered garbled brand logos, and
- * mis-sized the body. Cars are the one category where accuracy is
- * non-negotiable and where AI editing is unreliable.
+ * Two-stage pipeline:
  *
- * CURRENT approach: use the manufacturer press photo DIRECTLY. Fetch
- * from OEM press sources via Haiku web_search (already built), upload
- * to Supabase Storage as-is, skip Gemini entirely for this slot. Trade
- * editorial-scene consistency for guaranteed car accuracy. Press photos
- * are already professionally shot and licensed for editorial use.
+ * 1. Fetch a real press photo of the car via Wikipedia REST API (see
+ *    saturday-latte-car-image.ts). Zero hallucination, correct year +
+ *    generation.
  *
- * If the press photo lookup fails, falls back to text-only Gemini as a
- * last resort so the issue still ships.
+ * 2. Use Gemini in image-editing mode with EXTREME preservation
+ *    constraints: the car pixels must not change, only the background
+ *    may be replaced with the editorial scene from the writer's prompt.
+ *    This gives us both accuracy (from the reference) and the newsletter's
+ *    editorial tone (from the scene rewrite).
+ *
+ * If Wikipedia fails, falls through to text-only Gemini as a last resort
+ * (known to produce wrong cars; only used if the primary path breaks).
  */
-async function generateDriveImageWithReference(
+export async function generateDriveImageWithReference(
   apiKey: string,
   slotPrompt: string,
   sectionTag: string,
@@ -211,28 +224,95 @@ async function generateDriveImageWithReference(
   }
 
   if (reference) {
-    // Use the press photo directly. This is the change: no Gemini edit,
-    // no scene rewrite. Just the OEM press image so the car is
-    // guaranteed to be the correct year + trim + factory spec.
-    console.info("latte.car_reference_used_direct", {
+    console.info("latte.car_reference_hit", {
       car: carName,
       source_url: reference.sourceUrl,
     });
-    return {
-      bytes: reference.bytes,
-      mimeType: reference.mimeType,
-      usedReference: true,
-      referenceUrl: reference.sourceUrl,
-    };
+
+    // Try the strict background-only edit. If Gemini rejects it, fall
+    // back to the reference photo used as-is (accurate car, generic
+    // background) rather than text-only (unknown car).
+    try {
+      const edited = await editDriveImageBackground(
+        apiKey,
+        reference,
+        slotPrompt,
+        sectionTag,
+        carName,
+      );
+      return {
+        bytes: edited.bytes,
+        mimeType: edited.mimeType,
+        usedReference: true,
+        referenceUrl: reference.sourceUrl,
+      };
+    } catch (err) {
+      console.warn(
+        "latte.car_edit_failed_using_reference_direct",
+        err instanceof Error ? err.message : String(err),
+      );
+      return {
+        bytes: reference.bytes,
+        mimeType: reference.mimeType,
+        usedReference: true,
+        referenceUrl: reference.sourceUrl,
+      };
+    }
   }
 
-  // No reference image found — fall back to text-only Gemini as a last
-  // resort so the issue still ships with SOMETHING in the drive slot.
-  // Note: this path is known to produce wrong-generation cars; the OEM
-  // press photo path above is the intended default.
   console.warn("latte.car_falling_back_to_text_only_gemini", { car: carName });
   const fallback = await generateOneImage(apiKey, slotPrompt, sectionTag);
   return { ...fallback, usedReference: false };
+}
+
+/**
+ * Background-only edit of a car reference photo. The reference image
+ * shows the car (as it left the factory) against some incidental
+ * background — a dealership, a street, a driveway. We want the CAR to
+ * remain pixel-faithful and the BACKGROUND to become the editorial
+ * scene the writer described.
+ *
+ * The prompt aggressively constrains Gemini against modifying the car
+ * because prior attempts saw Gemini strip performance-variant styling
+ * (fender flares, quad exhausts, aero) or drift to the wrong generation.
+ */
+export async function editDriveImageBackground(
+  apiKey: string,
+  reference: { bytes: Uint8Array; mimeType: string; sourceUrl: string; searchQuery: string },
+  slotPrompt: string,
+  sectionTag: string,
+  carName: string,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const instruction = `${sectionTag}
+
+=== BACKGROUND-ONLY EDIT (car must not change) ===
+
+The image below is a reference photograph of "${carName}". This car — every pixel of the car body, wheels, headlights, tail lights, grille, badging, ride height, color, and factory-spec styling — must appear in the output image IDENTICAL to how it appears in the reference. Do not stylize the car. Do not remove details. Do not add details. Do not change the color. Do not change the wheel design. Do not modify the front fascia. Do not modify the fender width or flare geometry. Do not modify the exhaust arrangement. The car is a fixed subject that MUST be preserved.
+
+You may ONLY change the BACKGROUND and the LIGHT on the car (as would happen if the same car were photographed at a different location and time of day). Specifically:
+- Replace the current background scene entirely with the editorial setting described below.
+- Adjust the lighting on the car to match the direction and quality of light in the new scene (a car in golden-hour side light will have that light on its side; a car in overcast morning light will have flat diffuse light on its body). But do not change the car's color or add reflections that would obscure its bodywork detail.
+- Reframe the composition if needed — off-center, rule-of-thirds, negative space on one side — but ALWAYS with the same car intact.
+- Ground the car realistically in the new scene: the surface it sits on (asphalt, wet coastal road, gravel, cobblestone), a shadow beneath it consistent with the light source, and appropriate weather (dry, wet, fog, mist).
+
+You may NOT:
+- Change any aspect of the car itself (body, wheels, lights, grille, badges, ride height, color).
+- Add aftermarket-looking modifications (bigger wheels, lowered stance, wider fenders, aftermarket exhaust).
+- Add or remove performance styling elements from the car.
+- Reshape the car body from a different generation or trim.
+- Add close-up details of the car's badge that would require rendering the logo up close (keep the badge at the same distance as in the reference).
+
+=== EDITORIAL SETTING ===
+
+${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
+
+REMINDER: the CAR itself is fixed to the reference. Only the BACKGROUND and LIGHT may change. Preserve the car exactly.`;
+
+  const base64 = Buffer.from(reference.bytes).toString("base64");
+  return callGemini(apiKey, [
+    { text: instruction },
+    { inlineData: { mimeType: reference.mimeType, data: base64 } },
+  ]);
 }
 
 async function uploadToStorage(
