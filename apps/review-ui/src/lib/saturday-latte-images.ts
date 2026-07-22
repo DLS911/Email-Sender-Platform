@@ -391,7 +391,7 @@ function extForMime(mimeType: string): string {
  * Returns null on failure (no film-style info baked into the prompt;
  * falls back to poster mode).
  */
-async function researchFilmVisualStyle(filmTitle: string): Promise<string | null> {
+export async function researchFilmVisualStyle(filmTitle: string): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
   try {
@@ -483,7 +483,7 @@ function validatorContextFor(slot: string, subjects: LatteImageSubjects): ImageV
  * rather than a Gemini fabrication. If the Wikipedia lookup fails,
  * falls through to text-only generation.
  */
-async function generateTastingImageWithReference(
+export async function generateTastingImageWithReference(
   apiKey: string,
   slotPrompt: string,
   sectionTag: string,
