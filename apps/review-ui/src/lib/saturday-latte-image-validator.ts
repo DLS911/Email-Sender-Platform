@@ -92,10 +92,11 @@ Verdict format:
 
 Check the following:
 1. Does the image show the SPECIFIC cooking technique or its result (not a generic kitchen scene)?
-2. Kitchen physics: hot cookware belongs on a stove, stone, or trivet - NEVER on bare wood. No random grease/oil puddles on the counter or table beside the pan.
-3. Steam only escapes from open apertures (kettles with closed lids do not vent steam).
-4. Composition off-center, not dead-center.
-5. Any AI artifacts.
+2. **NO HANDS, ARMS, OR HUMANS in the frame.** Food images must never show hands holding a spatula, fingers cutting, arms lifting - the geometry always renders wrong. If a hand is visible, FAIL this validation.
+3. Kitchen physics: hot cookware belongs on a stove, stone, or trivet - NEVER on bare wood. No random grease/oil puddles on the counter or table beside the pan.
+4. Steam only escapes from open apertures (kettles with closed lids do not vent steam).
+5. Composition off-center, not dead-center.
+6. Any AI artifacts.
 
 Verdict format:
 - If everything is right: return {"ok": true, "reason": "brief summary"}
@@ -106,10 +107,11 @@ Verdict format:
 
 Check the following:
 1. Does the image show something recognizably from THIS specific location (a signature landmark, geography, architecture, or feature - not a generic version of that kind of place)?
-2. Are people (if any) facing meaningful subjects, not staring at nothing (no AI zombie stares)?
-3. Composition off-center, not dead-center.
-4. Water surfaces have realistic ripples (not glassy AI-perfect reflections). Fog has directional structure (not uniform gradient).
-5. Any AI artifacts.
+2. **Geographic accuracy: does the image invent impossible proximity between features?** For example, a Burlington VT scene where downtown brick storefronts open directly onto Lake Champlain is wrong - real Burlington has streets, a park, and open ground between downtown and the water. Rendering a compressed impossible relationship between features is a FAIL.
+3. Are people (if any) facing meaningful subjects, not staring at nothing (no AI zombie stares)?
+4. Composition off-center, not dead-center.
+5. Water surfaces have realistic ripples (not glassy AI-perfect reflections). Fog has directional structure (not uniform gradient).
+6. Any AI artifacts.
 
 Verdict format:
 - If right: {"ok": true, "reason": "brief"}
