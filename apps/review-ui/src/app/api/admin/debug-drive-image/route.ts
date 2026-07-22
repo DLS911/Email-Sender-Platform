@@ -84,8 +84,14 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   try {
-    // Step 1: fetch reference from Wikipedia
-    const reference = await fetchCarReferenceImage(car);
+    // Step 1: fetch reference — if a scene was provided, use the
+    // multi-candidate Commons + vision-pick pipeline so the reference
+    // pose matches the target shot (side profile for panning, 3/4 for
+    // static beauty, etc.)
+    const sceneIntent = url.searchParams.get("scene")?.trim() ?? "";
+    const reference = sceneIntent
+      ? await fetchCarReferenceImage(car, sceneIntent)
+      : await fetchCarReferenceImage(car);
     const storage = getStorage();
     const stamp = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 

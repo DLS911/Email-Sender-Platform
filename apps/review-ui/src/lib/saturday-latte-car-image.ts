@@ -245,9 +245,173 @@ async function downloadImage(
   return { bytes: new Uint8Array(buf), mimeType };
 }
 
+// ─── Commons category / search — multi-candidate pool ─────────────────
+
+/**
+ * Search Wikimedia Commons for image files matching the car name. Returns
+ * up to N candidate photos with direct URLs and dimensions. Commons is
+ * organized as a media library — search restricted to File: namespace
+ * (namespace 6) finds all photos in one query.
+ *
+ * Why this exists: Wikipedia's infobox image is one static shot per model.
+ * For action scenes (panning shots, cornering) we want a reference photo
+ * that already shows the car in a matching pose. Commons has 20-100
+ * photos per popular model — side profiles, driving shots, static,
+ * garage, track. Pull the pool, then pick the pose that matches the scene.
+ */
+export async function findCommonsCandidateImages(
+  carName: string,
+  limit = 15,
+): Promise<Array<{ title: string; url: string; width?: number; height?: number }>> {
+  const url = new URL("https://commons.wikimedia.org/w/api.php");
+  url.searchParams.set("action", "query");
+  url.searchParams.set("generator", "search");
+  url.searchParams.set("gsrsearch", carName);
+  url.searchParams.set("gsrnamespace", "6"); // File namespace
+  url.searchParams.set("gsrlimit", String(Math.max(5, Math.min(50, limit))));
+  url.searchParams.set("prop", "imageinfo");
+  url.searchParams.set("iiprop", "url|size|mime");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("origin", "*");
+
+  const res = await fetch(url.toString(), {
+    headers: { "User-Agent": WIKIPEDIA_UA, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`commons search: HTTP ${res.status}`);
+  const data = (await res.json()) as {
+    query?: {
+      pages?: Record<
+        string,
+        {
+          title?: string;
+          imageinfo?: Array<{ url?: string; width?: number; height?: number; mime?: string }>;
+        }
+      >;
+    };
+  };
+  const pages = data.query?.pages ?? {};
+  const out: Array<{ title: string; url: string; width?: number; height?: number }> = [];
+  for (const key of Object.keys(pages)) {
+    const p = pages[key];
+    if (!p) continue;
+    const info = p.imageinfo?.[0];
+    if (!info?.url || !info.mime?.startsWith("image/")) continue;
+    // Prefer landscape / near-square photos with reasonable resolution
+    if ((info.width ?? 0) < 800) continue;
+    const entry: { title: string; url: string; width?: number; height?: number } = {
+      title: p.title ?? "",
+      url: info.url,
+    };
+    if (typeof info.width === "number") entry.width = info.width;
+    if (typeof info.height === "number") entry.height = info.height;
+    out.push(entry);
+  }
+  return out;
+}
+
+/**
+ * Ask Haiku with vision to pick the reference photo that best matches
+ * the writer's scene intent. Sends up to 6 candidate URLs (Haiku can
+ * fetch and view them) with a short prompt describing the shot type
+ * being composed.
+ *
+ * Returns the URL of the winner, or the first candidate if the vision
+ * pass fails.
+ */
+export async function pickReferenceForScene(
+  candidates: Array<{ title: string; url: string }>,
+  sceneIntent: string,
+): Promise<string> {
+  if (candidates.length === 0) throw new Error("pickReference: no candidates");
+  if (candidates.length === 1) return candidates[0]!.url;
+
+  const shortlist = candidates.slice(0, 6);
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return shortlist[0]!.url;
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 300,
+      temperature: 0.1,
+      system: `You are picking the best reference photo for an editorial car image edit. You will be shown several candidate photos of the same car and a description of the target scene / shot type. Pick the ONE candidate whose POSE and ANGLE most closely matches what the target scene needs.
+
+Guidelines:
+- Panning-shot / cornering / mid-turn scenes want side-profile or 3/4 rear-angled poses that read as "in motion."
+- Static beauty shots want 3/4 front poses with clean composition.
+- Garage / driveway scenes want front-facing or 3/4 front poses.
+- Racetrack / apex scenes want side or rear-quarter action poses.
+
+Return ONLY the number (1-based index) of the winning candidate. No explanation.`,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `Target scene: ${sceneIntent}\n\nCandidate photos (numbered):` },
+            ...shortlist.flatMap((c, i) => [
+              { type: "text" as const, text: `\n\nCandidate ${i + 1}:` },
+              { type: "image" as const, source: { type: "url" as const, url: c.url } },
+            ]),
+            { type: "text", text: "\n\nReturn only the number of the best-matching candidate." },
+          ],
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    const match = text.match(/\d+/);
+    if (!match) return shortlist[0]!.url;
+    const idx = parseInt(match[0], 10) - 1;
+    if (idx < 0 || idx >= shortlist.length) return shortlist[0]!.url;
+    return shortlist[idx]!.url;
+  } catch (err) {
+    console.warn(
+      "car-image.vision_pick_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return shortlist[0]!.url;
+  }
+}
+
 // ─── Public API ────────────────────────────────────────────────────────
 
-export async function fetchCarReferenceImage(carName: string): Promise<CarReferenceImage> {
+/**
+ * Overload: if sceneIntent is provided, use the multi-candidate pipeline
+ * (Commons search + vision pose picker). Otherwise fall back to the
+ * single-infobox path.
+ */
+export async function fetchCarReferenceImage(
+  carName: string,
+  sceneIntent?: string,
+): Promise<CarReferenceImage> {
+  // Multi-candidate path — only when sceneIntent is provided
+  if (sceneIntent) {
+    try {
+      const candidates = await findCommonsCandidateImages(carName, 15);
+      if (candidates.length > 0) {
+        const pickedUrl = await pickReferenceForScene(candidates, sceneIntent);
+        const dl = await downloadImage(pickedUrl, WIKIPEDIA_UA);
+        console.info("car-image.commons_pick_hit", {
+          car: carName,
+          candidates_count: candidates.length,
+          picked: pickedUrl,
+        });
+        return {
+          bytes: dl.bytes,
+          mimeType: dl.mimeType,
+          sourceUrl: pickedUrl,
+          searchQuery: `commons+vision:${carName}`,
+        };
+      }
+    } catch (err) {
+      console.warn(
+        "car-image.commons_path_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   // Primary path: Wikipedia REST API (real URLs, no hallucination)
   try {
     const wiki = await fetchFromWikipedia(carName);
