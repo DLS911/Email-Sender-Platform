@@ -79,8 +79,10 @@ ${kindNote}
 Check the following:
 1. Does this image clearly represent the specific item named (correct product/book/film)?
 2. Are there any physically impossible or broken details (a handle in the wrong place, a torn cover, a distorted shape)?
-3. Any obvious AI artifacts (extra objects, distorted geometry, impossible physics)?
-4. Does the composition follow the rule of thirds (off-center subject, not dead center)?
+3. **NO SPURIOUS DECORATIVE DEBRIS.** A single coffee bean sitting near an espresso machine is a FAIL. A single tea leaf near a teapot is a FAIL. A single stray herb sprig near a knife is a FAIL. Products live cleanly on their surface. Category-adjacent debris counts as debris.
+4. **For books:** the title text on the cover must be legible and match the actual book title. Garbled letterforms or stylized-different-words is a FAIL.
+5. Any obvious AI artifacts (extra objects, distorted geometry, impossible physics)?
+6. Does the composition follow the rule of thirds (off-center subject, not dead center)?
 
 Verdict format:
 - If everything is right: return {"ok": true, "reason": "brief summary"}
@@ -122,10 +124,11 @@ Verdict format:
 
 Check the following:
 1. Does the detail feel specific to the named location (not a generic version)?
-2. Rule of thirds composition, off-center.
-3. Any physics issues (impossible steam, wrong reflections, floating debris)?
-4. Any AI artifacts (mangled logos, distorted geometry)?
-5. If people are in frame, do they face meaningful subjects (no zombie stares)?
+2. **Realistic quantities of objects that come in sets.** A bar with ONE stool is a FAIL - bars have multiple stools. A restaurant with one lonely table is a FAIL. A dining table with one chair is a FAIL. Depict realistic multiples.
+3. Rule of thirds composition, off-center.
+4. Any physics issues (impossible steam, wrong reflections, floating debris)?
+5. Any AI artifacts (mangled logos, distorted geometry)?
+6. If people are in frame, do they face meaningful subjects (no zombie stares)?
 
 Verdict format:
 - If right: {"ok": true, "reason": "brief"}

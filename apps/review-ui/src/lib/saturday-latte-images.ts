@@ -103,6 +103,18 @@ const LATTE_IMAGE_STYLE_SUFFIX =
 
 **NO SPURIOUS FOOD DEBRIS.** If the frame is NOT a plated meal, active food preparation, or a table clearly set for eating, do NOT add ANY food particles — no crumbs, no tater tots, no bread bits, no cracker fragments, no pastry pieces, no cookie chunks, no cereal, no popcorn, no chip fragments, no scattered nuts or berries. This rule applies especially to still-life frames like books, coffee cups, tools, pens, notebooks, single objects on a table. A coffee cup next to a book is NOT a meal — no crumbs. A book by a window is NOT a meal — no crumbs. A pocket knife on a workbench is NOT a meal — no crumbs. Food debris on a non-food frame reads as AI-hallucinated garbage and is the #1 tell that an AI generated the image.
 
+**THIS RULE EXTENDS TO "SEEMINGLY RELEVANT" DEBRIS.** A single coffee bean sitting on the counter next to an espresso machine is NOT allowed — it's still spurious debris even if it's category-adjacent to the product. A single tea leaf near a teapot is NOT allowed. A single grain of salt near a knife is NOT allowed. Products live cleanly on their surface; do NOT add a "flavor cue" object as decoration. The espresso machine is the subject, not the espresso machine PLUS a random bean. The knife is the subject, not the knife PLUS a stray herb sprig. Show the product cleanly.
+
+**REALISTIC QUANTITIES OF OBJECTS THAT COME IN SETS.** When depicting furniture, tableware, or environmental objects that would realistically appear in a set, show a realistic count for the scene — not a single lonely instance and not empty space where multiple should be:
+- Bars have multiple stools, not one lonely stool. Show 3-6 stools at a bar.
+- Restaurants have multiple tables and chairs, not one solo table. Show a real seating layout.
+- Kitchens have multiple utensils / cookware / spice jars, not one solo item.
+- Dining rooms have multiple chairs at the table, not one.
+- Retail shelves have multiple items on them.
+- Book shelves have multiple books, not one.
+- Public benches typically appear in a small run, not solo.
+The "one lonely stool at a bar" or "one lonely chair in a restaurant" is a strong AI-fabrication tell. Depict what would realistically be there in realistic multiples.
+
 **NO GLASSY / UNIFORM WATER.** Real water surfaces have wind-driven ripple texture, directional wave patterns, subtle color variation from depth and reflection, and imperfect reflections. Do NOT render water as a smooth glass-mirror gradient. Bays, harbors, lakes, and oceans should show visible surface texture — small waves, wind lanes, real reflections that break at wave crests, not a flat AI-perfect reflection.
 
 **NO UNIFORM ATMOSPHERIC HAZE.** Fog, mist, and morning atmosphere have STRUCTURE — banks that hang over the water in bands, patches that break around trees or buildings, directional layers. Do NOT render fog as a smooth gray gradient that fades uniformly from foreground to background. If the frame has atmosphere, it must have shape and directionality — you should be able to say "the fog is heavier over the water on the right side" or "the mist is clearing over the harbor as the sun comes up."
@@ -288,42 +300,6 @@ export async function generateDriveImageWithReference(
 }
 
 /**
- * LIGHT editorial reframe of a car reference photo. Used as a fallback
- * when the full background-only edit fails validation. This pass is
- * much more constrained: crop to 1:1 square, apply gentle Portra 400
- * color grading, preserve the car AND its immediate surroundings
- * exactly. No background swap, no pose change, no scene invention.
- * The goal is to make the raw dealership press photo feel like it
- * belongs in a newsletter rather than a car listing.
- */
-export async function lightlyReframeDriveReference(
-  apiKey: string,
-  reference: { bytes: Uint8Array; mimeType: string },
-  carName: string,
-): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const instruction = `You are given a reference photograph of "${carName}". Produce a LIGHTLY EDITED version of this exact image with the following minimal changes only:
-
-1. Reframe / crop the composition to a 1:1 SQUARE aspect ratio. Keep the car centered within the square. If needed, extend background at the edges (the same surface, wall, or sky the reference shows) - do NOT invent new scene elements.
-2. Apply a subtle Portra 400 color grade: slightly warmer skin/paint tones, muted greens, gentle shadow lift. The result should look like a real editorial photograph, not a phone snapshot or a manufacturer catalog scan.
-3. Add a very subtle vignette if the composition benefits from it (barely perceptible, not dramatic).
-
-You must NOT:
-- Change the car itself (body, wheels, headlights, tail lights, grille, badges, ride height, color, factory-spec styling).
-- Change the reference photo's underlying scene (the same background, the same location, the same lighting direction).
-- Add new props, new subjects, new environmental elements.
-- Do a full "background replacement" - this is a light color/composition pass ONLY.
-- Introduce motion blur or action effects (the reference is static and should stay static).
-
-Output: a 1:1 square, editorially-graded version of the reference photograph with the car preserved.`;
-
-  const base64 = Buffer.from(reference.bytes).toString("base64");
-  return callGemini(apiKey, [
-    { text: instruction },
-    { inlineData: { mimeType: reference.mimeType, data: base64 } },
-  ]);
-}
-
-/**
  * Background-only edit of a car reference photo. The reference image
  * shows the car (as it left the factory) against some incidental
  * background — a dealership, a street, a driveway. We want the CAR to
@@ -484,11 +460,19 @@ async function generateTastingImageWithReference(
     return { ...gen, usedReference: false };
   }
 
+  // For films: rotate 50/50 between "poster in poster-native setting"
+  // (framed on wall, cinema lobby easel, etc) and "AI-generated keyframe
+  // on a TV screen." Reader gets variety instead of always seeing a
+  // framed poster.
+  const filmUseKeyframe = kind === "film" ? Math.random() < 0.5 : false;
+
   const preservationNote =
     kind === "film"
-      ? "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate settings** where it would naturally hang or be displayed at its actual poster aspect ratio (portrait). Approved settings: a framed print on a wall (movie-room, hallway, apartment, cafe), an easel or A-frame stand outside a cinema, a poster kiosk on a sidewalk, a lobby wall inside an art-house theater, a bulletin-board-style poster wall, held/carried by a person (from behind, no face), or a home movie-room feature wall. **DO NOT show the poster on a TV screen, laptop screen, tablet, phone, or any landscape/horizontal display** — a portrait poster does not fill a landscape screen and the composition reads immediately as fake. The scene around the poster should be editorial per the setting prompt below (warm evening light in a lobby, morning coffee shop light on a framed piece, cinema queue at dusk, etc.)."
+      ? filmUseKeyframe
+        ? "This is the official movie POSTER for the film. **In this image, do NOT show the poster itself.** Instead, generate an AI-approximated KEY FRAME from this film displayed on a TV screen, laptop, or tablet in an editorial home-viewing setting per the setting prompt below. The key frame should evoke the FILM'S actual visual style (color palette, cinematography feel, subject matter) as best you can infer from the poster. The TV/laptop/tablet is the natural landscape display for a keyframe. Around the display: warm evening living room, cozy couch, dim ambient lamps, a mug on the coffee table. Do NOT put the film's POSTER on the TV - a portrait poster on a landscape screen looks fake. Generate a plausible landscape-aspect-ratio still that fills the screen."
+        : "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Approved settings: a framed print on a wall (movie-room, hallway, apartment, cafe), an easel or A-frame stand outside a cinema, a poster kiosk on a sidewalk, a lobby wall inside an art-house theater, a bulletin-board-style poster wall, held/carried by a person (from behind, no face). **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. The scene around the poster should be editorial per the setting prompt below."
       : kind === "book"
-        ? "This is the official BOOK COVER for the book. Preserve the cover art and title text exactly. Show the book resting on a surface (wooden table, windowsill, bedside table, leather armchair) with editorial-appropriate context per the setting prompt below."
+        ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. Show the book resting on a surface (wooden table, windowsill, bedside table, leather armchair) with editorial-appropriate context per the setting prompt below."
         : kind === "product"
           ? "This is the official product photo. Preserve the product form factor, proportions, color, branding, and any physical details exactly (handle placement, port locations, dimensions). The product must appear as it actually exists - do not invent broken/modified variants. Place the product in the editorial context described in the setting prompt below."
           : "Preserve the subject exactly as the reference shows. Place it in the editorial context described in the setting prompt below.";
@@ -607,61 +591,44 @@ CRITICAL FIX ON RETRY: A previous attempt to generate this exact image failed va
     verdict = await validateImage(img.bytes, img.mimeType, ctx);
   }
 
-  // For theDrive: if the full background-only edit failed twice, do a
-  // LIGHT editorial reframe of the reference (crop to 1:1, gentle color
-  // grade, preserve car pixels). This is the "middle" fallback - gives
-  // us a newsletter-quality image without the risk of Gemini modifying
-  // the car in a heavy background swap. Only if THAT also fails do we
-  // ship the raw reference as-is.
-  let usedFallbackToReference = false;
+  // For theDrive: this slot must NEVER ship the raw dealership press
+  // photo (user's absolute rule). If both attempts above failed
+  // validation, run one more attempt with an EVEN sharper prompt that
+  // stacks both prior failure reasons. Then ship whatever the last
+  // Gemini attempt produced - a Gemini-edited image (even one the
+  // validator complained about) is preferable to a raw dealership shot.
+  const usedFallbackToReference = false;
   if (ctx && verdict && !verdict.ok && slot === "the-drive") {
-    console.warn("latte.image_validator_fail_trying_light_reframe", {
+    console.warn("latte.image_drive_validator_fail_third_attempt", {
       slot,
-      final_reason: verdict.reason,
+      reason_1: verdict.reason,
     });
+    attempts = 3;
+    const evenSharperPrompt = `${prompt}
+
+CRITICAL FIX - THIRD ATTEMPT: Two prior attempts to generate this image failed validation. The specific problems were:
+
+Failure A: ${verdict.reason}
+
+You MUST address both failures in this attempt. Focus on: correct car generation (matching the reference car body exactly), clean brand badge rendering, off-center rule-of-thirds composition, no AI artifacts, no aftermarket-looking modifications, no wrong-generation drift. This is the last attempt - the output will be shipped as-is. Do not add motion blur unless the scene demands it. Do not synthesize missing angles of the car - keep the pose from the reference.`;
     try {
-      const fallbackRef = await fetchCarReferenceImage(subjects.theDriveCar, prompt);
-      // Attempt: light reframe of the reference
-      try {
-        const reframed = await lightlyReframeDriveReference(
-          apiKey,
-          { bytes: fallbackRef.bytes, mimeType: fallbackRef.mimeType },
-          subjects.theDriveCar,
-        );
-        // Validate the reframed version. If it passes, use it. If not,
-        // use the raw reference.
-        const reframeVerdict = await validateImage(reframed.bytes, reframed.mimeType, ctx);
-        if (reframeVerdict.ok) {
-          img = {
-            bytes: reframed.bytes,
-            mimeType: reframed.mimeType,
-            usedReference: true,
-            referenceUrl: fallbackRef.sourceUrl,
-          };
-          verdict = reframeVerdict;
-          usedFallbackToReference = true;
-          console.info("latte.image_light_reframe_succeeded", { slot });
-        } else {
-          throw new Error(`reframe failed validation: ${reframeVerdict.reason}`);
-        }
-      } catch (reframeErr) {
-        console.warn(
-          "latte.image_light_reframe_failed_using_reference_raw",
-          reframeErr instanceof Error ? reframeErr.message : String(reframeErr),
-        );
-        img = {
-          bytes: fallbackRef.bytes,
-          mimeType: fallbackRef.mimeType,
-          usedReference: true,
-          referenceUrl: fallbackRef.sourceUrl,
-        };
-        usedFallbackToReference = true;
+      const thirdImg = await generateForSlot(apiKey, slot, evenSharperPrompt, sectionTag, subjects);
+      img = thirdImg;
+      const thirdVerdict = await validateImage(img.bytes, img.mimeType, ctx);
+      verdict = thirdVerdict;
+      if (!thirdVerdict.ok) {
+        console.warn("latte.image_drive_third_attempt_failed_shipping_anyway", {
+          slot,
+          reason: thirdVerdict.reason,
+        });
       }
     } catch (err) {
       console.error(
-        "latte.image_reference_fallback_lookup_failed",
+        "latte.image_drive_third_attempt_threw",
         err instanceof Error ? err.message : String(err),
       );
+      // Keep img from attempt 2 (the last successful Gemini call) - do
+      // NOT fall back to raw reference.
     }
   }
 
