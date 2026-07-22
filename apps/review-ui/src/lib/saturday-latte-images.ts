@@ -302,6 +302,8 @@ You may NOT:
 - Reshape the car body from a different generation or trim.
 - Add close-up details of the car's badge that would require rendering the logo up close (keep the badge at the same distance as in the reference).
 
+**OUTPUT ASPECT RATIO: 1:1 SQUARE.** The final image must be a square (1:1 aspect ratio) that fits into a newsletter's square image slot. Compose the frame so the car sits inside a square canvas with editorial-appropriate negative space above/below/beside it. Do NOT produce a wide rectangular image — the template will crop it awkwardly. If the reference car is elongated (long sedan), zoom in slightly and lose small amounts of the car's extreme ends rather than delivering a rectangular output. Off-center rule-of-thirds composition within the square frame is preferred.
+
 === EDITORIAL SETTING ===
 
 ${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
