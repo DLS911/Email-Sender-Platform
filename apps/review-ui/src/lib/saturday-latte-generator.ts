@@ -475,12 +475,14 @@ A specific cooking technique or hosting move. Format:
 
 ### 4. The Drive
 A specific car. 100-200 words.
-- car: full year/make/model (e.g. "2024 Lexus LC 500")
-- url: manufacturer page or Car and Driver / MotorTrend review URL for this exact model. Use a research URL when available.
+- car: full year/make/model (e.g. "2024 Lexus LC 500", "1995 Porsche 993 Carrera", "1988 BMW E30 M3", "1990 Mazda Miata NA", "1985 Ford Bronco II restomod with Coyote V8", "1972 Datsun 240Z LS-swap"). Include the era clearly for older/vintage picks so the reader knows the exact car.
+- url: manufacturer page, Car and Driver / MotorTrend review, Bring a Trailer auction of a comparable example, or Wikipedia article for older cars. Use a research URL when available.
 - specs: "5.0L V8 • 471 HP • Naturally aspirated, 7,300 RPM redline" — three short specs separated by " • "
-- body: Why this car, in Mark's voice. Include "the unexpected variable" — what the marketing misses. End with a single line of conviction.
+- body: Why this car, in Mark's voice. Include "the unexpected variable" — what the marketing misses (or for classics, what the enthusiast community knows). For older cars, include acquisition context ("Clean examples run $35-45k on Bring a Trailer"), maintenance context ("You can wrench on this yourself or find one shop in your city that can"), and the "hidden in plain sight" angle when relevant. End with a single line of conviction.
 
-Pull from research: cars. If no cars in research, pick from Mark's owned/known list (Porsche 911, Lexus LC 500, Audi S6, BMW M3, Lincoln Navigator, GR Corolla, etc.). Rotate across the car spectrum — don't pick another SUV if last issue was an SUV.
+**IMPORTANT — The Drive scope is broader than new cars.** Anything cool under $120k qualifies. New cars, five-year-old used deals, classic restorations, restomods, air-cooled Porsches, '90s JDM heroes, cheap classics, cult obscurities — all in scope. See the WEEKEND_CAR_SPECTRUM voice module for the six categories (Icons, Sports Sedans, Wagons, Weekend Cars, Practical with Soul, and Classics/Restomods/Oddballs). Rotate across categories and across eras. Do NOT default to new cars only — the Classics/Restomods/Oddballs category should appear roughly every 3-4 issues.
+
+Pull from research: cars. If no cars in research, pick from any category of the car spectrum in the voice module. Rotate across categories — don't pick another SUV if last issue was an SUV, don't pick another new car if last issue was new. Mix used/vintage and new to keep the section from becoming a "new car of the week" bulletin.
 
 ### 5. Sunday Prep
 50-100 words on ONE concrete action for the week ahead. Practical, friend-texting tone.

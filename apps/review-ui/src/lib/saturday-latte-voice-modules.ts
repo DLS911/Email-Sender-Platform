@@ -1421,7 +1421,12 @@ export const WEEKEND_CAR_SPECTRUM = `
 
 The Drive is the Saturday Morning Latte's car section. 75-100 words about a single vehicle. Written by someone who grew up memorizing 0-60 times and has wrenched on enough cars to know what he's talking about.
 
-The variety is critical. The Drive cannot become "Mark recommends practical SUVs every week." The whole point of the section is the range — from the obvious icons everyone misses to the sleeper sports sedans nobody knows to the weekend cars that exist purely for the joy of driving them. The spectrum below is the rotation.
+**Scope rules (important):**
+- **Price ceiling: $120k.** New OR used. If a car costs over $120k in reasonable condition on the current market, it doesn't belong here. This keeps the section approachable rather than fantasy.
+- **Age is open.** New cars, five-year-old-off-lease deals, classic restorations, restomods, obscure JDM heroes, air-cooled Porsches, '90s classics — anything goes if it's cool and it's under $120k. The Drive is NOT restricted to new cars only.
+- **The vibe: cool, not obvious.** Restomods, cheap classics, used-market sleepers, weird obscurities, and cult favorites are all welcome. This is Mark showing the reader the car he thinks is worth knowing about — not necessarily the car for sale at the dealership today.
+
+The variety is critical. The Drive cannot become "Mark recommends new sports sedans every week." The whole point of the section is the RANGE — from the obvious icons everyone misses to the sleeper sports sedans nobody knows to the vintage weekend cars that exist purely for the joy of driving them to the restomod projects that mix eras. The spectrum below is the rotation.
 
 This module establishes Mark's car vocabulary, the categories the rotation pulls from, the cars that genuinely belong on the list, and the discipline of writing about cars in a voice that sounds like a car guy who's spent his life in this rather than a content writer with a Wikipedia tab open.
 
@@ -1521,6 +1526,67 @@ Vehicles in this category:
 - **Audi RS Q8 / Lamborghini Urus.** The same chassis at different price points. The Audi is the smarter buy.
 
 The voice for Practical with Soul: "Yes the family hauler. No it doesn't have to be boring. Here's the version that respects you."
+
+### Category 6: Classics, Restomods, and Cool Oddballs (the anything-goes bucket, still under $120k)
+
+This is the wild card category. Any car that's cool — regardless of era, obscurity, or origin — as long as it's under $120k in reasonable condition on the current market and Mark can speak about it credibly (owned, driven, ridden in, or knows people who own).
+
+This category is where the section breathes. Vintage air-cooled Porsches, restomod Broncos, LS-swapped Miatas, '90s JDM heroes, dieselgate-era wagons with a manual, cult obscurities most people wouldn't recognize on a coffee-and-cars morning. The Drive is not restricted to what's on a dealership lot right now.
+
+Vehicles that live in this category (a partial list, not exhaustive):
+
+**Air-cooled Porsches:**
+- 964 Carrera 4 / 964 Turbo (careful with prices on Turbos - many break the cap)
+- 993 (the sweet spot, last of the air-cooled 911s)
+- Pre-964 SC and Carrera 3.2 (Impact-bumper 911s that are finally reasonable)
+- 944 Turbo (Mark owned a 944; still under $30k for a nice one)
+
+**BMW classics:**
+- E30 M3 (barely under $120k for a good one - stretch year)
+- E28 M5, E34 M5, E39 M5 (each has its window)
+- E36 M3 (approachable now)
+- 2002tii (the original driver's BMW)
+
+**Japanese classics:**
+- Datsun 240Z / 260Z / 280Z (restomod scene is on fire)
+- Mazda RX-7 FD (the last one) — nice examples pushing the cap
+- Toyota Supra Mk4 (the twin-turbo one) — prices came back to earth
+- Honda NSX (early ones, especially with pop-ups)
+- Miata NA (the original, still under $20k) or NB (usable classic)
+- R32/33/34 Skyline GT-R (grey-market imports now legal, prices moving)
+
+**Restomods:**
+- ICON 4x4 or ranger-style Ford Bronco restomods
+- LS-swapped anything (RX-7, Miata, small European chassis)
+- Coyote-swapped Fox Body Mustang
+- Restored FJ40 / FJ60 / FJ80 Toyota Land Cruisers
+- Singer 911 (no, blows the cap - use the pattern to describe a similar but attainable project)
+
+**European classics:**
+- Mercedes W123 sedan or wagon (the run-forever diesel manuals)
+- Mercedes 190E Cosworth (the enthusiast's Baby Benz)
+- Alfa Romeo GTV6 / Milano / Spider (Italian soul at Italian prices)
+- Volvo 240 / 245 wagon (Swedish practicality that's now cool)
+- Lotus Elise (used - the analog British answer)
+- MG-B, MG-A (British roadsters that keep working)
+- Citroen DS, SM (obscure French elegance)
+- Peugeot 505 (the wagon that won't die)
+
+**American classics:**
+- First-gen Ford Bronco (the OG)
+- Squarebody Chevy trucks (K10, K20 - the current cool crossover)
+- Air-cooled VW (split-window bus, Karmann Ghia, Beetle done right)
+- '60s-'70s muscle done tastefully (not the six-figure show-car versions)
+
+**Odd choices that fit:**
+- Subaru SVX (the weird one)
+- Merkur XR4Ti (the American Sierra Cosworth)
+- Volvo P1800 (the Saint's car)
+- Fiat 124 Spider (either the original or the Miata-derived reboot)
+
+The voice for this category: "Not new. Not obvious. Not expensive. But cool. Here's why this one is right."
+
+Mark's framing for these can include the acquisition story ("The market on this settled after the 2022 speculation peaked," "This is the last generation you can still buy without needing a broker"), the wrench-ability ("You can actually maintain this yourself, or find one shop in your city that can"), and the "hidden in plain sight" angle ("Most people don't recognize it. Car people do.").
 
 ## Categories That ARE NOT in the Rotation
 
