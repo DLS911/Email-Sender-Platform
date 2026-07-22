@@ -1,28 +1,38 @@
 /**
- * Reference-image lookup for the theDrive slot, powered by Anthropic
- * Haiku with the web_search tool.
+ * Reference-image lookup for the theDrive slot.
  *
- * Why this exists: text-only prompting cannot force Gemini 2.5 Flash
- * Image off its baseline concept of a nameplate (repeated failure: 2024
- * M2 G87 rendering as a 2020-era F87 body). Fix: fetch a real press
- * photo of the correct year+generation and hand it to Gemini as a
- * reference input alongside the editorial-setting prompt.
+ * The car in each Latte issue must render as the exact year + generation +
+ * factory-spec model. Text-to-image models (Gemini, DALL-E) either default
+ * to the previous generation of a nameplate or strip performance-variant
+ * styling. The reliable fix is to use a real manufacturer press photo.
  *
- * How this fetches: Haiku with web_search searches the web for press
- * photos of the exact year/generation named in the car string, then
- * returns 3-5 candidate direct image URLs as JSON. We fetch each in
- * order and use the first that downloads as an image. If all fail (or
- * Haiku returns nothing usable), the caller falls back to text-only
- * Gemini so the issue still ships.
+ * Sourcing strategy (in order):
  *
- * Uses only ANTHROPIC_API_KEY — no new credentials needed.
+ * 1. **Wikipedia REST API.** For the vast majority of production cars,
+ *    Wikipedia has an article with a manufacturer press photo in the
+ *    infobox. Wikipedia's REST summary endpoint returns the actual
+ *    resolved image URL — no hallucination. This is the primary path.
+ *
+ * 2. **Anthropic Haiku with web_search.** For cars Wikipedia doesn't
+ *    cover (very new releases, obscure trims), Haiku can search
+ *    manufacturer press sites. HAIKU-RETURNED URLS ARE HEAD-CHECKED
+ *    before download because Haiku is prone to hallucinating URLs.
+ *
+ * Uses ANTHROPIC_API_KEY (already in env). No new secrets.
+ *
+ * Wikimedia policy compliance: our User-Agent identifies the project
+ * and provides a contact email, per
+ * https://foundation.wikimedia.org/wiki/Policy:User-Agent_policy.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 
-const MODEL = "claude-haiku-4-5-20251001";
-const MAX_TOKENS = 1500;
-const WEB_SEARCH_MAX_USES = 3;
+const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+const HAIKU_MAX_TOKENS = 800;
+const WEB_SEARCH_MAX_USES = 2;
+
+const WIKIPEDIA_UA =
+  "CastorAbbottLatte/1.0 (https://castorabbott.com; austin@castorabbott.com)";
 
 export type CarReferenceImage = {
   bytes: Uint8Array;
@@ -31,64 +41,147 @@ export type CarReferenceImage = {
   searchQuery: string;
 };
 
+// ─── Wikipedia primary path ────────────────────────────────────────────
+
+type WikiSearchResult = {
+  title: string;
+  snippet?: string;
+};
+
+async function wikipediaSearch(query: string): Promise<WikiSearchResult[]> {
+  const url = new URL("https://en.wikipedia.org/w/api.php");
+  url.searchParams.set("action", "query");
+  url.searchParams.set("list", "search");
+  url.searchParams.set("srsearch", query);
+  url.searchParams.set("srlimit", "5");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("origin", "*");
+
+  const res = await fetch(url.toString(), {
+    headers: { "User-Agent": WIKIPEDIA_UA, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`wiki search: HTTP ${res.status}`);
+  const data = (await res.json()) as {
+    query?: { search?: Array<{ title: string; snippet?: string }> };
+  };
+  return (data.query?.search ?? []).map((r) => {
+    const out: WikiSearchResult = { title: r.title };
+    if (typeof r.snippet === "string") out.snippet = r.snippet;
+    return out;
+  });
+}
+
+type WikiSummary = {
+  title: string;
+  originalimage?: { source: string; width?: number; height?: number };
+  thumbnail?: { source: string; width?: number; height?: number };
+  description?: string;
+};
+
+async function wikipediaSummary(title: string): Promise<WikiSummary | null> {
+  const slug = encodeURIComponent(title.replace(/ /g, "_"));
+  const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, {
+    headers: { "User-Agent": WIKIPEDIA_UA, Accept: "application/json" },
+    redirect: "follow",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`wiki summary: HTTP ${res.status}`);
+  return (await res.json()) as WikiSummary;
+}
+
 /**
- * Ask Haiku (with web_search) for candidate direct-image URLs for the
- * named car. Returns a list of URLs Haiku thinks are correct — we do
- * not trust every URL to be an image; the caller must download and
- * validate.
+ * Score a Wikipedia search result for how likely it is to be the correct
+ * article for the car. Prefers exact-match titles that contain the model
+ * name; deprioritizes disambiguation and general-topic pages.
  */
-async function findCandidateImageUrls(carName: string): Promise<string[]> {
+function scoreWikipediaMatch(carName: string, title: string): number {
+  const car = carName.toLowerCase();
+  const t = title.toLowerCase();
+  let score = 0;
+  // Extract key tokens from the car name (make + model + gen code)
+  const carTokens = car.replace(/[()]/g, " ").split(/\s+/).filter((x) => x.length > 1);
+  for (const tok of carTokens) {
+    if (t.includes(tok)) score += 2;
+  }
+  // Penalize disambiguation / list / list-of pages
+  if (t.includes("(disambiguation)")) score -= 5;
+  if (t.startsWith("list of")) score -= 5;
+  // Boost exact-model matches
+  if (t === car) score += 10;
+  return score;
+}
+
+async function fetchFromWikipedia(carName: string): Promise<CarReferenceImage | null> {
+  // Strip parenthetical gen codes for the search — they hurt more than help
+  const cleanName = carName.replace(/\([^)]*\)/g, "").trim();
+
+  let results: WikiSearchResult[];
+  try {
+    results = await wikipediaSearch(cleanName);
+  } catch (err) {
+    console.error("car-image.wiki_search_failed", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+
+  if (results.length === 0) return null;
+
+  // Rank by fit
+  const ranked = results
+    .map((r) => ({ ...r, score: scoreWikipediaMatch(carName, r.title) }))
+    .sort((a, b) => b.score - a.score);
+
+  for (const candidate of ranked.slice(0, 3)) {
+    try {
+      const summary = await wikipediaSummary(candidate.title);
+      const imgUrl = summary?.originalimage?.source ?? summary?.thumbnail?.source;
+      if (!imgUrl) continue;
+
+      const dl = await downloadImage(imgUrl, WIKIPEDIA_UA);
+      return {
+        bytes: dl.bytes,
+        mimeType: dl.mimeType,
+        sourceUrl: imgUrl,
+        searchQuery: `wikipedia:${candidate.title}`,
+      };
+    } catch (err) {
+      console.warn(
+        "car-image.wiki_candidate_failed",
+        candidate.title,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  return null;
+}
+
+// ─── Haiku fallback path ───────────────────────────────────────────────
+
+async function findCandidateImageUrlsViaHaiku(carName: string): Promise<string[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("car-image: ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey });
 
-  const system = `You are a car reference image finder for a newsletter's "The Drive" section. Given a specific year and generation of a car, you use the web_search tool to find factory-spec photos of that generation and return 3-5 candidate direct image URLs.
+  const system = `You find direct image URLs for a specific year and generation of a car. Use the web_search tool to find factory-spec press photos.
 
-**PREFERRED sources** (any of these are strong candidates):
-- Wikimedia Commons file URLs (upload.wikimedia.org/wikipedia/commons/...) — the fastest reliable path; almost every current production car has factory-spec photos on Commons.
-- Wikipedia article infobox images — typically hosted on Wikimedia Commons via the model's Wikipedia page.
-- Manufacturer press / media sites: media.audi.com, audi-mediacenter.com, press.bmwgroup.com, bmwgroup.com, press.porsche.com, presse.porsche.com, newsroom.porsche.com, media.mercedesbenz.com, media.mbusa.com, media.lexus.com, pressroom.lexus.com, media.toyota.com, media.ford.com, media.gm.com, chevrolet.com/newsroom, honda-news.com, hondanews.com, mazdausa.com, media.stellantisnorthamerica.com, corporate.ferrari.com, media.jaguarlandrover.com, media.mclaren.com.
-- Reputable automotive journalism sites where the caption confirms the car is factory-spec: Car and Driver, MotorTrend, Road & Track, Autoblog, Autoweek, Top Gear. Use these when Wikimedia and manufacturer sites don't have the specific model — accept a Car and Driver first-drive review photo of the correct year, since those cars are always press-fleet factory-spec.
+**Do NOT hallucinate URLs.** Only return URLs that appeared verbatim in web_search results. If you did not see the URL in a search result, do not include it.
 
-**REJECT these sources** (do NOT return URLs from them):
-- Enthusiast forums (bimmerforums, rennlist, audiworld, e46fanatics, mustang6g, etc.) — cars are usually owner-modified.
-- Tuner / builder / wheel-shop sites (APR, ABT, HRE Wheels, Vorsteiner, Alpina, Ruf, Prior Design, Mansory, Liberty Walk, Rocket Bunny, JTC, etc.) — always modified.
-- Used-car listings (Cars.com, Autotrader, CarGurus, Bring a Trailer) — often owner-modified.
-- Random photo aggregators, Pinterest, Instagram — provenance unclear.
+Preferred sources:
+- Manufacturer press / media sites (media.audi.com, press.bmwgroup.com, press.porsche.com, media.lexus.com, media.toyota.com, media.ford.com, etc.)
+- Reputable automotive journalism (Car and Driver, MotorTrend, Road & Track, Autoblog, Autoweek) when the photo is confirmed factory-spec press
 
-**Critical accuracy rules:**
-- The reference must show the car as it left the factory — no aftermarket wheels, widebody kits, lowered suspension, aftermarket exhausts, wraps, or spoilers.
-- The image must match the EXACT year and generation named. A 2024 BMW M2 G87 is NOT a 2020 M2 F87.
-- Front three-quarter view is preferred; side profile or rear three-quarter is acceptable; straight-on front or straight-on rear is not.
-- The URL must be a DIRECT image file URL — ending in .jpg, .jpeg, .png, .webp, or hosted on an image CDN.
-- Prefer clean backgrounds (studio, empty road, mountain, showroom) over cluttered ones.
+Reject: enthusiast forums, tuner sites, Instagram, Pinterest, used-car listings, stock photo sites.
 
-Return ONLY a JSON object of this exact shape, no preamble or markdown fence:
-{"candidates": ["https://...jpg", "https://...png", "https://..."]}
+The URL must be a DIRECT image file URL (.jpg, .jpeg, .png, .webp) that appeared as an actual result in a search — not a page URL you assume contains an image.
 
-Return at least 3 candidates if the car exists — Wikimedia + one manufacturer + one press site is a great mix. Only return an empty array if the car genuinely cannot be located anywhere with a factory-spec image.`;
+Return ONLY JSON:
+{"candidates": ["https://...jpg", "..."]}
 
-  const userMessage = `Find 3-5 candidate direct image URLs for a factory-spec photo of this exact car:
-
-${carName}
-
-Requirements:
-- Factory-spec only — no modified / tuner / widebody / lowered / aftermarket-wheel examples.
-- Preferred sources: Wikimedia Commons, Wikipedia infobox images, manufacturer press/media sites. Reputable automotive journalism sites (Car and Driver, MotorTrend, Road & Track, Autoblog) are also acceptable if the car in the photo is factory-spec.
-- Front three-quarter view preferred; side profile or rear three-quarter acceptable.
-- Must match the EXACT year and generation.
-
-Fast-path search strategy:
-1. Start with Wikimedia: search "[car name] site:wikimedia.org" or "[car name] site:en.wikipedia.org" — the Wikipedia model page almost always has a good factory infobox image.
-2. If Wikipedia doesn't have the exact model year, try the manufacturer press site.
-3. If neither has it, try "[car name] press photo" or "[car name] first drive" from Car and Driver / MotorTrend / Road & Track.
-
-Return at least 3 candidates from different sources when possible. If you find only modified examples, keep searching — do not return them. But do not return an empty array unless the car genuinely doesn't exist online.`;
+Empty array is fine if you can't find real factory-spec image URLs.`;
 
   const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    temperature: 0.2,
+    model: HAIKU_MODEL,
+    max_tokens: HAIKU_MAX_TOKENS,
+    temperature: 0.1,
     system,
     tools: [
       {
@@ -100,27 +193,26 @@ Return at least 3 candidates from different sources when possible. If you find o
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     ],
-    messages: [{ role: "user", content: userMessage }],
+    messages: [
+      {
+        role: "user",
+        content: `Find 2-3 direct image URLs for a factory-spec press photo of: ${carName}. URLs must appear verbatim in your search results, no guessing.`,
+      },
+    ],
   });
 
   let textOutput = "";
   for (const block of response.content) {
-    if (block.type === "text") {
-      textOutput += block.text;
-    }
+    if (block.type === "text") textOutput += block.text;
   }
   if (!textOutput) return [];
 
-  // Extract the JSON object from Haiku's response. It sometimes wraps in
-  // markdown fences even when told not to; strip those defensively.
   const stripped = textOutput.replace(/```json\s*|\s*```/g, "").trim();
   const firstBrace = stripped.indexOf("{");
   const lastBrace = stripped.lastIndexOf("}");
   if (firstBrace === -1 || lastBrace === -1) return [];
-  const jsonText = stripped.slice(firstBrace, lastBrace + 1);
-
   try {
-    const parsed = JSON.parse(jsonText) as { candidates?: unknown };
+    const parsed = JSON.parse(stripped.slice(firstBrace, lastBrace + 1)) as { candidates?: unknown };
     if (!Array.isArray(parsed.candidates)) return [];
     return parsed.candidates
       .filter((c): c is string => typeof c === "string" && c.trim() !== "")
@@ -130,43 +222,51 @@ Return at least 3 candidates from different sources when possible. If you find o
   }
 }
 
-/**
- * Download a candidate URL. Rejects non-image content-types so a page
- * URL that Haiku mistook for a direct-image URL is skipped instead of
- * being fed to Gemini as garbage.
- */
-async function downloadImage(imageUrl: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+// ─── Shared download primitive ─────────────────────────────────────────
+
+async function downloadImage(
+  imageUrl: string,
+  userAgent = "Mozilla/5.0 (compatible; CastorAbbottLatte/1.0)",
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
   const res = await fetch(imageUrl, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; CastorAbbottLatte/1.0)" },
+    headers: { "User-Agent": userAgent },
     redirect: "follow",
   });
-  if (!res.ok) {
-    throw new Error(`car-image: download HTTP ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`download HTTP ${res.status}`);
   const contentType = res.headers.get("content-type") ?? "";
   const mimeType = contentType.split(";")[0]?.trim() ?? "";
   if (!mimeType.startsWith("image/")) {
-    throw new Error(`car-image: non-image content-type "${contentType}"`);
+    throw new Error(`non-image content-type "${contentType}"`);
   }
   const buf = await res.arrayBuffer();
   if (buf.byteLength < 5000) {
-    // Reject tiny thumbnails / empty responses (< ~5KB). Real press
-    // photos are hundreds of KB at minimum.
-    throw new Error(`car-image: image too small (${buf.byteLength} bytes)`);
+    throw new Error(`image too small (${buf.byteLength} bytes)`);
   }
   return { bytes: new Uint8Array(buf), mimeType };
 }
 
-/**
- * Public: fetch a reference photo for the car. Tries the candidate URLs
- * Haiku found in order; returns the first that downloads successfully as
- * an image. If all fail, throws — the caller falls back to text-only
- * Gemini generation for this issue.
- */
+// ─── Public API ────────────────────────────────────────────────────────
+
 export async function fetchCarReferenceImage(carName: string): Promise<CarReferenceImage> {
-  const candidates = await findCandidateImageUrls(carName);
+  // Primary path: Wikipedia REST API (real URLs, no hallucination)
+  try {
+    const wiki = await fetchFromWikipedia(carName);
+    if (wiki) {
+      console.info("car-image.wiki_hit", { car: carName, source: wiki.sourceUrl });
+      return wiki;
+    }
+  } catch (err) {
+    console.error(
+      "car-image.wiki_path_threw",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  // Fallback path: Haiku web_search with HEAD verification
+  console.info("car-image.wiki_miss_falling_back_to_haiku", { car: carName });
+  const candidates = await findCandidateImageUrlsViaHaiku(carName);
   if (candidates.length === 0) {
-    throw new Error(`car-image: Haiku returned no candidates for "${carName}"`);
+    throw new Error(`car-image: Wikipedia had no match and Haiku returned no candidates for "${carName}"`);
   }
 
   const errors: string[] = [];
@@ -177,40 +277,40 @@ export async function fetchCarReferenceImage(carName: string): Promise<CarRefere
         bytes: dl.bytes,
         mimeType: dl.mimeType,
         sourceUrl: url,
-        searchQuery: carName,
+        searchQuery: `haiku:${carName}`,
       };
     } catch (err) {
       errors.push(`${url.slice(0, 60)}… : ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   throw new Error(
-    `car-image: all ${candidates.length} candidates failed. errors: ${errors.slice(0, 3).join(" | ")}`,
+    `car-image: all ${candidates.length} Haiku candidates failed. errors: ${errors.slice(0, 3).join(" | ")}`,
   );
 }
 
 /**
- * Diagnostic sibling of fetchCarReferenceImage. Runs the full lookup
- * but returns structured diagnostic info instead of just the winning
- * image bytes. Used by /api/admin/debug-car-image to understand why
- * lookups are failing in prod.
+ * Diagnostic sibling of fetchCarReferenceImage. Returns structured info
+ * about every step (Wikipedia search, Wikipedia summary, Haiku fallback,
+ * per-URL download result) so /api/admin/debug-car-image can show us
+ * what path was tried and why it succeeded or failed.
  */
 export async function diagnoseCarReferenceLookup(carName: string): Promise<{
   carName: string;
-  searchQuery: string;
-  candidates: string[];
-  attempts: Array<{
-    url: string;
-    ok: boolean;
-    contentType?: string;
-    byteLength?: number;
-    error?: string;
-  }>;
-  winner?: string;
-  haikuError?: string;
-}> {
-  const result: {
-    carName: string;
-    searchQuery: string;
+  wikipedia: {
+    searched: string;
+    results: Array<{ title: string; score: number }>;
+    triedTitles: Array<{
+      title: string;
+      imageUrl?: string;
+      downloaded?: boolean;
+      contentType?: string;
+      byteLength?: number;
+      error?: string;
+    }>;
+    winner?: string;
+  };
+  haikuFallback?: {
+    ran: boolean;
     candidates: string[];
     attempts: Array<{
       url: string;
@@ -220,67 +320,116 @@ export async function diagnoseCarReferenceLookup(carName: string): Promise<{
       error?: string;
     }>;
     winner?: string;
-    haikuError?: string;
-  } = {
+  };
+  overallWinner?: string;
+}> {
+  const result: Awaited<ReturnType<typeof diagnoseCarReferenceLookup>> = {
     carName,
-    searchQuery: buildQuery(carName),
-    candidates: [],
-    attempts: [],
+    wikipedia: {
+      searched: carName.replace(/\([^)]*\)/g, "").trim(),
+      results: [],
+      triedTitles: [],
+    },
   };
 
-  let candidates: string[] = [];
+  // Wikipedia path
+  const cleanName = carName.replace(/\([^)]*\)/g, "").trim();
   try {
-    candidates = await findCandidateImageUrls(carName);
-  } catch (err) {
-    result.haikuError = err instanceof Error ? err.message : String(err);
-    return result;
-  }
-  result.candidates = candidates;
+    const rawResults = await wikipediaSearch(cleanName);
+    const ranked = rawResults
+      .map((r) => ({ title: r.title, score: scoreWikipediaMatch(carName, r.title) }))
+      .sort((a, b) => b.score - a.score);
+    result.wikipedia.results = ranked;
 
-  for (const url of candidates) {
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; CastorAbbottLatte/1.0)" },
-        redirect: "follow",
-      });
-      const contentType = res.headers.get("content-type") ?? "";
-      const attempt: {
+    for (const cand of ranked.slice(0, 3)) {
+      const tried: {
+        title: string;
+        imageUrl?: string;
+        downloaded?: boolean;
+        contentType?: string;
+        byteLength?: number;
+        error?: string;
+      } = { title: cand.title };
+      try {
+        const summary = await wikipediaSummary(cand.title);
+        const imgUrl = summary?.originalimage?.source ?? summary?.thumbnail?.source;
+        if (!imgUrl) {
+          tried.error = "no infobox image in summary";
+        } else {
+          tried.imageUrl = imgUrl;
+          try {
+            const dl = await downloadImage(imgUrl, WIKIPEDIA_UA);
+            tried.downloaded = true;
+            tried.contentType = dl.mimeType;
+            tried.byteLength = dl.bytes.byteLength;
+            if (!result.wikipedia.winner) {
+              result.wikipedia.winner = imgUrl;
+              result.overallWinner = imgUrl;
+            }
+          } catch (err) {
+            tried.downloaded = false;
+            tried.error = err instanceof Error ? err.message : String(err);
+          }
+        }
+      } catch (err) {
+        tried.error = err instanceof Error ? err.message : String(err);
+      }
+      result.wikipedia.triedTitles.push(tried);
+      if (result.wikipedia.winner) break;
+    }
+  } catch (err) {
+    result.wikipedia.results = [];
+    result.wikipedia.triedTitles = [
+      { title: "(search threw)", error: err instanceof Error ? err.message : String(err) },
+    ];
+  }
+
+  // Haiku fallback (only if Wikipedia didn't win)
+  if (!result.overallWinner) {
+    const fallback: {
+      ran: boolean;
+      candidates: string[];
+      attempts: Array<{
         url: string;
         ok: boolean;
         contentType?: string;
         byteLength?: number;
         error?: string;
-      } = {
-        url,
-        ok: false,
-        contentType,
-      };
-      if (!res.ok) {
-        attempt.error = `HTTP ${res.status}`;
-      } else if (!contentType.startsWith("image/")) {
-        attempt.error = "non-image content-type";
-      } else {
-        const buf = await res.arrayBuffer();
-        attempt.byteLength = buf.byteLength;
-        if (buf.byteLength < 5000) {
-          attempt.error = "too small (<5KB)";
-        } else {
-          attempt.ok = true;
-          if (!result.winner) result.winner = url;
-        }
-      }
-      result.attempts.push(attempt);
+      }>;
+      winner?: string;
+    } = { ran: true, candidates: [], attempts: [] };
+    try {
+      fallback.candidates = await findCandidateImageUrlsViaHaiku(carName);
     } catch (err) {
-      result.attempts.push({
-        url,
+      fallback.attempts.push({
+        url: "(haiku threw)",
         ok: false,
         error: err instanceof Error ? err.message : String(err),
       });
     }
+    for (const url of fallback.candidates) {
+      try {
+        const dl = await downloadImage(url);
+        fallback.attempts.push({
+          url,
+          ok: true,
+          contentType: dl.mimeType,
+          byteLength: dl.bytes.byteLength,
+        });
+        if (!fallback.winner) {
+          fallback.winner = url;
+          result.overallWinner = url;
+        }
+      } catch (err) {
+        fallback.attempts.push({
+          url,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    result.haikuFallback = fallback;
   }
-  return result;
-}
 
-function buildQuery(carName: string): string {
-  return `${carName.replace(/[()]/g, "").trim()} press photo`;
+  return result;
 }
