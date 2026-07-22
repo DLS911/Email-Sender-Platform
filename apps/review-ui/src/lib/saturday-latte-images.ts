@@ -460,17 +460,17 @@ async function generateTastingImageWithReference(
     return { ...gen, usedReference: false };
   }
 
-  // For films: rotate 50/50 between "poster in poster-native setting"
-  // (framed on wall, cinema lobby easel, etc) and "AI-generated keyframe
-  // on a TV screen." Reader gets variety instead of always seeing a
-  // framed poster.
-  const filmUseKeyframe = kind === "film" ? Math.random() < 0.5 : false;
+  // For films: always use the actual Wikipedia poster in a poster-native
+  // portrait setting. Keyframe mode was removed because Wikipedia has no
+  // real film stills (they're copyrighted studio material) and Gemini's
+  // AI-approximated "keyframes" read as generic AI content. Poster mode
+  // works reliably; we vary the poster's SETTING across issues (framed
+  // wall, cinema lobby, sidewalk kiosk, movie room, held by person) to
+  // avoid visual monotony.
 
   const preservationNote =
     kind === "film"
-      ? filmUseKeyframe
-        ? "This is the official movie POSTER for the film. **In this image, do NOT show the poster itself.** Instead, generate an AI-approximated KEY FRAME from this film displayed on a TV screen, laptop, or tablet in an editorial home-viewing setting per the setting prompt below. The key frame should evoke the FILM'S actual visual style (color palette, cinematography feel, subject matter) as best you can infer from the poster. The TV/laptop/tablet is the natural landscape display for a keyframe. Around the display: warm evening living room, cozy couch, dim ambient lamps, a mug on the coffee table. Do NOT put the film's POSTER on the TV - a portrait poster on a landscape screen looks fake. Generate a plausible landscape-aspect-ratio still that fills the screen."
-        : "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Approved settings: a framed print on a wall (movie-room, hallway, apartment, cafe), an easel or A-frame stand outside a cinema, a poster kiosk on a sidewalk, a lobby wall inside an art-house theater, a bulletin-board-style poster wall, held/carried by a person (from behind, no face). **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. The scene around the poster should be editorial per the setting prompt below."
+      ? "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Rotate the setting across issues so the same setting isn't reused — pick ONE from: a framed print on a residential wall (movie room, hallway, apartment, home theater), an easel outside a cinema at dusk, an A-frame poster stand on a sidewalk, an art-house lobby wall with warm interior light, a bulletin-board-style community poster wall, held/carried by a person shown from behind (no face), a movie theater lobby marquee-adjacent poster board, or a poster shop / gallery display. **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. **DO NOT generate a Gemini-imagined 'key frame' from the film** — the poster IS the reference; use it as-is in its actual artwork. The scene around the poster should be editorial per the setting prompt below (warm interior light, dusk cinema queue, morning coffee shop, etc.)."
       : kind === "book"
         ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. Show the book resting on a surface (wooden table, windowsill, bedside table, leather armchair) with editorial-appropriate context per the setting prompt below."
         : kind === "product"
