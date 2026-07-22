@@ -187,3 +187,100 @@ export async function fetchCarReferenceImage(carName: string): Promise<CarRefere
     `car-image: all ${candidates.length} candidates failed. errors: ${errors.slice(0, 3).join(" | ")}`,
   );
 }
+
+/**
+ * Diagnostic sibling of fetchCarReferenceImage. Runs the full lookup
+ * but returns structured diagnostic info instead of just the winning
+ * image bytes. Used by /api/admin/debug-car-image to understand why
+ * lookups are failing in prod.
+ */
+export async function diagnoseCarReferenceLookup(carName: string): Promise<{
+  carName: string;
+  searchQuery: string;
+  candidates: string[];
+  attempts: Array<{
+    url: string;
+    ok: boolean;
+    contentType?: string;
+    byteLength?: number;
+    error?: string;
+  }>;
+  winner?: string;
+  haikuError?: string;
+}> {
+  const result: {
+    carName: string;
+    searchQuery: string;
+    candidates: string[];
+    attempts: Array<{
+      url: string;
+      ok: boolean;
+      contentType?: string;
+      byteLength?: number;
+      error?: string;
+    }>;
+    winner?: string;
+    haikuError?: string;
+  } = {
+    carName,
+    searchQuery: buildQuery(carName),
+    candidates: [],
+    attempts: [],
+  };
+
+  let candidates: string[] = [];
+  try {
+    candidates = await findCandidateImageUrls(carName);
+  } catch (err) {
+    result.haikuError = err instanceof Error ? err.message : String(err);
+    return result;
+  }
+  result.candidates = candidates;
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; CastorAbbottLatte/1.0)" },
+        redirect: "follow",
+      });
+      const contentType = res.headers.get("content-type") ?? "";
+      const attempt: {
+        url: string;
+        ok: boolean;
+        contentType?: string;
+        byteLength?: number;
+        error?: string;
+      } = {
+        url,
+        ok: false,
+        contentType,
+      };
+      if (!res.ok) {
+        attempt.error = `HTTP ${res.status}`;
+      } else if (!contentType.startsWith("image/")) {
+        attempt.error = "non-image content-type";
+      } else {
+        const buf = await res.arrayBuffer();
+        attempt.byteLength = buf.byteLength;
+        if (buf.byteLength < 5000) {
+          attempt.error = "too small (<5KB)";
+        } else {
+          attempt.ok = true;
+          if (!result.winner) result.winner = url;
+        }
+      }
+      result.attempts.push(attempt);
+    } catch (err) {
+      result.attempts.push({
+        url,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return result;
+}
+
+function buildQuery(carName: string): string {
+  return `${carName.replace(/[()]/g, "").trim()} press photo`;
+}
