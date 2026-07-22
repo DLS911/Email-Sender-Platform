@@ -215,7 +215,10 @@ export async function generateDriveImageWithReference(
 ): Promise<{ bytes: Uint8Array; mimeType: string; usedReference: boolean; referenceUrl?: string }> {
   let reference: Awaited<ReturnType<typeof fetchCarReferenceImage>> | null = null;
   try {
-    reference = await fetchCarReferenceImage(carName);
+    // Pass the writer's slotPrompt as sceneIntent so the vision picker
+    // can select a reference pose that matches the target shot (side
+    // profile for panning, 3/4 for static, rear-quarter for garage etc)
+    reference = await fetchCarReferenceImage(carName, slotPrompt);
   } catch (err) {
     console.error(
       "latte.car_reference_lookup_failed",
