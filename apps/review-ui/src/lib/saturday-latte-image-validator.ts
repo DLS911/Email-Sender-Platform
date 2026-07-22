@@ -63,7 +63,7 @@ Verdict format:
     case "tastingMenu": {
       const kind = ctx.tastingKind ?? "unknown";
       const kindNote = kind === "film"
-        ? "For a film pick, the image usually shows the actual movie POSTER (from the film's Wikipedia infobox) displayed on a TV/laptop/framed wall, not a Gemini-invented key frame."
+        ? "For a film pick, the image shows the actual movie POSTER (from the film's Wikipedia infobox) displayed in a POSTER-APPROPRIATE setting — framed on a wall, on a cinema-lobby easel, on a sidewalk poster kiosk, on a home movie-room wall. **If the poster is shown on a TV screen, laptop screen, tablet, or phone, that is a FAIL** — a portrait-orientation poster does not fill a landscape screen and the mismatch reads as AI-generated. Also, if the 'poster' looks stylized/AI-invented rather than the actual official movie poster from Wikipedia, that is a FAIL."
         : kind === "book"
           ? "For a book pick, the image usually shows the actual book with a reasonable cover, on a table with contextual props (coffee cup, window light)."
           : kind === "product"
