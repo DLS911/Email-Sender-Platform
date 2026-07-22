@@ -78,7 +78,25 @@ function getStorageClient(): SupabaseClient {
 // editorial photography (Garden & Gun / Kinfolk / National Geographic
 // Traveler register). Tuned 2026-07-09 after Mark flagged images as AI-ish.
 const LATTE_IMAGE_STYLE_SUFFIX =
-  ". Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler — real editorial photography by a photographer with taste. Medium-format film aesthetic: Portra 400 warmth for humans, interiors, and food; Ektar 100 for landscape. Colors feel lived-in, not filtered — warm skin tones, natural greens, honest blues. Motivated light with specific character: window light with the direction visible, low golden-hour sun raking across texture, or diffuse overcast from an identifiable side. Compose off-center with negative space and a rule-of-thirds anchor — the subject is NEVER dead center. One clear focal point per frame; the eye lands somewhere specific. Natural imperfection welcomed: dust on a beam, a slightly worn edge, uneven shadow falloff, one thing not quite in its place. Depth of field driven by real optics (50mm at f/2.8 or 90mm at f/4 look), not the flat plasticky bokeh AI models default to. Textures are honest — wood grain, weave in linen, pitting in cast iron, real skin. Square 1:1 framing. Hands, backs, silhouettes, and angled-away shots are fine and welcome; no clearly identifiable faces of real people; no on-image text or captions; no visible brand logos. CRITICAL — NO SPURIOUS FOOD DEBRIS. If the subject of the frame is NOT a meal, food preparation, or a table set for eating (i.e., if the frame shows a book on a reading table, a coffee cup by a window, a still-life object, an interior, a landscape, a car, a person from behind, a tool on a workbench), then do NOT add crumbs, tater tots, bread bits, cracker fragments, cookie pieces, cereal, popcorn, chip fragments, or any other random food particles anywhere in the frame. Crumbs on a table with just a coffee cup and a book read as AI-hallucinated garbage. Only include food-adjacent debris when the frame is genuinely about food (a plated meal being finished, a cutting board mid-prep, a sourdough loaf being broken, a turkey being carved). REJECT (do NOT produce): HDR-look processing, over-saturated color, plastic or over-smoothed textures, perfectly-symmetric composition, dead-center subject, stock-photo staging, artificially shallow depth of field with unnatural bokeh, 'teal-and-orange' cinematic grading, over-styled food arrangements, spurious food debris on non-food frames, or the flat generic AI-editorial plate look.";
+  `.
+
+=== NON-NEGOTIABLE NEGATIVES (READ BEFORE COMPOSING) ===
+
+**NO SPURIOUS FOOD DEBRIS.** If the frame is NOT a plated meal, active food preparation, or a table clearly set for eating, do NOT add ANY food particles — no crumbs, no tater tots, no bread bits, no cracker fragments, no pastry pieces, no cookie chunks, no cereal, no popcorn, no chip fragments, no scattered nuts or berries. This rule applies especially to still-life frames like books, coffee cups, tools, pens, notebooks, single objects on a table. A coffee cup next to a book is NOT a meal — no crumbs. A book by a window is NOT a meal — no crumbs. A pocket knife on a workbench is NOT a meal — no crumbs. Food debris on a non-food frame reads as AI-hallucinated garbage and is the #1 tell that an AI generated the image.
+
+**NO GLASSY / UNIFORM WATER.** Real water surfaces have wind-driven ripple texture, directional wave patterns, subtle color variation from depth and reflection, and imperfect reflections. Do NOT render water as a smooth glass-mirror gradient. Bays, harbors, lakes, and oceans should show visible surface texture — small waves, wind lanes, real reflections that break at wave crests, not a flat AI-perfect reflection.
+
+**NO UNIFORM ATMOSPHERIC HAZE.** Fog, mist, and morning atmosphere have STRUCTURE — banks that hang over the water in bands, patches that break around trees or buildings, directional layers. Do NOT render fog as a smooth gray gradient that fades uniformly from foreground to background. If the frame has atmosphere, it must have shape and directionality — you should be able to say "the fog is heavier over the water on the right side" or "the mist is clearing over the harbor as the sun comes up."
+
+**NO SCUFFED OR MANGLED BRAND LOGOS.** If a brand logo would appear in the frame (car badging, product labels), either (a) render it correctly and legibly, or (b) shoot the frame from an angle where the logo is not visible or is small enough to be indistinct. Never render a garbled / half-formed / smudged version of a real logo. If in doubt, choose the angle that hides the badging.
+
+=== EDITORIAL STYLE ===
+
+Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler — real editorial photography by a photographer with taste. Medium-format film aesthetic: Portra 400 warmth for humans, interiors, and food; Ektar 100 for landscape. Colors feel lived-in, not filtered — warm skin tones, natural greens, honest blues. Motivated light with specific character: window light with the direction visible, low golden-hour sun raking across texture, or diffuse overcast from an identifiable side. Compose off-center with negative space and a rule-of-thirds anchor — the subject is NEVER dead center. One clear focal point per frame; the eye lands somewhere specific. Natural imperfection welcomed: dust on a beam, a slightly worn edge, uneven shadow falloff, one thing not quite in its place. Depth of field driven by real optics (50mm at f/2.8 or 90mm at f/4 look), not the flat plasticky bokeh AI models default to. Textures are honest — wood grain, weave in linen, pitting in cast iron, real skin. Square 1:1 framing. Hands, backs, silhouettes, and angled-away shots are fine and welcome; no clearly identifiable faces of real people; no on-image text or captions.
+
+=== ADDITIONAL REJECTS ===
+
+Do NOT produce: HDR-look processing, over-saturated color, plastic or over-smoothed textures, perfectly-symmetric composition, dead-center subject, stock-photo staging, artificially shallow depth of field with unnatural bokeh, 'teal-and-orange' cinematic grading, over-styled food arrangements, spurious food debris on non-food frames, glassy AI-perfect water, uniformly-graded atmospheric haze, mangled brand logos, or the flat generic AI-editorial plate look.`;
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -179,11 +197,40 @@ async function generateDriveImageWithReference(
 
   const editingInstruction = `${sectionTag}
 
-REFERENCE-IMAGE MODE: The image below is a real press photo of the car this slot is about ("${carName}"). Use it as the ground truth for the CAR ITSELF — body proportions, headlights, tail lights, fenders, wheels, badging, and generation-specific styling must match this reference. Do NOT substitute an earlier or later generation of the same nameplate. The car body in your output must be visually consistent with this reference photo.
+=== REFERENCE-IMAGE MODE — CAR PRESERVATION IS PARAMOUNT ===
 
-Then place this exact car into the setting and light described below. You may change: the background, the light quality, the time of day, the composition, the depth of field, the surface the car is on, and any props in the scene. You must NOT change: the year, the generation, the body shape, the headlight design, the wheel design, or any other identifying feature of the car itself.
+The image below is a manufacturer press photo of the car this slot is about ("${carName}"). It shows the car AS IT LEFT THE FACTORY. You must preserve the car in your output image with high fidelity.
 
-EDITORIAL SETTING PROMPT:
+**MUST PRESERVE EXACTLY (do not modify any of these):**
+- Body proportions and overall shape
+- Fender width and flare geometry — DO NOT widen the fenders, DO NOT add flares that aren't in the reference, DO NOT extend the body
+- Headlight shape, size, and internal structure
+- Tail light shape, size, and light signature
+- Wheel design (spoke pattern, size, finish) — factory wheels only
+- Grille shape and pattern
+- Bumper contours, splitter shape, diffuser layout
+- Roof line and greenhouse shape
+- Ride height — do not lower the car
+- Exhaust tip count, arrangement, and shape
+- Overall stance and posture
+- Generation-specific styling cues
+
+**BRAND LOGOS AND BADGES:**
+- If a brand logo (four rings, blue/white roundel, prancing horse, etc.) would appear in the frame at a size where individual details matter, render it ACCURATELY — correct number of elements, correct proportions, no scuffing or half-formed shapes.
+- If you cannot render the logo cleanly, choose a camera angle where the logo is either not in frame or is too small to matter (e.g., three-quarter rear from a bit further back, so the badge is a small element not a focal point).
+- NEVER render a garbled or scuffed version of a real brand logo. That is worse than not showing the logo at all.
+
+**YOU MAY CHANGE:**
+- The background (any scene from the editorial prompt below)
+- The light quality, time of day, direction of light
+- The composition and framing angle (as long as the car body is preserved)
+- The surface the car is on (asphalt, gravel, cobblestone, wet road, etc.)
+- Weather (fog, rain, clear, snow — appropriate to the scene)
+- Foreground and background props (as long as they don't obscure the car in a way that would hide identifying features)
+- Depth of field, aperture look, focal length
+
+=== EDITORIAL SETTING PROMPT ===
+
 ${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
 
   const base64 = Buffer.from(reference.bytes).toString("base64");

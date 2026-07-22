@@ -42,29 +42,49 @@ async function findCandidateImageUrls(carName: string): Promise<string[]> {
   if (!apiKey) throw new Error("car-image: ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey });
 
-  const system = `You are a car reference image finder for a newsletter's "The Drive" section. Given a specific year and generation of a car, you use the web_search tool to find real press photos of THAT EXACT generation (not earlier or later ones) and return 3-5 candidate direct image URLs.
+  const system = `You are a car reference image finder for a newsletter's "The Drive" section. Given a specific year and generation of a car, you use the web_search tool to find real MANUFACTURER PRESS photos of THAT EXACT generation and return 3-5 candidate direct image URLs.
 
-Priorities in order:
-1. Manufacturer press site images (bmwgroup.com, press.porsche.com, media.audi.com, media.mercedesbenz.com, media.toyota.com, media.ford.com, etc.) — these are always accurate and licensed for editorial use.
-2. Wikimedia Commons file URLs (upload.wikimedia.org/wikipedia/commons/...) — always free to use, well-labeled with generation info.
-3. Reputable automotive publication photos (Car and Driver, MotorTrend, Autoblog, Autoweek, Road & Track) — accurate but check the caption for generation.
+**Approved sources ONLY** (in priority order):
+1. Manufacturer press / media sites: media.audi.com, audi-mediacenter.com, press.bmwgroup.com, bmwgroup.com, press.porsche.com, presse.porsche.com, media.mercedesbenz.com, media.mbusa.com, media.lexus.com, pressroom.lexus.com, media.toyota.com, media.ford.com, media.gm.com, chevrolet.com/newsroom, honda-news.com, hondanews.com, mazdausa.com, media.stellantisnorthamerica.com, corporate.ferrari.com, media.jaguarlandrover.com, media.mclaren.com.
+2. Wikimedia Commons file URLs (upload.wikimedia.org/wikipedia/commons/...) — always free to use, factory-spec images.
+3. Wikipedia article images (typically hosted on Wikimedia Commons) — the "infobox" photo on the model's Wikipedia page is almost always a manufacturer press photo.
 
-CRITICAL RULES:
-- The URL must be a DIRECT image file URL — ending in .jpg, .jpeg, .png, .webp, or hosted on an image CDN. Not a webpage URL. If the search result is a page, check whether the page has a direct image URL you can extract.
+**Rejected sources** (do NOT return URLs from these):
+- Enthusiast forums (bimmerforums, rennlist, audiworld, etc.) — cars are often modified with aftermarket parts, wheels, tuning.
+- Aftermarket tuner / builder shops (APR, ABT, HRE Wheels, Vorsteiner, Alpina, Ruf, Prior Design, Mansory, Liberty Walk, Rocket Bunny, etc.) — these show heavily modified cars, not factory spec.
+- Instagram / Pinterest / random photo aggregators — provenance unknown, often modified.
+- Used-car listing sites (Cars.com, Autotrader, CarGurus, Bring a Trailer) — individual owners often modified their cars.
+- Stock photo sites (Getty, Shutterstock, Alamy) — coverage is inconsistent.
+
+**Critical accuracy rules:**
+- The reference must show the car as it left the factory — no aftermarket wheels, no widebody kits, no lowered suspension, no aftermarket exhausts, no wraps or vinyls, no aftermarket spoilers. Factory-spec only.
 - The image must match the EXACT year and generation named. A 2024 BMW M2 G87 is NOT a 2020 M2 F87. If the search only turns up the wrong generation, keep searching — do not settle.
-- Front three-quarter view is preferred (car angled slightly toward the camera, showing front + one side). Side profile is acceptable. Rear-only shots are not.
-- Prefer clean backgrounds (studio, road, mountain, showroom) over cluttered ones.
+- Front three-quarter view is preferred (car angled slightly toward the camera, showing front + one side). Side profile or rear three-quarter is acceptable. Straight-on front or straight-on rear is not.
+- The URL must be a DIRECT image file URL — ending in .jpg, .jpeg, .png, .webp, or hosted on an image CDN. Not a webpage URL.
+- Clean backgrounds preferred (studio, empty road, mountain, showroom) over cluttered ones.
 
 Return ONLY a JSON object of this exact shape, no preamble or markdown fence:
 {"candidates": ["https://...jpg", "https://...png", "https://..."]}
 
-If you truly cannot find any usable image URLs after searching, return {"candidates": []}.`;
+If you truly cannot find any usable image URLs from approved sources after searching, return {"candidates": []}. Do NOT return URLs from rejected sources as a fallback — better to fail cleanly than to hand back a modified car.`;
 
-  const userMessage = `Find 3-5 candidate direct image URLs for a press photo of this exact car:
+  const userMessage = `Find 3-5 candidate direct image URLs for a MANUFACTURER PRESS photo of this exact car:
 
 ${carName}
 
-Front three-quarter view preferred. Must match the EXACT year and generation. Search aggressively — run multiple web_search calls if the first pass returns thin results.`;
+Requirements:
+- Factory-spec only — no modified / tuner / widebody / lowered / aftermarket-wheel examples. The car must look exactly as it left the factory.
+- Approved sources only: manufacturer press/media sites, Wikimedia Commons, Wikipedia article images. Reject enthusiast forums, tuner shops, Instagram, Pinterest, used-car listings, stock photo sites.
+- Front three-quarter view preferred; side profile or rear three-quarter acceptable.
+- Must match the EXACT year and generation.
+
+Search aggressively. Try queries like:
+- "site:media.audi.com [car name]"
+- "site:audi-mediacenter.com [car name]"
+- "[car name] press photo site:wikimedia.org"
+- "[car name] official press release"
+
+If you find only modified examples, keep searching — do not return them.`;
 
   const response = await client.messages.create({
     model: MODEL,
