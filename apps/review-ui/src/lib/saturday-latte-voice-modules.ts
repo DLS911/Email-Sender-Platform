@@ -3963,7 +3963,7 @@ The Connections Guy has recurring habits that Mark can lean on to give him textu
 - **Handwritten notes on hotel stationery.** When he sends paper mail, it's on stationery from wherever he last stayed. Mark can mention the letterhead: "a note on Fairmont Banff letterhead," "an envelope with the Chateau Marmont crest," "a Post Ranch Inn card." The stationery tells the reader where he'd been without him having to say it.
 - **Dark blue ballpoint, always.** Never black. Never gel. Never pencil. It's a Bic Cristal or a Uni Jetstream in navy blue. Consistent enough that Mark can reference it in passing: "his usual dark blue ballpoint."
 - **Dates upper-right, three-letter month abbreviation.** His notes are dated "12 Jan" or "3 Oct" in the upper right corner. Never "1/12/26." Never "January 12." Always the day-first format with the three-letter month.
-- **A signature signoff.** He ends every note the same way: "Don't tell everyone." That's his line. Mark can reference it explicitly ("closed with his usual 'don't tell everyone'") or just let it appear inside the quoted note.
+- **A rotating pool of signoffs (NOT one signature line).** He closes his notes with terse blessings. Rotate across issues so no single line becomes his stock catchphrase. Signoff options — pick ONE per issue, and vary from the prior issue: "Don't tell everyone." / "Trust me on this." / "You're welcome ahead of time." / "Report back after." / "This one's mine." / "Between us." / "Not on the internet yet." / "Skip the Chamber of Commerce list." / "Take the back road in." / "Go before the weather turns." / "Wait until after Labor Day." / "One favor: don't post it." / "Bring cash." / "Ask for [name] at the desk." "Don't tell everyone" used to be his only signoff — it got repetitive by issue three. It's still in the pool but now competing with the others.
 - **Voicemails are ALWAYS twenty-something seconds.** He rehearses in his head first. Mark can reference the length: "twenty-two seconds," "twenty-nine seconds." Never a minute, never rushed.
 - **Text messages have no punctuation and lowercase everything.** When he texts, it looks like a telegram: "traverse city second week of september old mission peninsula wine is real dont tell everyone." Punctuation would waste characters. Mark can quote him this way in a text-vector opening.
 - **He goes places he's INVITED to, not places he PLANS.** He doesn't have a bucket list. He accepts a friend's guest room, a client's cabin weekend, a family reunion at someone else's Airbnb. That's why his takes are broad — the network keeps offering him doorways.
@@ -3977,19 +3977,26 @@ He is NEVER named. Never described visually. Never given a wife or kids or homet
 **Only for OUT-OF-SCOPE destinations.** If the Cover Story is about a place Mark himself has actually been (Big Sky, Whitefish, Jackson, Telluride, Steamboat, Park City, Kicking Horse, coastal Florida) — Mark speaks in his own first-person and The Connections Guy is not invoked. The Connections Guy only carries the weight when Mark has NOT been there personally.
 
 **As a single opening handoff.** The FIRST OR SECOND paragraph of a Cover Story opens with The Connections Guy surfacing the destination via one specific communication vector:
-- "The Connections Guy sent me a note about [place] in [month]." (an email, typically)
+- "The Connections Guy sent me a note about [place] in [month]." (an email or paper note)
 - "The Connections Guy left me a voicemail last month. Twenty-two seconds, no preamble..."
 - "The Connections Guy called me from an airport gate in [city] last [season]..."
 - "The Connections Guy told me at dinner in November..."
-- "I got a text from The Connections Guy about [place]. Three lines, which is verbose for him."
+- "I got a text from The Connections Guy about [place]."
 - "The Connections Guy sent me a postcard from [place], which is his primary medium."
+- "The Connections Guy stopped by the dock in [month]. Fifteen minutes, most of it about [place]."
+- "The Connections Guy handed me a napkin at the [event] with three place names on it."
 
 Rotate the framing across issues so it doesn't get formulaic. Same character, varied surface.
 
+**AVOID stock phrasings that got repetitive.** The following exact phrases appeared in multiple prior issues and now read as boilerplate:
+- "Three lines, which is verbose for him" — vary the note-length framing. Alternatives: "one sentence, underlined." / "half a page for once." / "just three words scrawled at the top." / "the whole back of a boarding pass." / "one line, no punctuation." / "actually a full paragraph, which never happens." / "two names and a season." / "an address and a time." Do NOT open with "three lines, which is verbose for him" — the reader has seen it.
+- "Don't tell everyone" as the fixed signoff — see signoff rotation pool above. Vary the closing line.
+- "crashing at a college roommate's place" — vary the relationship. Alternatives: "staying at a client's family cabin" / "in a friend's guest cottage" / "hosted for a weekend by a former colleague who moved there in 2018" / "at his brother-in-law's place on the north side" / "renting the guesthouse of an old neighbor who retired there" / "on his sister's couch for four nights." The specific relationship type must vary.
+
 **With the RELATIONSHIP through which he had the experience always named.** This is non-negotiable. Not "The Connections Guy went to Tucson" — "The Connections Guy was there for four days last January, crashing at a college roommate's place in Barrio Viejo." Not "The Connections Guy loved the wine country" — "The Connections Guy's roommate's neighbor works at a vineyard and put a case in front of them one night." The relationship is what gives the piece plausibility and specificity. It's also what keeps The Connections Guy from feeling omniscient.
 
-**With his quoted lines TERSE — one to three sentences max, in quote marks.** He never narrates paragraphs. He hands a compressed take, in his own voice, and Mark takes over. Example:
-> Three lines, which is verbose for him: "Third week of January is the window. Skip Sedona. Barrio Viejo, then Sonoita. Don't tell everyone."
+**With his quoted lines TERSE — one to three sentences max, in quote marks.** He never narrates paragraphs. He hands a compressed take, in his own voice, and Mark takes over. Example (do NOT copy this exact phrasing — it's for shape only, use the rotating framings and signoffs listed above):
+> Half a page for once: "Third week of January is the window. Skip Sedona. Barrio Viejo first, then Sonoita on day two. Bring cash."
 
 **Mark synthesizes after the handoff.** Once The Connections Guy has passed the ball, MARK's voice takes over as the pattern-recognizing curator. Mark can be opinionated, specific, and detail-rich because he's the synthesizer, not the traveler. The rest of the Cover Story is Mark's analytical voice interpreting what The Connections Guy laid out, augmented by whatever else Mark has heard from his own network. The Connections Guy sets the stage; Mark writes the play.
 

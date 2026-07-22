@@ -61,6 +61,10 @@ export type ImageGenResult = {
   costUsd: number;
   latencyMs: number;
   failures: Array<{ slot: string; error: string }>;
+  /** For theDrive slot: URL of the OEM press photo Haiku selected. Null if lookup failed and we fell back to text-only Gemini. */
+  driveReferenceUrl?: string | null;
+  /** True if the drive slot was populated from a press photo (accuracy guaranteed); false if it fell back to text-only Gemini (may be inaccurate). */
+  driveUsedReference?: boolean;
 };
 
 function getStorageClient(): SupabaseClient {
@@ -89,6 +93,14 @@ const LATTE_IMAGE_STYLE_SUFFIX =
 **NO UNIFORM ATMOSPHERIC HAZE.** Fog, mist, and morning atmosphere have STRUCTURE — banks that hang over the water in bands, patches that break around trees or buildings, directional layers. Do NOT render fog as a smooth gray gradient that fades uniformly from foreground to background. If the frame has atmosphere, it must have shape and directionality — you should be able to say "the fog is heavier over the water on the right side" or "the mist is clearing over the harbor as the sun comes up."
 
 **NO SCUFFED OR MANGLED BRAND LOGOS.** If a brand logo would appear in the frame (car badging, product labels), either (a) render it correctly and legibly, or (b) shoot the frame from an angle where the logo is not visible or is small enough to be indistinct. Never render a garbled / half-formed / smudged version of a real logo. If in doubt, choose the angle that hides the badging.
+
+**PHYSICS MUST BE REAL.** The image must obey basic physics of the objects in it.
+- **Steam only escapes from open apertures.** A kettle with the lid CLOSED does not vent steam from under the lid or through the metal body. Steam comes out of the open spout, or from a lid that is visibly ajar, or from a pot with no lid on. If depicting a kettle with a closed lid, the steam must be zero or come only from the spout.
+- **Shadows fall in the direction the primary light source dictates.** If sun is coming from camera-right, shadows fall to the left. Never have contradictory shadow directions in the same frame.
+- **Reflections match the camera viewpoint.** A polished surface reflects what would actually be in front of it from the camera's angle, not a random scene.
+- **Liquids sit level in vessels regardless of vessel tilt** (Earth gravity). A tilted cup shows liquid at a level angle, not tilted with the cup.
+- **Hot pans show heat effects appropriately.** Steam only from wet food or actively boiling water; not from a dry cast iron with a raw steak just placed on it.
+- **Fabric drapes with weight and gravity.** Linen falls in soft folds toward the floor, not defying gravity.
 
 === EDITORIAL STYLE ===
 
@@ -165,14 +177,22 @@ async function generateOneImage(
 }
 
 /**
- * Reference-driven image generation for the theDrive slot. Fetches a real
- * press photo of the car from Google Custom Search, then asks Gemini to
- * keep the car body faithful to the reference while placing it in our
- * editorial setting. This solves the repeated failure mode of text-only
- * Gemini rendering the wrong generation of a named nameplate.
+ * Reference-driven image generation for the theDrive slot.
  *
- * If reference lookup fails, falls back to text-only generation so an
- * issue still ships with some image rather than a broken slot.
+ * PREVIOUS approach (reference photo + Gemini edit) failed twice in prod:
+ * Gemini stripped M-specific styling details (fender flares, quad
+ * exhausts, aggressive front bumpers), rendered garbled brand logos, and
+ * mis-sized the body. Cars are the one category where accuracy is
+ * non-negotiable and where AI editing is unreliable.
+ *
+ * CURRENT approach: use the manufacturer press photo DIRECTLY. Fetch
+ * from OEM press sources via Haiku web_search (already built), upload
+ * to Supabase Storage as-is, skip Gemini entirely for this slot. Trade
+ * editorial-scene consistency for guaranteed car accuracy. Press photos
+ * are already professionally shot and licensed for editorial use.
+ *
+ * If the press photo lookup fails, falls back to text-only Gemini as a
+ * last resort so the issue still ships.
  */
 async function generateDriveImageWithReference(
   apiKey: string,
@@ -190,67 +210,29 @@ async function generateDriveImageWithReference(
     );
   }
 
-  if (!reference) {
-    const result = await generateOneImage(apiKey, slotPrompt, sectionTag);
-    return { ...result, usedReference: false };
+  if (reference) {
+    // Use the press photo directly. This is the change: no Gemini edit,
+    // no scene rewrite. Just the OEM press image so the car is
+    // guaranteed to be the correct year + trim + factory spec.
+    console.info("latte.car_reference_used_direct", {
+      car: carName,
+      source_url: reference.sourceUrl,
+    });
+    return {
+      bytes: reference.bytes,
+      mimeType: reference.mimeType,
+      usedReference: true,
+      referenceUrl: reference.sourceUrl,
+    };
   }
 
-  const editingInstruction = `${sectionTag}
-
-=== REFERENCE-IMAGE MODE — CAR PRESERVATION IS PARAMOUNT ===
-
-The image below is a manufacturer press photo of the car this slot is about ("${carName}"). It shows the car AS IT LEFT THE FACTORY. You must preserve the car in your output image with high fidelity.
-
-**MUST PRESERVE EXACTLY (do not modify any of these):**
-- Body proportions and overall shape
-- Fender width and flare geometry — DO NOT widen the fenders, DO NOT add flares that aren't in the reference, DO NOT extend the body
-- Headlight shape, size, and internal structure
-- Tail light shape, size, and light signature
-- Wheel design (spoke pattern, size, finish) — factory wheels only
-- Grille shape and pattern
-- Bumper contours, splitter shape, diffuser layout
-- Roof line and greenhouse shape
-- Ride height — do not lower the car
-- Exhaust tip count, arrangement, and shape
-- Overall stance and posture
-- Generation-specific styling cues
-
-**BRAND LOGOS AND BADGES:**
-- If a brand logo (four rings, blue/white roundel, prancing horse, etc.) would appear in the frame at a size where individual details matter, render it ACCURATELY — correct number of elements, correct proportions, no scuffing or half-formed shapes.
-- If you cannot render the logo cleanly, choose a camera angle where the logo is either not in frame or is too small to matter (e.g., three-quarter rear from a bit further back, so the badge is a small element not a focal point).
-- NEVER render a garbled or scuffed version of a real brand logo. That is worse than not showing the logo at all.
-
-**YOU MAY CHANGE:**
-- The background (any scene from the editorial prompt below)
-- The light quality, time of day, direction of light
-- The composition and framing angle (as long as the car body is preserved)
-- The surface the car is on (asphalt, gravel, cobblestone, wet road, etc.)
-- Weather (fog, rain, clear, snow — appropriate to the scene)
-- Foreground and background props (as long as they don't obscure the car in a way that would hide identifying features)
-- Depth of field, aperture look, focal length
-
-=== EDITORIAL SETTING PROMPT ===
-
-${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}`;
-
-  const base64 = Buffer.from(reference.bytes).toString("base64");
-  const parts = [
-    { text: editingInstruction },
-    { inlineData: { mimeType: reference.mimeType, data: base64 } },
-  ];
-
-  try {
-    const result = await callGemini(apiKey, parts);
-    return { ...result, usedReference: true, referenceUrl: reference.sourceUrl };
-  } catch (err) {
-    // If Gemini rejects the edit call, retry once with text-only
-    console.error(
-      "latte.car_reference_edit_failed",
-      err instanceof Error ? err.message : String(err),
-    );
-    const fallback = await generateOneImage(apiKey, slotPrompt, sectionTag);
-    return { ...fallback, usedReference: false, referenceUrl: reference.sourceUrl };
-  }
+  // No reference image found — fall back to text-only Gemini as a last
+  // resort so the issue still ships with SOMETHING in the drive slot.
+  // Note: this path is known to produce wrong-generation cars; the OEM
+  // press photo path above is the intended default.
+  console.warn("latte.car_falling_back_to_text_only_gemini", { car: carName });
+  const fallback = await generateOneImage(apiKey, slotPrompt, sectionTag);
+  return { ...fallback, usedReference: false };
 }
 
 async function uploadToStorage(
@@ -450,12 +432,18 @@ export async function generateLatteImages(opts: {
   );
 
   let successCount = 0;
+  let driveReferenceUrl: string | null = null;
+  let driveUsedReference = false;
   for (let i = 0; i < jobs.length; i++) {
     const job = jobs[i]!;
     const res = results[i]!;
     if (res.status === "fulfilled") {
       job.set(res.value.url);
       successCount++;
+      if (job.slot === "the-drive") {
+        driveReferenceUrl = res.value.referenceUrl ?? null;
+        driveUsedReference = res.value.usedReference ?? false;
+      }
     } else {
       failures.push({
         slot: job.slot,
@@ -469,5 +457,7 @@ export async function generateLatteImages(opts: {
     costUsd: successCount * COST_PER_IMAGE,
     latencyMs: Date.now() - start,
     failures,
+    driveReferenceUrl,
+    driveUsedReference,
   };
 }

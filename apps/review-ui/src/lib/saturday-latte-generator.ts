@@ -427,6 +427,15 @@ Worth Watching, Worth Drinking, Worth Reading, Worth Listening, Worth Trying —
 - url: the actual URL where the item can be found (IMDB for movies, manufacturer/Amazon for products, publisher/Amazon for books). USE A URL FROM RESEARCH IF AVAILABLE.
 - body: 80-150 words. The Unexpected Variable named. An insight from the Physics/Wisdom/Insider frame.
 
+**TV show entry-point rule (Worth Watching).** For any TV series with multiple seasons, the DEFAULT pick is Season 1 — the reader is being introduced to the show for the first time. Do NOT recommend "Season 4" or "Season 3" as an orphan pick that assumes the reader has watched earlier seasons.
+
+If the current season genuinely IS the pick (e.g., the show is having a critical moment, a season-specific arc is the reason to watch), then:
+- Name the show, not just the season, in the title field ("Slow Horses" not "Slow Horses Season 4")
+- The body MUST include an entry-point line for readers who haven't started: "If you haven't started: Season 1 is on Apple TV+, five hours gets you here. Season 4 is currently airing and the pattern-recognition it rewards is why it's on this week's list."
+- Never recommend "Season N" of a show without acknowledging what came before.
+
+Same rule for book series (recommend book 1 of a trilogy, not book 3) and for podcasts (name a specific episode ONLY if it stands alone; otherwise recommend the podcast from its first season/episode).
+
 Pull from research: products, watchReadListen, cooking.
 
 ### 3. The Host's Corner
@@ -1283,6 +1292,8 @@ export type SaturdayLatteIssue = {
     imagePromptsSource?: "writer" | "haiku" | "none";
     imagePromptsError?: string;
     imagesError?: string;
+    driveReferenceUrl?: string | null;
+    driveUsedReference?: boolean;
     urlsValidated: number;
     urlsDropped: number;
     authorScopeViolationsFound: number;
@@ -1352,6 +1363,8 @@ export async function generateSaturdayLatteIssue(opts: {
   let imagesGenerated = 0;
   let imagesFailed = 0;
   let imagesError: string | null = null;
+  let driveReferenceUrl: string | null = null;
+  let driveUsedReference = false;
   let contentWithImages = scopedContent;
 
   // Image prompts: try the writer's output first, fall back to a focused
@@ -1402,6 +1415,8 @@ export async function generateSaturdayLatteIssue(opts: {
       imagesCostUsd = imageResult.costUsd;
       imagesLatencyMs = imageResult.latencyMs;
       imagesFailed = imageResult.failures.length;
+      driveReferenceUrl = imageResult.driveReferenceUrl ?? null;
+      driveUsedReference = imageResult.driveUsedReference ?? false;
       // Count successes by counting set keys in urls (tasting menu counted per slot)
       const tmCount = imageResult.urls.tastingMenu
         ? imageResult.urls.tastingMenu.filter((u) => u && u.trim() !== "").length
@@ -1518,6 +1533,8 @@ export async function generateSaturdayLatteIssue(opts: {
       imagePromptsSource,
       ...(imagePromptsError ? { imagePromptsError } : {}),
       ...(imagesError ? { imagesError } : {}),
+      driveReferenceUrl,
+      driveUsedReference,
       urlsValidated: urlValidation.validated,
       urlsDropped: urlValidation.dropped,
       authorScopeViolationsFound: scope.violationsFound,
