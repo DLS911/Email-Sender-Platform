@@ -288,6 +288,42 @@ export async function generateDriveImageWithReference(
 }
 
 /**
+ * LIGHT editorial reframe of a car reference photo. Used as a fallback
+ * when the full background-only edit fails validation. This pass is
+ * much more constrained: crop to 1:1 square, apply gentle Portra 400
+ * color grading, preserve the car AND its immediate surroundings
+ * exactly. No background swap, no pose change, no scene invention.
+ * The goal is to make the raw dealership press photo feel like it
+ * belongs in a newsletter rather than a car listing.
+ */
+export async function lightlyReframeDriveReference(
+  apiKey: string,
+  reference: { bytes: Uint8Array; mimeType: string },
+  carName: string,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const instruction = `You are given a reference photograph of "${carName}". Produce a LIGHTLY EDITED version of this exact image with the following minimal changes only:
+
+1. Reframe / crop the composition to a 1:1 SQUARE aspect ratio. Keep the car centered within the square. If needed, extend background at the edges (the same surface, wall, or sky the reference shows) - do NOT invent new scene elements.
+2. Apply a subtle Portra 400 color grade: slightly warmer skin/paint tones, muted greens, gentle shadow lift. The result should look like a real editorial photograph, not a phone snapshot or a manufacturer catalog scan.
+3. Add a very subtle vignette if the composition benefits from it (barely perceptible, not dramatic).
+
+You must NOT:
+- Change the car itself (body, wheels, headlights, tail lights, grille, badges, ride height, color, factory-spec styling).
+- Change the reference photo's underlying scene (the same background, the same location, the same lighting direction).
+- Add new props, new subjects, new environmental elements.
+- Do a full "background replacement" - this is a light color/composition pass ONLY.
+- Introduce motion blur or action effects (the reference is static and should stay static).
+
+Output: a 1:1 square, editorially-graded version of the reference photograph with the car preserved.`;
+
+  const base64 = Buffer.from(reference.bytes).toString("base64");
+  return callGemini(apiKey, [
+    { text: instruction },
+    { inlineData: { mimeType: reference.mimeType, data: base64 } },
+  ]);
+}
+
+/**
  * Background-only edit of a car reference photo. The reference image
  * shows the car (as it left the factory) against some incidental
  * background — a dealership, a street, a driveway. We want the CAR to
@@ -571,27 +607,59 @@ CRITICAL FIX ON RETRY: A previous attempt to generate this exact image failed va
     verdict = await validateImage(img.bytes, img.mimeType, ctx);
   }
 
-  // If STILL failed after retry and we're on theDrive, fall back to
-  // reference-photo direct (which is always accurate even if compositionally
-  // generic). For other slots we upload the last attempt anyway.
+  // For theDrive: if the full background-only edit failed twice, do a
+  // LIGHT editorial reframe of the reference (crop to 1:1, gentle color
+  // grade, preserve car pixels). This is the "middle" fallback - gives
+  // us a newsletter-quality image without the risk of Gemini modifying
+  // the car in a heavy background swap. Only if THAT also fails do we
+  // ship the raw reference as-is.
   let usedFallbackToReference = false;
-  if (ctx && verdict && !verdict.ok && slot === "the-drive" && img.referenceUrl) {
-    console.warn("latte.image_validator_fail_final_using_reference", {
+  if (ctx && verdict && !verdict.ok && slot === "the-drive") {
+    console.warn("latte.image_validator_fail_trying_light_reframe", {
       slot,
       final_reason: verdict.reason,
     });
     try {
       const fallbackRef = await fetchCarReferenceImage(subjects.theDriveCar, prompt);
-      img = {
-        bytes: fallbackRef.bytes,
-        mimeType: fallbackRef.mimeType,
-        usedReference: true,
-        referenceUrl: fallbackRef.sourceUrl,
-      };
-      usedFallbackToReference = true;
+      // Attempt: light reframe of the reference
+      try {
+        const reframed = await lightlyReframeDriveReference(
+          apiKey,
+          { bytes: fallbackRef.bytes, mimeType: fallbackRef.mimeType },
+          subjects.theDriveCar,
+        );
+        // Validate the reframed version. If it passes, use it. If not,
+        // use the raw reference.
+        const reframeVerdict = await validateImage(reframed.bytes, reframed.mimeType, ctx);
+        if (reframeVerdict.ok) {
+          img = {
+            bytes: reframed.bytes,
+            mimeType: reframed.mimeType,
+            usedReference: true,
+            referenceUrl: fallbackRef.sourceUrl,
+          };
+          verdict = reframeVerdict;
+          usedFallbackToReference = true;
+          console.info("latte.image_light_reframe_succeeded", { slot });
+        } else {
+          throw new Error(`reframe failed validation: ${reframeVerdict.reason}`);
+        }
+      } catch (reframeErr) {
+        console.warn(
+          "latte.image_light_reframe_failed_using_reference_raw",
+          reframeErr instanceof Error ? reframeErr.message : String(reframeErr),
+        );
+        img = {
+          bytes: fallbackRef.bytes,
+          mimeType: fallbackRef.mimeType,
+          usedReference: true,
+          referenceUrl: fallbackRef.sourceUrl,
+        };
+        usedFallbackToReference = true;
+      }
     } catch (err) {
       console.error(
-        "latte.image_reference_fallback_failed",
+        "latte.image_reference_fallback_lookup_failed",
         err instanceof Error ? err.message : String(err),
       );
     }

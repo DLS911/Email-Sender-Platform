@@ -334,17 +334,32 @@ export async function pickReferenceForScene(
     const response = await client.messages.create({
       model: HAIKU_MODEL,
       max_tokens: 300,
-      temperature: 0.1,
-      system: `You are picking the best reference photo for an editorial car image edit. You will be shown several candidate photos of the same car and a description of the target scene / shot type. Pick the ONE candidate whose POSE and ANGLE most closely matches what the target scene needs.
+      temperature: 0.5, // higher temperature so the picker doesn't lock onto the same pose every time
+      system: `You are picking the best reference photo for an editorial car image edit. You will be shown several candidate photos of the same car and a description of the target scene / shot type. Pick the ONE candidate whose POSE and ANGLE best matches what the target scene needs.
 
-CRITICAL PRINCIPLE: The image editing model will preserve the reference car's pose, but if it has to rotate the car (e.g. reference is a rear view but scene needs to show the front), the model will SYNTHESIZE the missing angles and DRIFT AWAY from the correct year/generation. To avoid drift, ONLY pick a pose that already shows what the scene needs. If unsure, prefer 3/4 front (safest, matches most scenes, keeps the face preserved).
+CRITICAL PRINCIPLE: The image editing model preserves the reference car's pose. If asked to rotate the car (e.g. reference is a rear view but scene needs to show the front), the model synthesizes the missing angles and DRIFTS AWAY from the correct year/generation. So the reference pose must be COMPATIBLE with what the scene will show.
 
-Guidelines:
-- Panning-shot / cornering / mid-turn / apex / drifting / motorsport scenes → pick a SIDE PROFILE or 3/4 rear-angled action pose that already reads as "in motion."
-- Static beauty shots / parked / showroom / dealership / driveway / garage / arriving scenes → pick a 3/4 FRONT pose (this is the safest default — preserves the face which is where generation-specific styling is most identifiable).
-- Racetrack / apex / cornering / paddock scenes → pick a side or 3/4 rear action pose.
-- Scenic road / mountain / coastal / cruise / open highway (car IS moving but slowly, no panning) → prefer 3/4 front (the face is the identifying feature; motion is implied by scene, not by camera panning).
-- If scene ambiguity is unclear → default to 3/4 front.
+**Pose types to recognize:**
+- **3/4 front** - car angled slightly, showing front + one side. The car's face is prominent.
+- **3/4 rear** - car angled the other way, showing rear + one side. The tail lights and rear quarter are prominent.
+- **Side profile** - camera perpendicular to car, full flank shown.
+- **Direct front** - camera dead-on the nose.
+- **Direct rear** - camera dead-on the tail.
+- **Action pose** - car photographed while driving (weight transfer, wheels turned).
+
+**Match to scene:**
+- Panning-shot / cornering / mid-turn / apex / drifting / motorsport → side profile or action pose.
+- Static beauty / parked / showroom / dealership → 3/4 front OR 3/4 rear (both work; pick based on what candidates offer).
+- Garage / driveway / arrival scenes → 3/4 front usually reads best.
+- Scenic road / mountain / coastal / open highway cruise (car moving but not panning) → 3/4 front usually, but 3/4 rear works for "driving away" framing.
+
+**VARIETY PRINCIPLE:** Do not always pick the same pose type. If two candidates match the scene equally, pick the one with the LESS common angle (side profile or driving-away rear-3/4 over the default 3/4 front). This creates variety across issues so the newsletter doesn't always show the car from the same predictable angle. The reader benefits from seeing the same car from different perspectives across time.
+
+**Tiebreakers when scene is ambiguous:**
+- Prefer non-obvious angles when candidates offer variety.
+- Prefer clean backgrounds over cluttered ones.
+- Prefer photos where the car is prominent (fills 50-70% of the frame) over ones where it's a small element.
+- Prefer daylight neutrality (studio, overcast) over strong-directional-sun photos.
 
 Return ONLY the number (1-based index) of the winning candidate. No explanation.`,
       messages: [
