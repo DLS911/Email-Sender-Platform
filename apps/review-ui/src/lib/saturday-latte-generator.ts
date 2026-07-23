@@ -833,6 +833,7 @@ async function runWriterPhase(
   research: LatteResearch,
   recentCoverStories: string[],
   recentContext?: LatteRecentContext,
+  retryRejectionMessage?: string,
 ): Promise<{
   content: SaturdayLatteContent;
   contentType: string;
@@ -869,7 +870,7 @@ async function runWriterPhase(
         ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** The last ${ctx.cars.length} Drive picks were all modern cars (within the last 6 model years). This issue MUST pick from Category 6 (Classics/Restomods/Cool Oddballs) — see WEEKEND_CAR_SPECTRUM voice module. Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise, Mercedes 500E, or any '90s JDM hero. The pick must be under $120k and a model year of 2010 or earlier (a real classic) OR a restomod based on a car that old. Do NOT pick another new car this issue.`
         : "";
       exclusions.push(
-        `## RECENT THE DRIVE PICKS (do NOT repeat — pick a DIFFERENT car from a different category of the spectrum):\n${ctx.cars.map((c) => `- ${c}`).join("\n")}${eraRule}`,
+        `## RECENT THE DRIVE PICKS — HARD RULE, DO NOT REPEAT ANY OF THESE:\n${ctx.cars.map((c) => `- ${c}`).join("\n")}\n\nThe car you pick for The Drive this issue MUST NOT be any car on the list above. Not the same year+model, not a different year of the same model, not a different trim of the same model. Pick from a completely different nameplate or generation. If you can only think of cars on the list, keep thinking — there are hundreds of cool cars under $120k across the spectrum.${eraRule}`,
       );
     }
     if (ctx.tastingMenuTitles.length > 0)
@@ -892,6 +893,10 @@ async function runWriterPhase(
       parts.push(`\n# MEMORY — recently covered items, DO NOT repeat:\n\n${exclusions.join("\n\n")}`);
     }
   }
+  if (retryRejectionMessage) {
+    parts.push(`\n\n# ⚠️ RETRY REJECTION NOTICE — YOUR PREVIOUS DRAFT REPEATED PICKS FROM THE RECENT LIST\n\n${retryRejectionMessage}\n\nRegenerate the entire issue, and make absolutely sure NONE of your picks appear on the recent-picks lists above.`);
+  }
+
   parts.push(`\nReturn ONLY the JSON object specified. No preamble, no markdown fences.`);
 
   const systemPrompt = composeWeekendWriterVoice() + STRUCTURAL_INSTRUCTIONS;
@@ -948,6 +953,74 @@ function normalizeRef(s: string): string {
     .replace(/\([a-z]+\)/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Normalize a tasting or car title for repeat detection: lowercase, strip
+// punctuation, collapse whitespace, drop leading articles. "The Passion
+// (2004)" and "the passion" both collapse to "passion", so a repeat won't
+// slip through on a trivial wording difference.
+function normalizeTitleForRepeat(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(the|a|an)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+type RepeatOffense = {
+  slot: "tasting-1" | "tasting-2" | "tasting-3" | "theDrive";
+  picked: string;
+  matched: string;
+};
+
+// Compare writer output against recent picks. Any tasting title or Drive
+// car whose normalized form matches a normalized recent-pick counts as
+// an offense. For cars we also flag same-nameplate matches (same brand
+// AND model even if the year differs), since Austin has explicitly said
+// the pick must be a different nameplate/generation.
+function findRepeatOffenses(
+  content: SaturdayLatteContent,
+  ctx: LatteRecentContext,
+): RepeatOffense[] {
+  const offenses: RepeatOffense[] = [];
+  const recentTastingNorm = ctx.tastingMenuTitles.map((t) => ({
+    original: t,
+    norm: normalizeTitleForRepeat(t),
+  }));
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const pickedNorm = normalizeTitleForRepeat(item.title);
+    if (!pickedNorm) continue;
+    const hit = recentTastingNorm.find(
+      (r) => r.norm && (r.norm === pickedNorm || r.norm.includes(pickedNorm) || pickedNorm.includes(r.norm)),
+    );
+    if (hit) {
+      offenses.push({
+        slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+        picked: item.title,
+        matched: hit.original,
+      });
+    }
+  }
+  const pickedCarNorm = normalizeTitleForRepeat(content.theDrive.car);
+  if (pickedCarNorm) {
+    const carHit = ctx.cars.find((c) => {
+      const rNorm = normalizeTitleForRepeat(c);
+      if (!rNorm) return false;
+      if (rNorm === pickedCarNorm) return true;
+      const pickedTokens = pickedCarNorm.split(" ").filter((t) => t.length >= 3 && !/^\d+$/.test(t));
+      const recentTokens = new Set(rNorm.split(" "));
+      const shared = pickedTokens.filter((t) => recentTokens.has(t));
+      return shared.length >= 2;
+    });
+    if (carHit) {
+      offenses.push({ slot: "theDrive", picked: content.theDrive.car, matched: carHit });
+    }
+  }
+  return offenses;
 }
 
 function refInList(picked: string, list: string[]): boolean {
@@ -1428,13 +1501,46 @@ export async function generateSaturdayLatteIssue(opts: {
         }
       : { issueDate: opts.issueDate, recentCoverStories, ...(recentContext ? { recentContext } : {}) },
   );
-  const writer = await runWriterPhase(
+  let writer = await runWriterPhase(
     client,
     opts.issueDate,
     research.bundle,
     recentCoverStories,
     recentContext,
   );
+
+  // Repeat-detection guard: if the writer picked a tasting title or a car
+  // that appears in recentContext, retry ONCE with an explicit rejection
+  // list. Case-insensitive, punctuation-normalized comparison so trivial
+  // wording differences don't slip a real repeat past the check.
+  if (recentContext) {
+    const repeatOffenses = findRepeatOffenses(writer.content, recentContext);
+    if (repeatOffenses.length > 0) {
+      const rejectionMessage = repeatOffenses
+        .map((o) => `- Your draft's ${o.slot}: "${o.picked}" matches recent pick "${o.matched}". REJECT this and pick something different.`)
+        .join("\n");
+      console.warn("latte.writer_repeat_offenses_retry", {
+        count: repeatOffenses.length,
+        offenses: repeatOffenses,
+      });
+      const retryWriter = await runWriterPhase(
+        client,
+        opts.issueDate,
+        research.bundle,
+        recentCoverStories,
+        recentContext,
+        rejectionMessage,
+      );
+      writer = {
+        content: retryWriter.content,
+        contentType: retryWriter.contentType,
+        imagePrompts: retryWriter.imagePrompts,
+        inputTokens: writer.inputTokens + retryWriter.inputTokens,
+        outputTokens: writer.outputTokens + retryWriter.outputTokens,
+        latencyMs: writer.latencyMs + retryWriter.latencyMs,
+      };
+    }
+  }
 
   const writerCost =
     (writer.inputTokens / 1_000_000) * ANTHROPIC_INPUT_PER_M +
