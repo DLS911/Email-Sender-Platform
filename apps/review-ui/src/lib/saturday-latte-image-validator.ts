@@ -73,7 +73,7 @@ Verdict format:
 - **ALLOWED (do NOT fail):** kissing, embracing, hugging, tender contact between fully-clothed characters. War action scenes are OK if shown at wide/medium framing — peppered battlefield with explosions and people running is fine for an adult audience. Reject only when it crosses into gore (close-up wounds, arterial blood, dwelling on injury).
 - Neutral content is also fine: conversations, driving, walking, landscapes, wide establishing shots, desk work.`
         : kind === "book"
-          ? "For a book pick, the image usually shows the actual book with a reasonable cover, on a table with contextual props (coffee cup, window light)."
+          ? "For a book pick, the image shows the actual book with a reasonable cover, on a table with contextual props (coffee cup, window light, glasses, a bookmark). **NO decorative botanicals or seasonal debris on or near the book — a single fall leaf on the cover is a FAIL, flower petals beside it is a FAIL, a sprig of eucalyptus/rosemary/lavender is a FAIL, pinecones/acorns/feathers/pressed botanicals of any kind are a FAIL.** The book is the subject, not the book plus a Pinterest botanical accent."
           : kind === "product"
             ? "For a product pick, the image must show the ACTUAL product (matching real-world form factor - correct handle placement, correct ports, correct shape). No hallucinated broken versions."
             : kind === "drink"

@@ -874,7 +874,7 @@ async function runWriterPhase(
     }
     if (ctx.tastingMenuTitles.length > 0)
       exclusions.push(
-        `## RECENT TASTING MENU PICKS (do NOT repeat books/films/products):\n${ctx.tastingMenuTitles.map((t) => `- ${t}`).join("\n")}`,
+        `## RECENT TASTING MENU PICKS — HARD RULE, DO NOT REPEAT ANY OF THESE:\n${ctx.tastingMenuTitles.map((t) => `- ${t}`).join("\n")}\n\nEvery book, film, product, or drink you select for this issue's Tasting Menu MUST be a title NOT in the list above. Do not pick a book from the list. Do not pick a film from the list. Do not pick a product from the list. Do not pick a drink from the list. If you can only think of items on the list, keep thinking — there are thousands of great books, films, products, and drinks; pick one that has not been featured.`,
       );
     if (ctx.cookingMoves.length > 0)
       exclusions.push(
