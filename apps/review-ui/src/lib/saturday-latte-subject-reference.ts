@@ -42,6 +42,8 @@ async function wikipediaSearch(query: string, limit = 5): Promise<WikiSearchHit[
 
 type WikiSummary = {
   title: string;
+  description?: string;
+  extract?: string;
   originalimage?: { source: string; width?: number; height?: number };
   thumbnail?: { source: string; width?: number; height?: number };
 };
@@ -74,9 +76,10 @@ async function downloadImage(imageUrl: string): Promise<{ bytes: Uint8Array; mim
 /**
  * Score Wikipedia search results for relevance to the subject. Prefers
  * exact/partial title matches; deprioritizes list pages and
- * disambiguation.
+ * disambiguation. For film kind, boosts titles that contain the
+ * disambiguator "(film)" / "(TV series)" / a year in parens.
  */
-function score(subject: string, title: string): number {
+function score(subject: string, title: string, kindHint?: string): number {
   const s = subject.toLowerCase();
   const t = title.toLowerCase();
   let n = 0;
@@ -85,7 +88,49 @@ function score(subject: string, title: string): number {
   if (t === s) n += 15;
   if (t.includes("(disambiguation)")) n -= 8;
   if (t.startsWith("list of")) n -= 8;
+
+  // For films/TV, prefer titles that carry a film/TV disambiguator.
+  // Wikipedia titles like "Civil War (2024 film)" or "The Bear (TV series)"
+  // are the specific film/show article, not the general concept.
+  if (kindHint === "film") {
+    if (/\(\d{4}\s+film\)/.test(t)) n += 20;
+    if (t.includes("(film)")) n += 15;
+    if (t.includes("(tv series)") || t.includes("(miniseries)") || /\(\d{4}\s+tv/.test(t)) n += 15;
+  }
+  if (kindHint === "book" || kindHint === "novel") {
+    if (t.includes("(novel)") || t.includes("(book)")) n += 10;
+  }
   return n;
+}
+
+/**
+ * For film/TV kind, verify a Wikipedia summary is actually about a
+ * film/TV work by checking its description and extract for signal
+ * words. Prevents returning general-topic articles (e.g. the
+ * generic "civil war" topic article) when the search should have
+ * found the specific film ("Civil War (2024 film)").
+ */
+function isFilmOrTvArticle(summary: WikiSummary): boolean {
+  const text = `${summary.description ?? ""} ${summary.extract ?? ""}`.toLowerCase();
+  if (!text) return false;
+  const filmSignals = [
+    "film directed by",
+    "directed by",
+    "screenplay by",
+    "starring",
+    "released in",
+    "premiered on",
+    "television series",
+    "tv series",
+    "miniseries",
+    "streaming service",
+    "the film",
+    "the movie",
+    "the series",
+    "cinematographer",
+    "executive producer",
+  ];
+  return filmSignals.some((w) => text.includes(w));
 }
 
 /**
@@ -103,27 +148,68 @@ export async function fetchSubjectReferenceImage(
   kindHint?: string,
 ): Promise<SubjectReferenceImage | null> {
   if (!subject || subject.trim() === "") return null;
-  const query = kindHint ? `${subject} ${kindHint}` : subject;
 
-  let hits: WikiSearchHit[];
-  try {
-    hits = await wikipediaSearch(query, 5);
-  } catch (err) {
-    console.warn(
-      "subject-reference.search_failed",
-      err instanceof Error ? err.message : String(err),
-    );
-    return null;
+  // For films, do TWO searches: first with an explicit "(film)"
+  // disambiguator to prefer the film article, then a general search
+  // as fallback. This prevents "Civil War" from landing on the
+  // general-topic article and returning war photography.
+  const queries: string[] = [];
+  if (kindHint === "film") {
+    queries.push(`${subject} (film)`);
+    queries.push(`${subject} film`);
+    queries.push(subject);
+  } else if (kindHint === "novel" || kindHint === "book") {
+    queries.push(`${subject} novel`);
+    queries.push(`${subject} book`);
+    queries.push(subject);
+  } else if (kindHint) {
+    queries.push(`${subject} ${kindHint}`);
+    queries.push(subject);
+  } else {
+    queries.push(subject);
   }
-  if (hits.length === 0) return null;
 
-  const ranked = hits
-    .map((h) => ({ title: h.title, score: score(subject, h.title) }))
+  const seen = new Set<string>();
+  const allHits: WikiSearchHit[] = [];
+  for (const q of queries) {
+    try {
+      const hits = await wikipediaSearch(q, 5);
+      for (const h of hits) {
+        if (seen.has(h.title)) continue;
+        seen.add(h.title);
+        allHits.push(h);
+      }
+    } catch (err) {
+      console.warn(
+        "subject-reference.search_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    if (allHits.length >= 8) break;
+  }
+  if (allHits.length === 0) return null;
+
+  const ranked = allHits
+    .map((h) => ({ title: h.title, score: score(subject, h.title, kindHint) }))
     .sort((a, b) => b.score - a.score);
 
-  for (const cand of ranked.slice(0, 3)) {
+  for (const cand of ranked.slice(0, 5)) {
     try {
       const summary = await wikipediaSummary(cand.title);
+      if (!summary) continue;
+
+      // For film kind, validate the summary is actually about a film/TV
+      // work. Prevents returning the generic "civil war" article for
+      // Alex Garland's "Civil War" film.
+      if (kindHint === "film" && !isFilmOrTvArticle(summary)) {
+        console.warn("subject-reference.film_summary_not_film", {
+          subject,
+          candidate: cand.title,
+          description: summary.description,
+        });
+        continue;
+      }
+
       const imgUrl = summary?.originalimage?.source ?? summary?.thumbnail?.source;
       if (!imgUrl) continue;
       const dl = await downloadImage(imgUrl);

@@ -368,18 +368,25 @@ The voice modules above establish the scoped author credibility rule and introdu
 The most engaging thing Mark can offer the reader in the first two sentences is his OPINION or the counter-obvious PATTERN he noticed about the destination. NOT a source attribution. NOT a communication vector. NOT a formal quote from someone else.
 
 **BANNED openings (read as templated the moment they're written):**
+- **"Nobody I know goes to [X]"** — used across multiple issues, reader recognizes it. Do NOT use "Nobody I know goes to..." / "Nobody I know does..." / "Nobody goes to X..." / "Most people don't...". These are now dead phrases.
+- **"Everyone goes to X. That's the point."** — same family, banned.
+- **"Most people skip X because they think..."** — same family, banned.
 - ANY opening that starts with a proper-noun source (e.g., "The Connections Guy [verb] me a [medium]").
 - ANY opening that names a communication vehicle as a prop ("a note," "a voicemail," "a text," "a postcard," "a letter," "a note on [X] letterhead").
 - ANY opening that specifies message length ("three lines," "one line," "half a page," "an address and a time," "twenty-two seconds," "just three words scrawled").
 - ANY opening that leads with a formal quoted line before Mark has spoken.
 - ANY opening whose first two sentences could be swapped between destinations by only changing the place name.
 
-**Openings that WORK (insight-first, sound like Mark talking to a friend):**
-- "Nobody I know goes to Burlington before Memorial Day weekend, and that's the point."
-- "Traverse City is what people think Mackinac Island is, only cheaper and without the fudge crowd."
-- "There are 40 wineries on the Old Mission Peninsula, and exactly one is worth planning a weekend around."
-- "The best time to be in Sedona is the week nobody's supposed to be there — the second week of March, cold enough that the spring-break kids left."
-- "I don't know why more people don't go to Lanesboro. It's the kind of place that shows up on 'best small towns' lists and then gets forgotten."
+**Openings that WORK — each uses a DIFFERENT structural approach so no single shape becomes a pattern:**
+- **Contrarian comparison.** "Traverse City is what people think Mackinac Island is, only cheaper and without the fudge crowd."
+- **Counter-intuitive count.** "There are 40 wineries on the Old Mission Peninsula, and exactly one is worth planning a weekend around."
+- **Named window with sensory color.** "The best time to be in Sedona is the second week of March, cold enough that the spring-break kids left."
+- **Specific-detail lead.** "The Historic Scanlan House B&B on Parkway Avenue in Lanesboro serves breakfast until 10:30 AM, which is a full hour longer than any other B&B in town, and that hour is why you go."
+- **Direct observation.** "Every time I've heard someone describe Marfa, the word that comes back is 'flat.' It isn't. The Chinati Foundation sits at 4,700 feet."
+- **Numeric anchor.** "Traffic on Highway 101 north of Astoria drops 60% in early March. Rooms drop 40%. The rain drops the tourists but leaves the town."
+- **Personal-taste declaration.** "I like a wine country in the shoulder season. Langhe in October is the shoulder season a lot of Americans still haven't found."
+
+**Rotate the structural approach across issues.** If the last cover story used a Contrarian Comparison, this one uses a Numeric Anchor. If the last used a Direct Observation, this one uses a Named Window. Same insight-first spirit, different structural shape — the reader shouldn't be able to predict the shape of the opening based on prior issues.
 
 **Sources come up MID-PIECE, not in the opening.** Never in the first two sentences. Never as a formal handoff. Attribute casually inside sentences that carry real information:
 
@@ -1136,6 +1143,9 @@ const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Sat
 
 **Class 4 — TEMPLATED OPENINGS (this is the big one).** Cover Story openings that follow a templated structure. If the first two sentences use ANY of these patterns, they are broken and MUST be rewritten from the insight forward:
 
+- **"Nobody I know goes to [X]"** and all variants ("Nobody I know does...", "Nobody goes to X...", "Most people don't..."). Used across multiple issues, now stock. BANNED.
+- **"Everyone goes to [X]. That's the point."** BANNED.
+- **"Most people skip [X] because they think..."** BANNED.
 - Opens with a proper-noun source name (e.g., "The Connections Guy sent me a note about [place]"). BANNED.
 - Opens by naming a communication vehicle as a prop ("a note," "a voicemail," "a text," "a postcard," "a letter," "on [X] letterhead"). BANNED as an opener.
 - Opens by specifying message length ("three lines," "one line," "half a page," "an address and a time," "twenty-two seconds," "just three words scrawled at the top"). BANNED entirely — reader recognizes these as tics.

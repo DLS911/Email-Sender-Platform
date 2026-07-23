@@ -4012,20 +4012,28 @@ Every Cover Story opens with THE INSIGHT — Mark's opinion, his counter-obvious
 
 **The reader is here for Mark's TAKE, not to hear who told him what.**
 
-Openings that WORK (insight-first, sound like Mark talking to a friend):
-- "Nobody I know goes to Burlington before Memorial Day weekend, and that's the point."
-- "Traverse City is what people think Mackinac Island is, only cheaper and without the fudge crowd."
-- "There are 40 wineries on the Old Mission Peninsula, and exactly one is worth planning a weekend around."
-- "The best time to be in Sedona is the week nobody's supposed to be there — the second week of March, cold enough that the spring-break kids left."
-- "Camden in September has a specific window, and it isn't the leaf-peeping one everybody talks about."
-- "I don't know why more people don't go to Lanesboro. It's the kind of place that shows up on those 'best small towns' lists that get shared once and then forgotten."
+Openings that WORK (insight-first, sound like Mark talking to a friend) — each of these has a DIFFERENT structural approach; the goal is variety in shape, not variations on the same shape:
+
+- **Contrarian comparison.** "Traverse City is what people think Mackinac Island is, only cheaper and without the fudge crowd."
+- **Counter-intuitive count.** "There are 40 wineries on the Old Mission Peninsula, and exactly one is worth planning a weekend around."
+- **Named window with color.** "The best time to be in Sedona is the second week of March, cold enough that the spring-break kids left."
+- **Cultural admission.** "I'm going to make a case for Camden in September that most people won't buy on the first read. Hear me out."
+- **Specific-detail lead.** "The Historic Scanlan House B&B on Parkway Avenue in Lanesboro serves breakfast until 10:30 AM, which is a full hour longer than any other B&B in town, and that hour is why you go."
+- **Direct observation.** "Every time I've heard someone describe Marfa, the word that comes back is 'flat.' It isn't. The Chinati Foundation sits at 4,700 feet."
+- **Numeric anchor.** "Traffic on Highway 101 north of Astoria drops 60% in early March. Rooms drop 40%. The rain drops the tourists but leaves the town."
+- **Personal-taste declaration.** "I like a wine country in the shoulder season. Langhe in October is the shoulder season a lot of Americans still haven't found."
 
 Openings to REJECT ON SIGHT (they read as templated the moment they're written):
+- **"Nobody I know goes to [X] in [Y]"** — used across multiple issues, now recognizable. DO NOT use this construction or its variants ("Nobody I know does..." / "Nobody goes to X..." / "Most people don't...").
+- **"Everyone goes to X. That's the point / That's exactly why..."** — related pattern, same rejection.
+- **"Most people skip X because they think..."** — same family, same rejection.
 - ANY opening that starts with "The Connections Guy [verb] me a [medium]."
 - ANY opening that names a communication medium as a prop ("a note," "a voicemail," "a text," "a postcard," "a letter").
 - ANY opening that specifies note or message length ("three lines," "one line," "just an address," "half a page for once," "twenty-two seconds").
 - ANY opening that leads with a formal quoted line from someone else before Mark has spoken.
 - ANY opening that names a source before naming the destination or the insight.
+
+**VARY THE STRUCTURE OF THE OPENING** across issues, not just the words. If the last issue opened with "Nobody I know goes to X" or "Everyone goes to Y," the new issue must use a different STRUCTURAL approach (contrarian comparison, counter-intuitive count, named window, specific detail lead, numeric anchor, personal-taste declaration, direct observation). Don't reach for the same shape twice.
 
 If the FIRST two sentences of a Cover Story could be swapped between destinations with only the place name changed, the opening is a template. Rewrite.
 
