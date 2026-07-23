@@ -610,13 +610,15 @@ export async function generateTastingImageWithReference(
       ? filmUseKeyframe && filmVisualStyle
         ? `This slot is a "keyframe" from the film "${subject}" — a plausible still shot from the movie, displayed on a TV/laptop/tablet screen in an editorial home-viewing setting per the setting prompt below.
 
-**HARD CONTENT RULES (these override everything else — even if the film has an iconic scene that violates them):**
-- **NO nudity, partial nudity, or exposed skin beyond ordinary casual dress.** No bathtub scenes. No shower scenes. No characters in bed under sheets. No lingerie. No towel-wrapped subjects. No swimwear scenes. No characters undressed or partially undressed. Even if the actual film has such a scene (Margot Robbie in the bathtub in The Big Short, any Wolf of Wall Street scene, any period drama boudoir moment), we do NOT render it.
-- **NO intimate scenes** — no kissing, no embracing beyond a friendly handshake or side-hug, no romantic-tension close-ups, no bedroom framing regardless of clothing.
-- **NO violence or gore.** No fight scenes with visible blood, no combat, no injury, no distress imagery, no war destruction (see Civil War failure — real war photos are NEVER acceptable). Even if the film is a war film or action film.
-- **NO drug or alcohol overuse imagery.** A glass of wine on a table is fine. A character drunk / drugged / passed out is not.
-- **Prefer NEUTRAL scenes:** characters in conversation (fully dressed, at a table or in an office or a car), landscape shots from the film (mountains, deserts, cityscapes with tiny figures), driving scenes, walking scenes, working-at-a-desk scenes, wide establishing shots, quiet outdoor moments.
-- If the film's ONLY memorable scenes violate the rules above, the keyframe should show a landscape/environment shot from the film (setting only, no characters) rather than force a rule violation.
+**CONTENT RULES (this is an adult audience — the goal is refined, not sanitized):**
+- **NO nudity or partial nudity.** No exposed skin beyond ordinary casual dress. No bathtub scenes, no shower scenes, no lingerie, no towel-wrapped subjects, no characters undressed or in bed under sheets. Even if the actual film has such a scene (Margot Robbie in the bathtub in The Big Short, any Wolf of Wall Street bedroom scene, any period drama boudoir moment), we do NOT render it.
+- **NO overly sexual framing** — no romantic-tension close-ups framed as boudoir, no bedroom framing that reads as intimate regardless of clothing, no suggestive undressing.
+- **KISSING and EMBRACING between fully-clothed characters ARE allowed.** A hug at a train station, a kiss under streetlight, a couple holding each other on a porch — all fine. Just keep it fully-clothed and not framed as bedroom/boudoir.
+- **WAR and ACTION scenes ARE allowed at wide or medium framing.** A peppered battlefield with explosions and soldiers running, a wide shot of combat, an action chase with characters in motion — all fine for an adult audience. Real news-style war photography (photojournalist framing of a specific real conflict) is NOT what we want — we want cinematic war framing that reads as this specific film.
+- **NO overly gory imagery.** No close-up wounds, no arterial blood, no lingering injury detail, no gruesome dwelling on damage. Combat at cinematic distance is fine; a close-up of a bloody wound is not.
+- **NO drug or alcohol overuse imagery.** A glass of wine on a table is fine. A character visibly drunk / drugged / passed out is not.
+- **Also great:** characters in conversation, landscape shots from the film (mountains, deserts, cityscapes with tiny figures), driving scenes, walking scenes, working-at-a-desk scenes, wide establishing shots, quiet outdoor moments.
+- If the film's ONLY memorable scenes would still cross the lines above (a purely erotic film, a torture-porn film), fall back to a landscape/environment shot from the film (setting only, no characters).
 
 **CRITICAL: this must look like a REAL still from THIS SPECIFIC film, not a generic AI-cinematic image.** Real film stills are shot with real cameras by real cinematographers with distinctive visual signatures. AI defaults to generic "golden-hour hero-shot" aesthetics that read as fake.
 

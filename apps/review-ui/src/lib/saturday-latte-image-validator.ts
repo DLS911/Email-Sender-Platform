@@ -69,8 +69,9 @@ Verdict format:
 
 **KEYFRAME MODE:** a landscape scene from the film displayed on a TV/laptop screen in an editorial home-viewing setting. In keyframe mode:
 - **If the poster ALSO appears anywhere in the scene (framed on wall, on a shelf, on a table, on a bulletin board), FAIL.** The TV is the only allowed film reference; walls must be bare or have non-film decor.
-- **NUDITY / INTIMATE / VIOLENT / GORE content is an automatic FAIL** even if the source film has such scenes. Look for: bathtub scenes, shower scenes, characters in bed, undressed subjects, kissing/embracing, blood, fight scenes with injury, war destruction. If any of these appear on the TV screen, FAIL.
-- The keyframe should show neutral content: conversations, driving, walking, landscapes, wide establishing shots, desk work.`
+- **NUDITY / OVERLY SEXUAL / OVERLY GORY content is an automatic FAIL** even if the source film has such scenes. Look for: nudity, partial nudity, exposed skin beyond ordinary dress, bathtub scenes, shower scenes, lingerie, characters undressed in bed, romantic-tension close-ups framed as bedroom/boudoir, heavy blood, close-up wounds, gruesome injury detail. If any of these appear on the TV screen, FAIL.
+- **ALLOWED (do NOT fail):** kissing, embracing, hugging, tender contact between fully-clothed characters. War action scenes are OK if shown at wide/medium framing — peppered battlefield with explosions and people running is fine for an adult audience. Reject only when it crosses into gore (close-up wounds, arterial blood, dwelling on injury).
+- Neutral content is also fine: conversations, driving, walking, landscapes, wide establishing shots, desk work.`
         : kind === "book"
           ? "For a book pick, the image usually shows the actual book with a reasonable cover, on a table with contextual props (coffee cup, window light)."
           : kind === "product"
