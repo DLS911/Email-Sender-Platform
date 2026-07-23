@@ -63,7 +63,14 @@ Verdict format:
     case "tastingMenu": {
       const kind = ctx.tastingKind ?? "unknown";
       const kindNote = kind === "film"
-        ? "For a film pick, the image shows the actual movie POSTER (from the film's Wikipedia infobox) displayed in a POSTER-APPROPRIATE setting — framed on a wall, on a cinema-lobby easel, on a sidewalk poster kiosk, on a home movie-room wall. **If the poster is shown on a TV screen, laptop screen, tablet, or phone, that is a FAIL** — a portrait-orientation poster does not fill a landscape screen and the mismatch reads as AI-generated. Also, if the 'poster' looks stylized/AI-invented rather than the actual official movie poster from Wikipedia, that is a FAIL."
+        ? `For a film pick, the image is one of TWO modes:
+
+**POSTER MODE:** the actual movie POSTER (from Wikipedia infobox) displayed in a poster-appropriate setting (framed wall, cinema easel, sidewalk kiosk, art-house lobby, home movie room, held by person from behind). **If the poster is on a TV/laptop/tablet/phone screen, FAIL.** If the poster looks stylized/AI-invented rather than the real Wikipedia poster, FAIL.
+
+**KEYFRAME MODE:** a landscape scene from the film displayed on a TV/laptop screen in an editorial home-viewing setting. In keyframe mode:
+- **If the poster ALSO appears anywhere in the scene (framed on wall, on a shelf, on a table, on a bulletin board), FAIL.** The TV is the only allowed film reference; walls must be bare or have non-film decor.
+- **NUDITY / INTIMATE / VIOLENT / GORE content is an automatic FAIL** even if the source film has such scenes. Look for: bathtub scenes, shower scenes, characters in bed, undressed subjects, kissing/embracing, blood, fight scenes with injury, war destruction. If any of these appear on the TV screen, FAIL.
+- The keyframe should show neutral content: conversations, driving, walking, landscapes, wide establishing shots, desk work.`
         : kind === "book"
           ? "For a book pick, the image usually shows the actual book with a reasonable cover, on a table with contextual props (coffee cup, window light)."
           : kind === "product"

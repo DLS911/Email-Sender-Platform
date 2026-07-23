@@ -610,6 +610,14 @@ export async function generateTastingImageWithReference(
       ? filmUseKeyframe && filmVisualStyle
         ? `This slot is a "keyframe" from the film "${subject}" — a plausible still shot from the movie, displayed on a TV/laptop/tablet screen in an editorial home-viewing setting per the setting prompt below.
 
+**HARD CONTENT RULES (these override everything else — even if the film has an iconic scene that violates them):**
+- **NO nudity, partial nudity, or exposed skin beyond ordinary casual dress.** No bathtub scenes. No shower scenes. No characters in bed under sheets. No lingerie. No towel-wrapped subjects. No swimwear scenes. No characters undressed or partially undressed. Even if the actual film has such a scene (Margot Robbie in the bathtub in The Big Short, any Wolf of Wall Street scene, any period drama boudoir moment), we do NOT render it.
+- **NO intimate scenes** — no kissing, no embracing beyond a friendly handshake or side-hug, no romantic-tension close-ups, no bedroom framing regardless of clothing.
+- **NO violence or gore.** No fight scenes with visible blood, no combat, no injury, no distress imagery, no war destruction (see Civil War failure — real war photos are NEVER acceptable). Even if the film is a war film or action film.
+- **NO drug or alcohol overuse imagery.** A glass of wine on a table is fine. A character drunk / drugged / passed out is not.
+- **Prefer NEUTRAL scenes:** characters in conversation (fully dressed, at a table or in an office or a car), landscape shots from the film (mountains, deserts, cityscapes with tiny figures), driving scenes, walking scenes, working-at-a-desk scenes, wide establishing shots, quiet outdoor moments.
+- If the film's ONLY memorable scenes violate the rules above, the keyframe should show a landscape/environment shot from the film (setting only, no characters) rather than force a rule violation.
+
 **CRITICAL: this must look like a REAL still from THIS SPECIFIC film, not a generic AI-cinematic image.** Real film stills are shot with real cameras by real cinematographers with distinctive visual signatures. AI defaults to generic "golden-hour hero-shot" aesthetics that read as fake.
 
 **Visual-style profile for THIS film (research summary):**
@@ -623,9 +631,23 @@ ${filmVisualStyle}
 
 **Reference the poster (attached below) for:** the film's color palette, the type of subject matter, the character(s) if identifiable, the general mood. But DO NOT put the poster on the TV — render a landscape KEY FRAME the poster's palette and subject matter would come from.
 
-**DO NOT include the movie poster ANYWHERE ELSE in the frame either.** No framed print on the wall, no poster propped against a shelf, no poster on the coffee table. The TV is the ONLY visible reference to the film. Any second attempt to show the poster will render it as a stylized fake (because Gemini can't reliably reproduce the exact poster artwork inside a scene edit). Just: the TV with the keyframe, and the editorial viewing room around it. Walls stay bare or have generic (non-film) decor like plants, framed abstract art, a bookshelf.
+**ABSOLUTE RULE: THE MOVIE POSTER APPEARS NOWHERE IN THE OUTPUT IMAGE. NOT ON A WALL. NOT ANYWHERE.**
 
-The scene around the TV/laptop is the editorial viewing context: cozy living room, dim lamps, a mug on the coffee table, a couch in the foreground, warm evening light. Walls have generic decor OR are bare — no film-related visuals other than the TV.`
+You have been given the poster as REFERENCE input only. It is a color/subject/character guide. It is NOT to be visible in the output.
+
+Do NOT do any of the following (Gemini repeatedly violates this):
+- Do NOT frame the poster and hang it on a wall behind the TV.
+- Do NOT put the poster on a bulletin board.
+- Do NOT put the poster on a shelf, easel, or table.
+- Do NOT put a poster of ANY kind (framed, unframed, mounted, propped) on any surface in the scene.
+- Do NOT include a "movie-themed" wall decoration that references the film.
+- Do NOT put a smaller version of the poster in a picture frame elsewhere.
+
+**Walls in the scene stay BARE or have NON-FILM decor only:** a plant, a small abstract art print (not a movie poster), a bookshelf with books (no film titles visible), a window, an empty wall, a clock. Nothing that references the film in any way.
+
+**The TV / laptop is the ONE AND ONLY visible reference to the film in the scene.** Everything else in the room is generic residential decor.
+
+The scene around the TV/laptop is the editorial viewing context: cozy living room, dim lamps, a mug on the coffee table, a couch in the foreground, warm evening light. Walls are bare or have generic (non-film) decor only.`
         : "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Rotate the setting across issues — pick ONE from: a framed print on a residential wall (movie room, hallway, apartment, home theater), an easel outside a cinema at dusk, an A-frame poster stand on a sidewalk, an art-house lobby wall with warm interior light, a bulletin-board-style community poster wall, held/carried by a person shown from behind (no face), a movie theater lobby marquee-adjacent poster board, or a poster shop / gallery display. **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. The scene around the poster should be editorial per the setting prompt below."
       : kind === "book"
         ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. **THE BOOK COVER MUST BE CLEAN — do NOT put crumbs, tater tots, food particles, herb sprigs, coffee grounds, sugar, salt, spilled liquid, or ANY debris on the cover or on the surface next to the book.** A book is not a food frame. Show the book alone on the surface with editorial-appropriate context per the setting prompt below (a wooden table, windowsill, bedside table, leather armchair, café tabletop — clean, no debris)."
