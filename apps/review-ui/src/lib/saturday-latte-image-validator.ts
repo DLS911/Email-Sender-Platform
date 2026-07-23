@@ -110,10 +110,11 @@ Verdict format:
 Check the following:
 1. Does the image show something recognizably from THIS specific location (a signature landmark, geography, architecture, or feature - not a generic version of that kind of place)?
 2. **Geographic accuracy: does the image invent impossible proximity between features?** For example, a Burlington VT scene where downtown brick storefronts open directly onto Lake Champlain is wrong - real Burlington has streets, a park, and open ground between downtown and the water. Rendering a compressed impossible relationship between features is a FAIL.
-3. Are people (if any) facing meaningful subjects, not staring at nothing (no AI zombie stares)?
-4. Composition off-center, not dead-center.
-5. Water surfaces have realistic ripples (not glassy AI-perfect reflections). Fog has directional structure (not uniform gradient).
-6. Any AI artifacts.
+3. **NO SPURIOUS ON-IMAGE TEXT.** If the image has a garbled location-name banner across the top ("EANA URMIEL"-style AI text), a caption below, a watermark, a made-up title overlay, or any decorative letters that don't belong to real signage in the scene, that is an automatic FAIL. Real in-scene signage that reads correctly (a legible "MAIN ST" street sign, a shop's actual name on its storefront) is fine.
+4. Are people (if any) facing meaningful subjects, not staring at nothing (no AI zombie stares)?
+5. Composition off-center, not dead-center.
+6. Water surfaces have realistic ripples (not glassy AI-perfect reflections). Fog has directional structure (not uniform gradient).
+7. Any AI artifacts.
 
 Verdict format:
 - If right: {"ok": true, "reason": "brief"}

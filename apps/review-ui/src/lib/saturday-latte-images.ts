@@ -149,7 +149,18 @@ The "one lonely stool at a bar" or "one lonely chair in a restaurant" is a stron
 
 === EDITORIAL STYLE ===
 
-Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler — real editorial photography by a photographer with taste. Medium-format film aesthetic: Portra 400 warmth for humans, interiors, and food; Ektar 100 for landscape. Colors feel lived-in, not filtered — warm skin tones, natural greens, honest blues. Motivated light with specific character: window light with the direction visible, low golden-hour sun raking across texture, or diffuse overcast from an identifiable side. Compose off-center with negative space and a rule-of-thirds anchor — the subject is NEVER dead center. One clear focal point per frame; the eye lands somewhere specific. Natural imperfection welcomed: dust on a beam, a slightly worn edge, uneven shadow falloff, one thing not quite in its place. Depth of field driven by real optics (50mm at f/2.8 or 90mm at f/4 look), not the flat plasticky bokeh AI models default to. Textures are honest — wood grain, weave in linen, pitting in cast iron, real skin. Square 1:1 framing. Hands, backs, silhouettes, and angled-away shots are fine and welcome; no clearly identifiable faces of real people; no on-image text or captions.
+Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler — real editorial photography by a photographer with taste. Medium-format film aesthetic: Portra 400 warmth for humans, interiors, and food; Ektar 100 for landscape. Colors feel lived-in, not filtered — warm skin tones, natural greens, honest blues. Motivated light with specific character: window light with the direction visible, low golden-hour sun raking across texture, or diffuse overcast from an identifiable side. Compose off-center with negative space and a rule-of-thirds anchor — the subject is NEVER dead center. One clear focal point per frame; the eye lands somewhere specific. Natural imperfection welcomed: dust on a beam, a slightly worn edge, uneven shadow falloff, one thing not quite in its place. Depth of field driven by real optics (50mm at f/2.8 or 90mm at f/4 look), not the flat plasticky bokeh AI models default to. Textures are honest — wood grain, weave in linen, pitting in cast iron, real skin. Square 1:1 framing. Hands, backs, silhouettes, and angled-away shots are fine and welcome; no clearly identifiable faces of real people.
+
+**ABSOLUTELY NO TEXT, LETTERS, CAPTIONS, HEADERS, WATERMARKS, OR TITLES anywhere in the image frame.** This is a critical rule Gemini repeatedly violates by adding location-name banners across the top of hero images (e.g., garbled attempts at "GREENVILLE" or "MARFA" or the place name). Do NOT add ANY of the following:
+- Location-name headers at the top of the frame ("EANA URMIEL"-style garbled place names)
+- Caption text below the image
+- Faux-magazine cover text or titles
+- Watermarks, signatures, "artist name" text
+- Made-up letterforms designed to look like text
+- Decorative title-treatment overlays
+- The name of the destination or subject spelled out anywhere in the frame
+
+Real signage that would naturally appear IN the scene (a "STOP" sign, a shop's actual name on its storefront visible from the street, a legible book cover title, a road sign) is fine — but only if it's real signage in the world of the photograph, not decorative text laid on top of the image. If real text is in the scene, it must render legibly and correctly at its actual location — never garbled.
 
 === ADDITIONAL REJECTS ===
 
