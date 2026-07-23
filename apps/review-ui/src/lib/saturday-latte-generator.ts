@@ -489,7 +489,22 @@ A specific car. 100-200 words.
 
 **IMPORTANT — The Drive scope is broader than new cars.** Anything cool under $120k qualifies. New cars, five-year-old used deals, classic restorations, restomods, air-cooled Porsches, '90s JDM heroes, cheap classics, cult obscurities — all in scope. See the WEEKEND_CAR_SPECTRUM voice module for the six categories (Icons, Sports Sedans, Wagons, Weekend Cars, Practical with Soul, and Classics/Restomods/Oddballs). Rotate across categories and across eras. Do NOT default to new cars only — the Classics/Restomods/Oddballs category should appear roughly every 3-4 issues.
 
-Pull from research: cars. If no cars in research, pick from any category of the car spectrum in the voice module. Rotate across categories — don't pick another SUV if last issue was an SUV, don't pick another new car if last issue was new. Mix used/vintage and new to keep the section from becoming a "new car of the week" bulletin.
+**HARD BAN — DO NOT PICK ANY OF THESE (no exceptions, no clever workarounds):**
+- **Electric vehicles (EVs) of any brand.** No BMW i5 / i4 / iX. No Mercedes EQS / EQE. No Audi e-tron / RS e-tron GT. No Porsche Taycan. No Rivian. No Lucid. No Polestar. No Ford Mustang Mach-E or F-150 Lightning. No Hyundai Ioniq 5 / 6. No Kia EV6. No Chevy Bolt / Silverado EV. No electric anything. The Drive is not the place for "smart transportation choices without gas." If Mark's real-life scope moves electric someday, it'll be handled elsewhere.
+- **Hybrids and PHEVs.** No Toyota Prius. No Lexus RX / NX hybrids. No Volvo Recharge. No BMW xDrive50e. No hybrid Range Rovers. The Drive celebrates internal-combustion character.
+- **Tesla, any model, any year.** Explicitly banned. Mark hasn't owned one and doesn't fake enthusiasm.
+- **Practical SUVs without character** (Toyota Highlander, Honda Pilot, Hyundai Palisade, Kia Telluride, Mazda CX-90, Subaru Ascent, etc.). These belong in a shopping guide, not The Drive.
+- **New luxury sedans without a performance angle** (a base S-Class, a base 7-Series, a base A8, a Genesis G80 without the Sport trim). If the writer is tempted to pick one of these because it's "nice," STOP and pick something with actual soul instead.
+
+**When the writer might be tempted to pick a banned car, pick from this list of alternatives instead (all in-scope, cool, with real character):**
+- Used performance sedans: Cadillac CT5-V Blackwing, BMW M3/M5 (E39, E46, E92, F80, F90), Audi RS4/RS6, Alfa Giulia Quadrifoglio, Mercedes E63 AMG wagon
+- Classic Porsches: 964, 993, 968, 944 Turbo, 928, Cayman GT4
+- Japanese classics: NSX, RX-7 FD, Supra Mk4, Miata NA/NB/ND, R32-R34 GT-R, GR Corolla
+- Wagons: RS6 Avant, M3 Touring, Volvo V60 Polestar, E63 wagon
+- American V8s: Mustang GT / Shelby GT350, C7/C8 Corvette, CT4-V Blackwing, Cadillac Escalade-V
+- Restomods: ICON Broncos, Land Cruiser FJ40/FJ60/FJ80 restos, LS-swap builds, Coyote-swap Fox Body
+
+Pull from research: cars. If no cars in research, pick from any of the six categories in the voice module (excluding the hard-banned list above). Rotate across categories — don't pick another SUV if last issue was an SUV, don't pick another new car if last issue was new. Mix used/vintage and new to keep the section from becoming a "new car of the week" bulletin.
 
 ### 5. Sunday Prep
 50-100 words on ONE concrete action for the week ahead. Practical, friend-texting tone.
