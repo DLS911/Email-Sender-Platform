@@ -104,7 +104,7 @@ Check the following:
 1. Does the image show the SPECIFIC cooking technique or its result (not a generic kitchen scene)?
 2. **NO HANDS, ARMS, OR HUMANS in the frame.** Food images must never show hands holding a spatula, fingers cutting, arms lifting - the geometry always renders wrong. If a hand is visible, FAIL this validation.
 3. Kitchen physics: hot cookware belongs on a stove, stone, or trivet - NEVER on bare wood. No random grease/oil puddles on the counter or table beside the pan.
-4. Steam only escapes from open apertures (kettles with closed lids do not vent steam).
+4. **Steam physics is an AUTOMATIC FAIL if wrong.** Steam ONLY escapes from open apertures. A kettle with a closed lid must NOT show steam plumes from the top of the lid, from the lid seam, or from anywhere except an open spout. Pour-over gooseneck kettles (Fellow Stagg, Hario Buono, Chemex-adjacent) always have closed lids — steam should come from the pouring stream hitting the coffee bed, not from the kettle top. If you see steam venting from the top of a closed lid, or from the sides of any closed vessel, FAIL and set retryHint to "kettle has closed lid — remove all steam plumes from the top of the lid and only show steam from the pouring stream / open cup / hot food".
 5. Composition off-center, not dead-center.
 6. Any AI artifacts.
 
