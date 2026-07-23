@@ -337,6 +337,8 @@ You may NOT:
 - Reshape the car body from a different generation or trim.
 - Add close-up details of the car's badge that would require rendering the logo up close (keep the badge at the same distance as in the reference).
 
+**NO ERA-MIXING (this is critical).** Do NOT create a Frankenstein car that combines a modern face with an older body, or older headlights on a newer body. Every visible part of the car in the output MUST belong to the SAME year/generation as the reference. If the reference is a 2024 Mustang, every element (front fascia, headlights, taillights, wheels, hood details, side vents, mirrors) must be from the 2024-generation Mustang - NOT a 2019 body with the 2024 face grafted on, and NOT a 2024 body with the 2019 lights. The reference photo shows one specific model-year and generation; preserve THAT whole car, not a hybrid of multiple eras. If unsure whether a specific styling detail belongs to the reference's generation, err on the side of exactly matching what the reference photo shows pixel-for-pixel rather than inventing.
+
 **OUTPUT ASPECT RATIO: 1:1 SQUARE.** The final image must be a square (1:1 aspect ratio) that fits into a newsletter's square image slot. Compose the frame so the car sits inside a square canvas with editorial-appropriate negative space above/below/beside it. Do NOT produce a wide rectangular image — the template will crop it awkwardly. If the reference car is elongated (long sedan), zoom in slightly and lose small amounts of the car's extreme ends rather than delivering a rectangular output. Off-center rule-of-thirds composition within the square frame is preferred.
 
 === EDITORIAL SETTING ===
@@ -391,6 +393,59 @@ function extForMime(mimeType: string): string {
  * Returns null on failure (no film-style info baked into the prompt;
  * falls back to poster mode).
  */
+/**
+ * Ask Haiku to describe the specific visual characteristics of a
+ * named landmark or iconic location. Fed into the hero image prompt
+ * so Gemini renders the landmark's actual geometry, not a generic
+ * approximation. Example: Chinati Foundation sculptures are hollow
+ * rectangular concrete forms in specific rows across a mesa - not
+ * solid brick shapes. Haiku returns the concrete visual details.
+ *
+ * Returns ~120 words of specific visual description, or null if
+ * Haiku doesn't know the landmark well enough (writer prompt falls
+ * back to generic hero prompt).
+ */
+export async function researchLandmarkVisualDetail(location: string): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 400,
+      temperature: 0.2,
+      system: `You describe the specific visual characteristics of a named landmark, iconic feature, or unique place. The description will be fed to an image generation model to help it render the landmark accurately, not a generic version.
+
+Focus on what makes THIS landmark look different from other similar places:
+- Specific geometry, shape, dimensions, and structure (a Chinati concrete piece is a HOLLOW rectangular form ~2.5m tall in rows across a mesa, not a solid brick)
+- Materials and textures (rough concrete, weathered adobe, painted metal, unpainted steel)
+- Color palette (the ochre of adobe, the grey of raw concrete, the rust of Corten steel)
+- Setting and surroundings (isolated on a desert plain, tucked into a hillside, at the end of a pier)
+- Distinguishing details visible at editorial-photo scale (specific proportions, patterns, arrangement)
+- Any signature visual elements (a particular color of paint, a specific arrangement pattern, a specific weathering)
+
+Return ~120 words of dense visual description. If you don't know the landmark well enough to describe it accurately, return the literal string "UNKNOWN" instead of guessing.`,
+      messages: [
+        {
+          role: "user",
+          content: `Describe the specific visual characteristics of this landmark or place: ${location}`,
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    text = text.trim();
+    if (!text || text.toUpperCase() === "UNKNOWN" || text.length < 30) return null;
+    return text;
+  } catch (err) {
+    console.warn(
+      "latte.landmark_research_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+
 export async function researchFilmVisualStyle(filmTitle: string): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
@@ -516,7 +571,12 @@ export async function generateTastingImageWithReference(
     return { ...gen, usedReference: false };
   }
 
-  // For films: rotate 50/50 between poster mode and keyframe mode.
+  // For films: rotate 30/70 between keyframe mode and poster mode.
+  // Keyframe used to be 50/50 but Austin wanted more variety - posters
+  // now dominate, keyframe shows up ~30% of the time. Poster mode has
+  // 8+ different setting types (framed wall, cinema lobby easel,
+  // sidewalk kiosk, art-house lobby, held by person, etc) so variety
+  // within poster mode is already high.
   // - Poster mode: Wikipedia poster in a poster-native portrait setting.
   // - Keyframe mode: Gemini generates a landscape "still" from the film,
   //   guided by a per-film visual-style research pass so the still
@@ -524,7 +584,7 @@ export async function generateTastingImageWithReference(
   //   defaulting to generic AI-golden-hour aesthetics.
   // If the visual-style research returns null (film not well-enough-
   // known), fall back to poster mode for this issue.
-  let filmUseKeyframe = kind === "film" ? Math.random() < 0.5 : false;
+  let filmUseKeyframe = kind === "film" ? Math.random() < 0.3 : false;
   let filmVisualStyle: string | null = null;
   if (filmUseKeyframe) {
     filmVisualStyle = await researchFilmVisualStyle(subject);
@@ -557,7 +617,7 @@ ${filmVisualStyle}
 The scene around the TV/laptop is the editorial viewing context: cozy living room, dim lamps, a mug on the coffee table, a couch in the foreground, warm evening light. Walls have generic decor OR are bare — no film-related visuals other than the TV.`
         : "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Rotate the setting across issues — pick ONE from: a framed print on a residential wall (movie room, hallway, apartment, home theater), an easel outside a cinema at dusk, an A-frame poster stand on a sidewalk, an art-house lobby wall with warm interior light, a bulletin-board-style community poster wall, held/carried by a person shown from behind (no face), a movie theater lobby marquee-adjacent poster board, or a poster shop / gallery display. **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. The scene around the poster should be editorial per the setting prompt below."
       : kind === "book"
-        ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. Show the book resting on a surface (wooden table, windowsill, bedside table, leather armchair) with editorial-appropriate context per the setting prompt below."
+        ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. **THE BOOK COVER MUST BE CLEAN — do NOT put crumbs, tater tots, food particles, herb sprigs, coffee grounds, sugar, salt, spilled liquid, or ANY debris on the cover or on the surface next to the book.** A book is not a food frame. Show the book alone on the surface with editorial-appropriate context per the setting prompt below (a wooden table, windowsill, bedside table, leather armchair, café tabletop — clean, no debris)."
         : kind === "product"
           ? "This is the official product photo. Preserve the product form factor, proportions, color, branding, and any physical details exactly (handle placement, port locations, dimensions). The product must appear as it actually exists - do not invent broken/modified variants. Place the product in the editorial context described in the setting prompt below."
           : "Preserve the subject exactly as the reference shows. Place it in the editorial context described in the setting prompt below.";
@@ -625,6 +685,23 @@ async function generateForSlot(
       if (subject.trim() !== "") {
         return generateTastingImageWithReference(apiKey, prompt, sectionTag, subject, kind);
       }
+    }
+  }
+  // Hero: try a landmark visual-detail research pass. If Haiku knows
+  // the landmark, inject the concrete visual characteristics into the
+  // Gemini prompt so it renders accurately (Chinati sculptures are
+  // hollow rectangles in rows, not solid bricks). If unknown, ships
+  // with the writer's prompt unchanged.
+  if (slot === "hero" && subjects.coverStoryLocation.trim() !== "") {
+    const landmarkDetail = await researchLandmarkVisualDetail(subjects.coverStoryLocation);
+    if (landmarkDetail) {
+      const enrichedPrompt = `${prompt}
+
+**LANDMARK ACCURACY REQUIREMENT (research summary for the landmark in this scene):**
+${landmarkDetail}
+
+Render the landmark faithfully to these specific visual characteristics. Do NOT generate a generic "concrete blocks in a desert" or "adobe buildings" or similar approximation - render the actual geometry, proportions, and material as described above.`;
+      return generateOneImage(apiKey, enrichedPrompt, sectionTag);
     }
   }
   return generateOneImage(apiKey, prompt, sectionTag);

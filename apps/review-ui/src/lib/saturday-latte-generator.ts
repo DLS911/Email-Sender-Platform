@@ -831,10 +831,25 @@ async function runWriterPhase(
   if (recentContext) {
     const ctx = recentContext;
     const exclusions: string[] = [];
-    if (ctx.cars.length > 0)
+    if (ctx.cars.length > 0) {
+      // Detect era-monoculture: if ALL recent picks are from model years
+      // within the last 6 years, force the next pick to be a classic /
+      // restomod / oddball from Category 6 (or an older car >15 years old).
+      const currentYear = new Date().getUTCFullYear();
+      const isModern = (car: string): boolean => {
+        const yr = car.match(/\b(19|20)\d{2}\b/);
+        if (!yr) return false;
+        const y = parseInt(yr[0], 10);
+        return y >= currentYear - 6;
+      };
+      const allModern = ctx.cars.every(isModern) && ctx.cars.length >= 3;
+      const eraRule = allModern
+        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** The last ${ctx.cars.length} Drive picks were all modern cars (within the last 6 model years). This issue MUST pick from Category 6 (Classics/Restomods/Cool Oddballs) — see WEEKEND_CAR_SPECTRUM voice module. Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise, Mercedes 500E, or any '90s JDM hero. The pick must be under $120k and a model year of 2010 or earlier (a real classic) OR a restomod based on a car that old. Do NOT pick another new car this issue.`
+        : "";
       exclusions.push(
-        `## RECENT THE DRIVE PICKS (do NOT repeat — pick a DIFFERENT car from a different category of Mark's spectrum):\n${ctx.cars.map((c) => `- ${c}`).join("\n")}`,
+        `## RECENT THE DRIVE PICKS (do NOT repeat — pick a DIFFERENT car from a different category of the spectrum):\n${ctx.cars.map((c) => `- ${c}`).join("\n")}${eraRule}`,
       );
+    }
     if (ctx.tastingMenuTitles.length > 0)
       exclusions.push(
         `## RECENT TASTING MENU PICKS (do NOT repeat books/films/products):\n${ctx.tastingMenuTitles.map((t) => `- ${t}`).join("\n")}`,
