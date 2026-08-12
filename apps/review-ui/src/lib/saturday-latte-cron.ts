@@ -8,8 +8,11 @@
  * Operates on saturday_latte_subscribers + saturday_latte_issues tables —
  * the Latte is treated as an entirely separate system from the Daily Grind.
  */
+import { logger } from "@platform/observability";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { sendPreviewEmail } from "./preview-email";
+import { sendEditorEscalation } from "./editor-escalation";
 import {
   type SaturdayLatteIssue,
   generateSaturdayLatteIssue,
@@ -44,6 +47,8 @@ type CachedLatteIssue = {
   html: string;
   text_body: string;
   model: string;
+  approval_status?: "pending" | "approved" | "needs_work";
+  approval_notified_at?: string | null;
 };
 
 export type LatteSendResult = {
@@ -130,7 +135,7 @@ async function loadCachedIssue(
   const { data, error } = await db
     .from("saturday_latte_issues")
     .select(
-      "issue_date, subject, cover_story_headline, preheader, sections, html, text_body, model",
+      "issue_date, subject, cover_story_headline, preheader, sections, html, text_body, model, approval_status, approval_notified_at",
     )
     .eq("issue_date", issueDate)
     .maybeSingle();
@@ -145,7 +150,7 @@ async function loadMostRecentCachedIssue(
   const { data, error } = await db
     .from("saturday_latte_issues")
     .select(
-      "issue_date, subject, cover_story_headline, preheader, sections, html, text_body, model",
+      "issue_date, subject, cover_story_headline, preheader, sections, html, text_body, model, approval_status, approval_notified_at",
     )
     .lte("issue_date", maxDate)
     .order("issue_date", { ascending: false })
@@ -441,6 +446,32 @@ export async function runLatteGenerate(
     result.headline = issue.content.coverStoryHeadline;
     result.costUsd = issue.meta.totalCostUsd;
     result.latencyMs = Date.now() - start;
+
+    // Fire preview email to Mark for approval. Best-effort — if this
+    // fails, log and continue; the send cron will refuse to ship a
+    // pending issue regardless, so a missing preview blocks the send
+    // rather than allowing an unreviewed issue through.
+    try {
+      const baseUrl = process.env.PUBLIC_BASE_URL || "https://email-sndr-platform.vercel.app";
+      const preview = await sendPreviewEmail({
+        brand: "latte",
+        issueDate: targetDate,
+        subject: rendered.subject,
+        issueHtml: rendered.html,
+        issueText: rendered.text,
+        baseUrl,
+      });
+      if (!preview.ok) {
+        logger.warn("cron.saturday_latte_generate.preview_failed", { error: preview.error });
+      } else {
+        logger.info("cron.saturday_latte_generate.preview_sent", { resendId: preview.resendId });
+      }
+    } catch (err) {
+      logger.warn("cron.saturday_latte_generate.preview_threw", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     return result;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
@@ -503,6 +534,13 @@ export async function runLatteSend(
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
+  // Approval gate: per-issue-date, we check approval_status once and cache
+  // the verdict for this cron run. On the first non-approved issue we
+  // encounter, escalate to the editor once (guarded by approval_notified_at
+  // so a subsequent cron run doesn't spam). All due subscribers whose local
+  // date maps to an unapproved issue are recorded as skipped.
+  const approvalCache: Map<string, "approved" | "blocked"> = new Map();
+
   for (const row of due) {
     if (await isSuppressed(db, row.subscriber.email)) {
       result.skipped.push({ email: row.subscriber.email, reason: "suppressed" });
@@ -512,6 +550,41 @@ export async function runLatteSend(
       // overrideIssueDate (test-only) lets a manual send preview a specific
       // Latte issue instead of today's local Saturday. Matches the DG cron.
       const lookupDate = overrideIssueDate ?? row.localDate;
+
+      const cached = approvalCache.get(lookupDate);
+      if (cached === "blocked") {
+        result.skipped.push({ email: row.subscriber.email, reason: `issue ${lookupDate} not approved` });
+        continue;
+      }
+      if (cached === undefined && !force) {
+        const gate = await loadCachedIssue(db, lookupDate);
+        if (gate && gate.approval_status && gate.approval_status !== "approved") {
+          approvalCache.set(lookupDate, "blocked");
+          if (!gate.approval_notified_at) {
+            const baseUrl = process.env.PUBLIC_BASE_URL || "https://email-sndr-platform.vercel.app";
+            await sendEditorEscalation({
+              kind: "send_blocked",
+              brand: "latte",
+              issueDate: lookupDate,
+              subject: gate.subject,
+              currentStatus: gate.approval_status,
+              baseUrl,
+            });
+            await db
+              .from("saturday_latte_issues")
+              .update({ approval_notified_at: new Date().toISOString() })
+              .eq("issue_date", lookupDate);
+          }
+          logger.warn("cron.saturday_latte.send_blocked", {
+            issue_date: lookupDate,
+            approval_status: gate.approval_status,
+          });
+          result.skipped.push({ email: row.subscriber.email, reason: `issue ${lookupDate} not approved (${gate.approval_status})` });
+          continue;
+        }
+        if (gate) approvalCache.set(lookupDate, "approved");
+      }
+
       const fresh = await loadCachedIssue(db, lookupDate);
       let rendered: { html: string; text: string; subject: string };
       let usedFallback = false;

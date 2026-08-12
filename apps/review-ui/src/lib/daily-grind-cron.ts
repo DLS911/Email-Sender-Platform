@@ -9,6 +9,8 @@ import {
   type DailyGrindContent,
   renderDailyGrindHtml,
 } from "./daily-grind-html-template";
+import { sendEditorEscalation } from "./editor-escalation";
+import { sendPreviewEmail } from "./preview-email";
 import {
   UNSUBSCRIBE_PLACEHOLDER,
   isSuppressed,
@@ -35,6 +37,8 @@ type CachedIssue = {
   html: string;
   text_body: string;
   model: string;
+  approval_status?: "pending" | "approved" | "needs_work";
+  approval_notified_at?: string | null;
 };
 
 export type CronResult = {
@@ -152,7 +156,7 @@ async function loadActiveSubscribers(db: SupabaseClient): Promise<TestSubscriber
 async function loadCachedIssue(db: SupabaseClient, issueDate: string): Promise<CachedIssue | null> {
   const { data, error } = await db
     .from("daily_grind_issues")
-    .select("issue_date, subject, headline, preheader, sections, html, text_body, model")
+    .select("issue_date, subject, headline, preheader, sections, html, text_body, model, approval_status, approval_notified_at")
     .eq("issue_date", issueDate)
     .maybeSingle();
   if (error) throw new Error(`load_cached_issue: ${error.message}`);
@@ -165,7 +169,7 @@ async function loadMostRecentCachedIssue(
 ): Promise<CachedIssue | null> {
   let query = db
     .from("daily_grind_issues")
-    .select("issue_date, subject, headline, preheader, sections, html, text_body, model")
+    .select("issue_date, subject, headline, preheader, sections, html, text_body, model, approval_status, approval_notified_at")
     .order("issue_date", { ascending: false })
     .limit(1);
   // Never fall back to future-dated content. Without this, a pre-generated
@@ -636,6 +640,38 @@ export async function runDailyGrindGenerate(
       });
     }
 
+    // Preview email to Mark for approval. Best-effort — a preview
+    // send failure does not fail the generate itself; the send cron
+    // will still refuse to ship a pending issue, so a missing preview
+    // means a blocked send + editor escalation rather than an
+    // unreviewed issue slipping through.
+    try {
+      const baseUrl = process.env.PUBLIC_BASE_URL || "https://email-sndr-platform.vercel.app";
+      const preview = await sendPreviewEmail({
+        brand: "daily-grind",
+        issueDate: targetDate,
+        subject: renderedOutput.subject,
+        issueHtml: renderedOutput.html,
+        issueText: renderedOutput.text,
+        baseUrl,
+      });
+      pipeline.push({
+        name: "preview_send",
+        status: preview.ok ? "success" : "failed",
+        latencyMs: 0,
+        notes: preview.ok
+          ? `preview to Mark ok (resend id ${preview.resendId})`
+          : `preview send failed: ${preview.error}`,
+      });
+    } catch (err) {
+      pipeline.push({
+        name: "preview_send",
+        status: "failed",
+        latencyMs: 0,
+        notes: `preview threw: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+
     return result;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
@@ -709,6 +745,12 @@ export async function runDailyGrindSend(
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
+  // Approval gate: per-issue-date, we check approval_status once and cache
+  // the verdict for this cron run. First non-approved issue triggers ONE
+  // editor escalation email (guarded by approval_notified_at). Subsequent
+  // cron ticks find approval_notified_at set and won't re-notify.
+  const approvalCache: Map<string, "approved" | "blocked"> = new Map();
+
   for (const row of due) {
     // Suppression gate (item K). Even an active subscriber row gets skipped if
     // their address has been added to suppression_list (hard bounce, spam
@@ -722,6 +764,41 @@ export async function runDailyGrindSend(
       // specific issue date instead of today's. Used for testing new issues
       // before they hit their natural schedule.
       const lookupDate = overrideIssueDate ?? row.localDate;
+
+      const cached = approvalCache.get(lookupDate);
+      if (cached === "blocked") {
+        result.skipped.push({ email: row.subscriber.email, reason: `issue ${lookupDate} not approved` });
+        continue;
+      }
+      if (cached === undefined && !force) {
+        const gate = await loadCachedIssue(db, lookupDate);
+        if (gate && gate.approval_status && gate.approval_status !== "approved") {
+          approvalCache.set(lookupDate, "blocked");
+          if (!gate.approval_notified_at) {
+            const baseUrl = process.env.PUBLIC_BASE_URL || "https://email-sndr-platform.vercel.app";
+            await sendEditorEscalation({
+              kind: "send_blocked",
+              brand: "daily-grind",
+              issueDate: lookupDate,
+              subject: gate.subject,
+              currentStatus: gate.approval_status,
+              baseUrl,
+            });
+            await db
+              .from("daily_grind_issues")
+              .update({ approval_notified_at: new Date().toISOString() })
+              .eq("issue_date", lookupDate);
+          }
+          console.warn("cron.daily_grind.send_blocked", {
+            issue_date: lookupDate,
+            approval_status: gate.approval_status,
+          });
+          result.skipped.push({ email: row.subscriber.email, reason: `issue ${lookupDate} not approved (${gate.approval_status})` });
+          continue;
+        }
+        if (gate) approvalCache.set(lookupDate, "approved");
+      }
+
       const fresh = await loadCachedIssue(db, lookupDate);
       let rendered: { html: string; text: string; subject: string };
       let usedFallback = false;

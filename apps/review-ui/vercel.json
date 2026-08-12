@@ -7,19 +7,19 @@
   "crons": [
     {
       "path": "/api/cron/daily-grind-generate?mode=tomorrow",
-      "schedule": "0 22 * * 0-4"
+      "schedule": "0 22 * * 0,2,4"
     },
     {
       "path": "/api/cron/daily-grind-generate?mode=today",
-      "schedule": "0 9 * * 1-5"
+      "schedule": "0 9 * * 1,3,5"
     },
     {
       "path": "/api/cron/daily-grind",
-      "schedule": "0 * * * 1-5"
+      "schedule": "0 * * * 1,3,5"
     },
     {
       "path": "/api/cron/daily-grind",
-      "schedule": "15 * * * 1-5"
+      "schedule": "15 * * * 1,3,5"
     },
     {
       "path": "/api/cron/saturday-latte-generate",
