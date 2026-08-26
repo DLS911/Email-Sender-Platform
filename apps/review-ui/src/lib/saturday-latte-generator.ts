@@ -495,6 +495,28 @@ A specific car. 100-200 words.
 - **Tesla, any model, any year.** Explicitly banned. Mark hasn't owned one and doesn't fake enthusiasm.
 - **Practical SUVs without character** (Toyota Highlander, Honda Pilot, Hyundai Palisade, Kia Telluride, Mazda CX-90, Subaru Ascent, etc.). These belong in a shopping guide, not The Drive.
 - **New luxury sedans without a performance angle** (a base S-Class, a base 7-Series, a base A8, a Genesis G80 without the Sport trim). If the writer is tempted to pick one of these because it's "nice," STOP and pick something with actual soul instead.
+- **Regular non-performance SUVs — VERY STRICT.** Any SUV pick MUST be a genuine performance SUV; regular family SUVs are banned regardless of brand. A 340-370 hp SUV in a 2.5-ton body is NOT fast, no matter what Lexus calls it. HARD BAN LIST: any Lexus SUV (RX/GX/NX/LX, all generations, all trims), base BMW X1/X3/X5/X7 (only M-badge X3M / X5M / X6M / X6M qualify), base Audi Q3/Q5/Q7/Q8 (only SQ8 / RS Q8 qualify), Volvo XC40/XC60/XC90 (all trims), base Cayenne / Cayenne S / Cayenne E-Hybrid (only Cayenne GTS / Turbo / Turbo GT / Turbo S qualify), Mercedes GLA/GLB/GLC/GLE/GLS (only AMG 63 trims qualify), Range Rover Sport base / Range Rover base (only Sport SV / SVR qualify), Genesis GV70/GV80 (only GV70 3.5T Sport Prestige borderline), Cadillac Escalade base (only Escalade-V with 682 hp qualifies), Land Cruiser (borderline — only the '80s-'90s FJ classics qualify under Category 6, not the new one), Toyota 4Runner base (only TRD Pro borderline), Jeep Grand Cherokee base (only Trackhawk 707 hp qualifies), Ford Explorer / Expedition (only Raptor version of Bronco / F-150 qualifies), Nissan Pathfinder / Armada.
+
+**The ONLY SUVs that qualify for The Drive** (memorize this list):
+- Porsche Cayenne Turbo GT, Cayenne Turbo, Cayenne GTS (real chassis + 500+ hp)
+- Porsche Macan GTS, Macan Turbo (smaller / sharper)
+- BMW X3M Competition, X5M Competition, X6M Competition (500+ hp M SUVs)
+- Audi RS Q8 (591 hp), SQ8 (500 hp) — NOT base Q8
+- Alfa Stelvio Quadrifoglio (505 hp Ferrari-derived V6)
+- Mercedes-AMG GLC 63, GLE 63, GLS 63 (only the 63 badges)
+- Range Rover Sport SV (626 hp), Sport SVR historical
+- Aston Martin DBX 707
+- Bentley Bentayga Speed
+- Lamborghini Urus, Urus Performante
+- Ferrari Purosangue
+- Maserati Grecale Trofeo (523 hp)
+- Cadillac Escalade-V (682 hp)
+- Ford F-150 Raptor R (700 hp), Bronco Raptor
+- Ram 1500 TRX (702 hp, discontinued — collectible)
+- Jeep Grand Cherokee Trackhawk (2018-2021, 707 hp)
+- Any Category 6 classic 4x4 restomod (ICON Bronco, Land Cruiser FJ40/60/80 restos)
+
+If unsure whether a specific SUV qualifies, DEFAULT TO NOT PICKING AN SUV. The Drive is not an SUV newsletter; SUVs are a rare pick, one per every 6-8 issues at most.
 
 **When the writer might be tempted to pick a banned car, pick from this list of alternatives instead (all in-scope, cool, with real character):**
 - Used performance sedans: Cadillac CT5-V Blackwing, BMW M3/M5 (E39, E46, E92, F80, F90), Audi RS4/RS6, Alfa Giulia Quadrifoglio, Mercedes E63 AMG wagon

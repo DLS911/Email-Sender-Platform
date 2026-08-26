@@ -53,8 +53,9 @@ Check the following:
 1. Is this the CORRECT year and generation of the car named? For example, a 2024 BMW M2 must be the G87 body (squared boxy fenders, slim horizontal LED headlights, tall vertical body-color kidney grille), NOT the F87 (rounded fenders, twin round headlights, small grilles).
 2. Is the brand badge/logo rendered accurately (no scuffing, no half-formed shapes)?
 3. Is the car body geometrically coherent (no aftermarket exaggerations, no mangled parts)?
-4. Does the composition follow the rule of thirds (off-center subject, not dead center)?
-5. Any obvious AI artifacts (impossible shadows, extra parts, distorted geometry)?
+4. **PHYSICALLY REAL PLACEMENT — AUTOMATIC FAIL if wrong.** The car must sit on a legal driveable surface — paved road, dirt road, gravel, cobblestone, parking area, driveway, garage floor, showroom, canyon road, coastal highway pullout, gas station forecourt. If the car is in the ocean, in a river/pond/lake, partly submerged in water, on unaccessible rocks, on a beach with water at the tires, in the middle of a field with no visible path, on top of a mountain peak with no road, floating, or tilted at an impossible angle, FAIL. Set retryHint to "car must be on a real driveable surface — no water, no impossible terrain."
+5. Does the composition follow the rule of thirds (off-center subject, not dead center)?
+6. Any obvious AI artifacts (impossible shadows, extra parts, distorted geometry)?
 
 Verdict format:
 - If everything is right: return {"ok": true, "reason": "brief summary"}
