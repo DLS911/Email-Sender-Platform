@@ -885,9 +885,9 @@ async function runWriterPhase(
         `## RECENT TASTING MENU PICKS — HARD RULE, DO NOT REPEAT ANY OF THESE:\n${ctx.tastingMenuTitles.map((t) => `- ${t}`).join("\n")}\n\nEvery book, film, product, or drink you select for this issue's Tasting Menu MUST be a title NOT in the list above. Do not pick a book from the list. Do not pick a film from the list. Do not pick a product from the list. Do not pick a drink from the list. If you can only think of items on the list, keep thinking — there are thousands of great books, films, products, and drinks; pick one that has not been featured.`,
       );
     if (ctx.tastingCreators.length > 0) {
-      const uniqCreators = Array.from(new Set(ctx.tastingCreators.map((c) => c.trim()))).slice(0, 60);
+      const uniqCreators = Array.from(new Set(ctx.tastingCreators.map((c) => c.trim()))).slice(0, 20);
       exclusions.push(
-        `## RECENT TASTING AUTHORS / DIRECTORS / ARTISTS — DO NOT REPEAT ANY OF THESE CREATORS:\n${uniqCreators.map((c) => `- ${c}`).join("\n")}\n\nEven if the specific title is different, pick from a DIFFERENT creator this issue. No two Samantha Harvey novels back-to-back; no two Denis Villeneuve films; no two Charley Crockett albums. Vary the voice.`,
+        `## LAST ISSUE'S TASTING CREATORS — DO NOT PICK ANOTHER TITLE BY ANY OF THESE THIS WEEK:\n${uniqCreators.map((c) => `- ${c}`).join("\n")}\n\nSpacing rule, not a ban. Two Samantha Harvey novels back-to-back reads as lazy — do a different creator this week. If she's great, come back to her in two weeks with a different title. This constraint applies ONLY to creators from the immediately preceding issue; anything from earlier is fair game.`,
       );
     }
     if (ctx.coverStorySpots.length > 0) {

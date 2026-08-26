@@ -294,7 +294,10 @@ export async function loadRecentLatteContext(
     sabbathReferences: [],
     coverStorySpots: [],
   };
-  for (const row of (data ?? []) as Array<{ cover_story_headline: string; sections: unknown }>) {
+  const rows = (data ?? []) as Array<{ cover_story_headline: string; sections: unknown }>;
+  for (let rowIdx = 0; rowIdx < rows.length; rowIdx += 1) {
+    const row = rows[rowIdx];
+    if (!row) continue;
     if (row.cover_story_headline) ctx.coverStoryHeadlines.push(row.cover_story_headline);
     const s = row.sections;
     if (!s || typeof s !== "object" || Array.isArray(s)) continue;
@@ -319,17 +322,22 @@ export async function loadRecentLatteContext(
           const title = rec.title;
           if (typeof title === "string" && title.trim() !== "") {
             ctx.tastingMenuTitles.push(title.trim());
-            const creator = extractCreatorFromTitle(title);
-            if (creator) ctx.tastingCreators.push(creator);
+            // Creator spacing rule: same author/director/artist is fine
+            // across weeks but NOT consecutive weeks. Only pull creators
+            // from the most-recent issue (rowIdx === 0) so the writer
+            // ban list represents "you did X last week; try someone
+            // else this week." Older creators are fair game again.
+            if (rowIdx === 0) {
+              const creator = extractCreatorFromTitle(title);
+              if (creator) ctx.tastingCreators.push(creator);
+            }
           }
-          // Body may also carry author/director/artist in prose. Best-effort
-          // regex for "by <Name>" earlier in the body so the writer sees
-          // "we've featured a Denis Villeneuve film before" even if the
-          // title itself was just "Sicario".
-          const body = rec.body;
-          if (typeof body === "string") {
-            const bodyCreator = extractCreatorFromBody(body);
-            if (bodyCreator) ctx.tastingCreators.push(bodyCreator);
+          if (rowIdx === 0) {
+            const body = rec.body;
+            if (typeof body === "string") {
+              const bodyCreator = extractCreatorFromBody(body);
+              if (bodyCreator) ctx.tastingCreators.push(bodyCreator);
+            }
           }
         }
       }
