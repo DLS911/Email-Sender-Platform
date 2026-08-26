@@ -989,6 +989,35 @@ type RepeatOffense = {
 // an offense. For cars we also flag same-nameplate matches (same brand
 // AND model even if the year differs), since Austin has explicitly said
 // the pick must be a different nameplate/generation.
+// Common words that must be ignored during token-overlap dedup. Without
+// this, "The Complete Book of..." and "The Complete Guide to..." would
+// share "complete" and false-positive as dupes.
+const REPEAT_STOPWORDS = new Set([
+  "book", "novel", "memoir", "guide", "story", "stories", "tale", "tales",
+  "of", "and", "for", "in", "on", "at", "to", "with", "by",
+  "movie", "film", "series", "season", "part", "vol", "volume",
+  "edition", "revised", "new", "old", "single", "double", "small", "large",
+  "premium", "select", "reserve", "special", "limited", "classic",
+  "your", "our", "my", "how", "why", "what", "when", "where",
+]);
+
+function tokensForRepeat(norm: string): string[] {
+  return norm
+    .split(" ")
+    .filter((t) => t.length >= 4)
+    .filter((t) => !/^\d+$/.test(t))
+    .filter((t) => !REPEAT_STOPWORDS.has(t));
+}
+
+// Compare writer output against recent picks. Any tasting title or Drive
+// car whose normalized form matches a normalized recent-pick counts as
+// an offense. Two matching strategies:
+//   (1) substring — one normalized string wholly contains the other
+//   (2) token-overlap — >=2 significant tokens (>=4 chars, non-stopwords,
+//       non-numeric) shared between the two normalized strings
+// Token-overlap catches things like "Elmer T Lee Bourbon" vs "Elmer T Lee
+// Single Barrel Bourbon" where neither string contains the other but they
+// share the brand tokens.
 function findRepeatOffenses(
   content: SaturdayLatteContent,
   ctx: LatteRecentContext,
@@ -997,13 +1026,20 @@ function findRepeatOffenses(
   const recentTastingNorm = ctx.tastingMenuTitles.map((t) => ({
     original: t,
     norm: normalizeTitleForRepeat(t),
+    tokens: tokensForRepeat(normalizeTitleForRepeat(t)),
   }));
   for (const [i, item] of content.tastingMenu.entries()) {
     const pickedNorm = normalizeTitleForRepeat(item.title);
     if (!pickedNorm) continue;
-    const hit = recentTastingNorm.find(
-      (r) => r.norm && (r.norm === pickedNorm || r.norm.includes(pickedNorm) || pickedNorm.includes(r.norm)),
-    );
+    const pickedTokens = tokensForRepeat(pickedNorm);
+    const hit = recentTastingNorm.find((r) => {
+      if (!r.norm) return false;
+      if (r.norm === pickedNorm || r.norm.includes(pickedNorm) || pickedNorm.includes(r.norm)) return true;
+      if (pickedTokens.length === 0 || r.tokens.length === 0) return false;
+      const recentTokenSet = new Set(r.tokens);
+      const shared = pickedTokens.filter((t) => recentTokenSet.has(t));
+      return shared.length >= 2;
+    });
     if (hit) {
       offenses.push({
         slot: `tasting-${i + 1}` as RepeatOffense["slot"],

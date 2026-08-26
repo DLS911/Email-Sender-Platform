@@ -175,9 +175,9 @@ Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler —
 - Watermarks, signatures, "artist name" text
 - Made-up letterforms designed to look like text
 - Decorative title-treatment overlays
-- The name of the destination or subject spelled out anywhere in the frame
+- The name of the destination or subject spelled out anywhere in the frame — INCLUDING invented in-scene signage. A "welcome to Laconia" sign, a "Marfa Cove" placard in front of chairs, a "Burlington Waterfront" plaque on a piling, a rustic wooden sign carved with the town name, a chalkboard menu titled with the location — ALL banned. Gemini will try to justify these as "real signage in the world of the photograph." They are not real; they are AI hallucinations of the destination name that would never exist in the actual place. If you can read the destination name anywhere in the frame, in any typography, on any object, that is an automatic FAIL.
 
-Real signage that would naturally appear IN the scene (a "STOP" sign, a shop's actual name on its storefront visible from the street, a legible book cover title, a road sign) is fine — but only if it's real signage in the world of the photograph, not decorative text laid on top of the image. If real text is in the scene, it must render legibly and correctly at its actual location — never garbled.
+Real signage that would naturally appear IN the scene is fine ONLY when it's genuine mundane infrastructure: a "STOP" traffic sign, a "MAIN ST" street sign, a real business's actual storefront name that you know exists at that address, a legible book cover title, a road route marker like "US-2" or "VT-100". None of these spell out the destination. If in doubt about whether a sign would exist: DON'T RENDER IT. Empty walls, blank storefronts, and no signage are better than invented decorative text.
 
 === ADDITIONAL REJECTS ===
 
