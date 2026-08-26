@@ -884,6 +884,18 @@ async function runWriterPhase(
       exclusions.push(
         `## RECENT TASTING MENU PICKS — HARD RULE, DO NOT REPEAT ANY OF THESE:\n${ctx.tastingMenuTitles.map((t) => `- ${t}`).join("\n")}\n\nEvery book, film, product, or drink you select for this issue's Tasting Menu MUST be a title NOT in the list above. Do not pick a book from the list. Do not pick a film from the list. Do not pick a product from the list. Do not pick a drink from the list. If you can only think of items on the list, keep thinking — there are thousands of great books, films, products, and drinks; pick one that has not been featured.`,
       );
+    if (ctx.tastingCreators.length > 0) {
+      const uniqCreators = Array.from(new Set(ctx.tastingCreators.map((c) => c.trim()))).slice(0, 60);
+      exclusions.push(
+        `## RECENT TASTING AUTHORS / DIRECTORS / ARTISTS — DO NOT REPEAT ANY OF THESE CREATORS:\n${uniqCreators.map((c) => `- ${c}`).join("\n")}\n\nEven if the specific title is different, pick from a DIFFERENT creator this issue. No two Samantha Harvey novels back-to-back; no two Denis Villeneuve films; no two Charley Crockett albums. Vary the voice.`,
+      );
+    }
+    if (ctx.coverStorySpots.length > 0) {
+      const uniqSpots = Array.from(new Set(ctx.coverStorySpots.map((s) => s.trim()))).slice(0, 80);
+      exclusions.push(
+        `## RECENT COVER STORY SPOTS (restaurants, cafes, hotels, shops previously recommended) — DO NOT REPEAT:\n${uniqSpots.map((s) => `- ${s}`).join("\n")}\n\nDo not re-recommend any of these specific spots in this issue's Cover Story or its supporting mentions. Different restaurants, different cafes, different hotels, different shops. Even if the destination reuses a region, the specific establishments must be new.`,
+      );
+    }
     if (ctx.cookingMoves.length > 0)
       exclusions.push(
         `## RECENT HOST'S CORNER MOVES (do NOT repeat the technique):\n${ctx.cookingMoves.map((m) => `- ${m}`).join("\n")}`,
@@ -1078,7 +1090,40 @@ function findRepeatOffenses(
       offenses.push({ slot: "theDrive", picked: content.theDrive.car, matched: carHit });
     }
   }
+  // Author/creator overlap check. If the picked tasting title contains
+  // a creator we've featured before (parsed from the title's "by X"
+  // pattern), flag as a soft dupe on the creator axis. Catches "The
+  // Bee Sting" following "Orbital" when both are Samantha Harvey.
+  if (ctx.tastingCreators.length > 0) {
+    const recentCreatorsNorm = new Set(
+      ctx.tastingCreators.map((c) => normalizeTitleForRepeat(c)).filter(Boolean),
+    );
+    for (const [i, item] of content.tastingMenu.entries()) {
+      const pickedCreator = normalizeTitleForRepeat(extractCreatorHelperForTitle(item.title) ?? "");
+      if (!pickedCreator) continue;
+      if (recentCreatorsNorm.has(pickedCreator)) {
+        if (offenses.some((o) => o.slot === `tasting-${i + 1}`)) continue;
+        offenses.push({
+          slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+          picked: item.title,
+          matched: `[same creator previously featured]`,
+        });
+      }
+    }
+  }
   return offenses;
+}
+
+// Duplicate of the parser in saturday-latte-cron.ts, kept local so the
+// generator can normalize picks without pulling in the cron helpers.
+function extractCreatorHelperForTitle(title: string): string | null {
+  const trimmed = title.trim();
+  const byIdx = trimmed.search(/\s+by\s+/i);
+  if (byIdx === -1) return null;
+  const tail = trimmed.slice(byIdx).replace(/^\s+by\s+/i, "").trim();
+  if (!tail) return null;
+  const first = tail.split(/[.,;:(]|[-—]\s/)[0]?.trim();
+  return first && first.length >= 3 ? first : null;
 }
 
 function refInList(picked: string, list: string[]): boolean {
@@ -1531,9 +1576,13 @@ export type LatteRecentContext = {
   coverStoryHeadlines: string[];
   cars: string[];
   tastingMenuTitles: string[];
+  /** Authors, directors, artists parsed from tasting titles/bodies. */
+  tastingCreators: string[];
   cookingMoves: string[];
   sundayResetAuthors: string[];
   sabbathReferences: string[];
+  /** Restaurants / cafes / hotels / shops named in prior Cover Stories. */
+  coverStorySpots: string[];
 };
 
 export async function generateSaturdayLatteIssue(opts: {

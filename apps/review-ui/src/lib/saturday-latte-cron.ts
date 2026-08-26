@@ -178,13 +178,89 @@ async function loadRecentCoverStories(db: SupabaseClient, limit = 12): Promise<s
   );
 }
 
+// ─── Memory extractors (best-effort text parsers) ───────────────────────
+
+const CREATOR_SUFFIX_STOP = new Set([
+  "the", "a", "an", "of", "for", "in", "on", "at", "with", "and",
+  "her", "his", "their", "our", "your", "book", "novel", "album",
+  "film", "series", "vol", "volume",
+]);
+
+/**
+ * Extract an author/director/artist name from a tasting title. Matches
+ * "Title by Name" and stops at natural boundaries. Returns null when no
+ * "by X" pattern is present. Best-effort; the memory is a floor.
+ */
+function extractCreatorFromTitle(title: string): string | null {
+  const trimmed = title.trim();
+  const byIdx = trimmed.search(/\s+by\s+/i);
+  if (byIdx === -1) return null;
+  const tail = trimmed.slice(byIdx).replace(/^\s+by\s+/i, "").trim();
+  if (!tail) return null;
+  const capped = tail.split(/[.,;:(]|[-—]\s/)[0]?.trim();
+  if (!capped) return null;
+  const words = capped.split(/\s+/).slice(0, 4);
+  const finalWords: string[] = [];
+  for (const w of words) {
+    const lower = w.toLowerCase().replace(/[^a-z]/g, "");
+    if (CREATOR_SUFFIX_STOP.has(lower) && finalWords.length > 0) break;
+    finalWords.push(w);
+  }
+  const result = finalWords.join(" ").replace(/[\s.,;:]+$/, "");
+  return result.length >= 3 ? result : null;
+}
+
+/**
+ * Same "X by Y" scan but over a longer prose body. Only fires once per
+ * body — grabs the FIRST creator mention, which is almost always the
+ * primary attribution.
+ */
+function extractCreatorFromBody(body: string): string | null {
+  const trimmed = body.trim();
+  if (trimmed.length < 20) return null;
+  const m = trimmed.match(/\bby\s+([A-Z][a-zA-Z'’\-.]+(?:\s+[A-Z][a-zA-Z'’\-.]+){0,3})/);
+  if (!m || !m[1]) return null;
+  return m[1].trim();
+}
+
+/**
+ * Pull specific spot names (restaurants, cafes, shops, hotels) from a
+ * Cover Story body. Matches proper-noun phrases immediately preceded by
+ * a strong leader word or wrapped in quotation marks. Best-effort — a
+ * noisy signal is fine because dupe detection normalizes and compares.
+ */
+function extractSpotsFromCoverStory(body: string): string[] {
+  const spots = new Set<string>();
+  const leaderRe =
+    /(?:eat at|drink at|coffee at|stop at|visit|dinner at|breakfast at|stay at|book|order|try|hit)\s+((?:[A-Z][a-zA-Z'’&.\-]+(?:\s+[A-Z][a-zA-Z'’&.\-]+){0,4}))/g;
+  let m: RegExpExecArray | null;
+  while ((m = leaderRe.exec(body)) !== null) {
+    const raw = m[1]?.trim();
+    if (raw && raw.length >= 3) spots.add(raw);
+  }
+  const quotedRe = /["“]([A-Z][^"”]{2,60})["”]/g;
+  while ((m = quotedRe.exec(body)) !== null) {
+    const raw = m[1]?.trim();
+    if (raw && /^[A-Z]/.test(raw) && raw.length <= 60) spots.add(raw);
+  }
+  return Array.from(spots);
+}
+
 export type RecentLatteContext = {
   coverStoryHeadlines: string[];
   cars: string[];
   tastingMenuTitles: string[];
+  /**
+   * Authors/directors/artists parsed from tasting titles via the "X by Y"
+   * pattern. Prevents the same author showing up twice with different
+   * titles (two Samantha Harvey novels, two Denis Villeneuve films, two
+   * Charley Crockett albums).
+   */
+  tastingCreators: string[];
   cookingMoves: string[];
   sundayResetAuthors: string[];
   sabbathReferences: string[];
+  coverStorySpots: string[];
 };
 
 export async function loadRecentLatteContext(
@@ -201,24 +277,35 @@ export async function loadRecentLatteContext(
       coverStoryHeadlines: [],
       cars: [],
       tastingMenuTitles: [],
+      tastingCreators: [],
       cookingMoves: [],
       sundayResetAuthors: [],
       sabbathReferences: [],
+      coverStorySpots: [],
     };
   }
   const ctx: RecentLatteContext = {
     coverStoryHeadlines: [],
     cars: [],
     tastingMenuTitles: [],
+    tastingCreators: [],
     cookingMoves: [],
     sundayResetAuthors: [],
     sabbathReferences: [],
+    coverStorySpots: [],
   };
   for (const row of (data ?? []) as Array<{ cover_story_headline: string; sections: unknown }>) {
     if (row.cover_story_headline) ctx.coverStoryHeadlines.push(row.cover_story_headline);
     const s = row.sections;
     if (!s || typeof s !== "object" || Array.isArray(s)) continue;
     const sections = s as Record<string, unknown>;
+    const cs = sections.coverStory;
+    if (cs && typeof cs === "object" && !Array.isArray(cs)) {
+      const body = (cs as Record<string, unknown>).body;
+      if (typeof body === "string") {
+        for (const spot of extractSpotsFromCoverStory(body)) ctx.coverStorySpots.push(spot);
+      }
+    }
     const drive = sections.theDrive;
     if (drive && typeof drive === "object" && !Array.isArray(drive)) {
       const car = (drive as Record<string, unknown>).car;
@@ -228,9 +315,22 @@ export async function loadRecentLatteContext(
     if (Array.isArray(tm)) {
       for (const item of tm) {
         if (item && typeof item === "object" && !Array.isArray(item)) {
-          const title = (item as Record<string, unknown>).title;
-          if (typeof title === "string" && title.trim() !== "")
+          const rec = item as Record<string, unknown>;
+          const title = rec.title;
+          if (typeof title === "string" && title.trim() !== "") {
             ctx.tastingMenuTitles.push(title.trim());
+            const creator = extractCreatorFromTitle(title);
+            if (creator) ctx.tastingCreators.push(creator);
+          }
+          // Body may also carry author/director/artist in prose. Best-effort
+          // regex for "by <Name>" earlier in the body so the writer sees
+          // "we've featured a Denis Villeneuve film before" even if the
+          // title itself was just "Sicario".
+          const body = rec.body;
+          if (typeof body === "string") {
+            const bodyCreator = extractCreatorFromBody(body);
+            if (bodyCreator) ctx.tastingCreators.push(bodyCreator);
+          }
         }
       }
     }
