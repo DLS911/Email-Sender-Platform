@@ -160,10 +160,17 @@ async function loadMostRecentCachedIssue(
   return (data ?? null) as CachedLatteIssue | null;
 }
 
+// Approved-only recent-picks memory. Two rules applied everywhere:
+//   1. approval_status = 'approved' — never let a pending or needs_work
+//      issue (an abandoned test draft) count as "already recommended."
+//      Only issues that made it past Mark's review are real memory.
+//   2. Lookback is intentionally deep (200 issues ~= 4 years of Saturdays).
+//      Once the system has recommended something, it never forgets.
 async function loadRecentCoverStories(db: SupabaseClient, limit = 12): Promise<string[]> {
   const { data, error } = await db
     .from("saturday_latte_issues")
     .select("cover_story_headline")
+    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) return [];
@@ -188,6 +195,7 @@ export async function loadRecentLatteContext(
   const { data, error } = await db
     .from("saturday_latte_issues")
     .select("cover_story_headline, sections")
+    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) {
@@ -425,9 +433,12 @@ export async function runLatteGenerate(
       }
     }
 
+    // Permanent memory: pull the last 200 APPROVED issues (~4 years of
+    // Saturdays). The writer sees the full history of what's already been
+    // recommended and MUST NOT pick anything on that list.
     const [recentCoverStories, recentContext] = await Promise.all([
-      loadRecentCoverStories(db, 36),
-      loadRecentLatteContext(db, 36),
+      loadRecentCoverStories(db, 200),
+      loadRecentLatteContext(db, 200),
     ]);
     const start = Date.now();
     const issue = await generateSaturdayLatteIssue({
