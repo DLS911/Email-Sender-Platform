@@ -4,7 +4,7 @@ import { runLatteGenerate } from "../../../../lib/saturday-latte-cron";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 function isAuthorized(req: Request): { ok: boolean; via: "cron" | "manual" | "none" } {
   const cronSecret = process.env.CRON_SECRET;
