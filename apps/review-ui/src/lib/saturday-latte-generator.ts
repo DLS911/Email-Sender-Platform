@@ -11,6 +11,7 @@
  * car selection, and Host's Corner cooking technique.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { shelfSummaryForPrompt } from "./saturday-latte-book-shelf";
 import { composeWeekendWriterVoice } from "./saturday-latte-voice-modules";
 import {
   type LatteImagePrompts,
@@ -461,6 +462,16 @@ Worth Watching, Worth Drinking, Worth Reading, Worth Listening, Worth Trying —
 - url: the actual URL where the item can be found (IMDB for movies, manufacturer/Amazon for products, publisher/Amazon for books). USE A URL FROM RESEARCH IF AVAILABLE.
 - body: 80-150 words. The Unexpected Variable named. An insight from the Physics/Wisdom/Insider frame.
 
+**⚠️ LABEL–CONTENT KIND MUST MATCH. HARD RULE. Automatic fail if violated.**
+The label determines what KIND of thing the title MUST be. There is no interpretation, no cleverness, no exceptions:
+- **Worth Watching** → a FILM, DOCUMENTARY, or TV SHOW. Never a book. Never an album. Never a podcast. Never a product. The title must be a movie or TV series that a reader could stream / rent / buy on video.
+- **Worth Reading** → a BOOK (novel, memoir, non-fiction, essay collection, poetry). Never a film. Never an article. Never a podcast episode.
+- **Worth Drinking** → a specific BEVERAGE — a bourbon, whisky, wine, beer, coffee bean, tea, cocktail, non-alcoholic spirit, kombucha, drinking-vinegar. Never a coffee maker (that's Worth Trying). Never a food item.
+- **Worth Listening** → an ALBUM, PODCAST, or specific audio series. Never a book. Never a film.
+- **Worth Trying** → a PHYSICAL PRODUCT — kitchen tool, coffee gear, outdoor gear, tech accessory, apparel, home item. Never a food/drink (those go under Worth Drinking or Worth Eating if we add that). Never a book/film/album.
+
+If you find yourself picking "Worth Watching: The Overstory" (a book), STOP — that's a category error, either change the label to Worth Reading or pick a different film. The image pipeline routes off the label; a mismatched pick will render with the wrong asset (book cover in a film slot, poster in a book slot). Get it right on the first pass.
+
 **TV show entry-point rule (Worth Watching).** For any TV series with multiple seasons, the DEFAULT pick is Season 1 — the reader is being introduced to the show for the first time. Do NOT recommend "Season 4" or "Season 3" as an orphan pick that assumes the reader has watched earlier seasons.
 
 If the current season genuinely IS the pick (e.g., the show is having a critical moment, a season-specific arc is the reason to watch), then:
@@ -469,6 +480,10 @@ If the current season genuinely IS the pick (e.g., the show is having a critical
 - Never recommend "Season N" of a show without acknowledging what came before.
 
 Same rule for book series (recommend book 1 of a trilogy, not book 3) and for podcasts (name a specific episode ONLY if it stands alone; otherwise recommend the podcast from its first season/episode).
+
+**BOOK SHELF (curated) — for Worth Reading picks, pick from this shelf by default.** These are the books Mark actually recommends. Skew toward classics and well-established modern works, not this-month's-new-release. If the destination or research turns up a compelling region-specific book off-shelf (a Cormac McCarthy book for a West Texas story, an actual specific Bryson for a UK story), that's fine — otherwise pull from here. Respect the one-week creator spacing rule.
+
+{{LATTE_BOOK_SHELF}}
 
 Pull from research: products, watchReadListen, cooking.
 
@@ -940,7 +955,9 @@ async function runWriterPhase(
 
   parts.push(`\nReturn ONLY the JSON object specified. No preamble, no markdown fences.`);
 
-  const systemPrompt = composeWeekendWriterVoice() + STRUCTURAL_INSTRUCTIONS;
+  const systemPrompt =
+    composeWeekendWriterVoice() +
+    STRUCTURAL_INSTRUCTIONS.replace("{{LATTE_BOOK_SHELF}}", shelfSummaryForPrompt());
 
   const start = Date.now();
   const response = await client.messages.create({
@@ -1130,6 +1147,67 @@ function findRepeatOffenses(
           picked: item.title,
           matched: `[same creator previously featured]`,
         });
+      }
+    }
+  }
+  return offenses;
+}
+
+// Label→kind heuristic map for the tasting menu. Detects obvious label/
+// content mismatches: a "Worth Watching" title that is transparently a
+// book, a "Worth Reading" title that is transparently a film, etc.
+// The heuristic looks at:
+//   - the item's body (writer usually mentions "novel/film/album/show" etc)
+//   - the item's title suffix ("by X" often indicates a book/album)
+//   - the URL host (imdb → film, letterboxd → film, goodreads → book,
+//     bandcamp/spotify/apple music → album, apple podcasts → podcast)
+// Ambiguous items are given the benefit of the doubt (no false-flag).
+function findKindMismatchOffenses(content: SaturdayLatteContent): RepeatOffense[] {
+  const offenses: RepeatOffense[] = [];
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const label = (item.label ?? "").toLowerCase();
+    const body = (item.body ?? "").toLowerCase();
+    const url = (item.url ?? "").toLowerCase();
+    const title = (item.title ?? "").toLowerCase();
+    const isFilmSignal =
+      /imdb\.com|letterboxd|rotten\s*tomatoes|criterion|apple\s*tv|netflix|max\.com|hbo|hulu|paramount|disney\+/i.test(url) ||
+      /\b(film|movie|documentary|tv\s*series|television\s*series|miniseries|the\s*director|directed\s*by|screenplay|cinematographer|streaming\s*on|apple\s*tv|netflix|hbo\s*max|prime\s*video)\b/.test(body);
+    const isBookSignal =
+      /goodreads|penguin\s*random|amazon\.com\/.*\/(dp|gp\/product)|barnesandnoble|bookshop\.org|libraryofamerica|nyrb/i.test(url) ||
+      /\b(novel|memoir|nonfiction|non-fiction|essay\s*collection|the\s*author|written\s*by|published\s*by|the\s*book|paperback|hardcover|chapter|pulitzer|booker\s*prize|national\s*book\s*award)\b/.test(body);
+    const isAlbumOrPodcastSignal =
+      /spotify|apple\s*music|apple\.co\/album|bandcamp|soundcloud|tidal|apple\s*podcasts|pocketcasts|overcast/i.test(url) ||
+      /\b(album|record\s*label|the\s*band|the\s*singer|track\s*(?:one|two|three)|the\s*ep|debut\s*album|the\s*podcast|podcast\s*host|episode\s*\d)\b/.test(body);
+    const isDrinkSignal =
+      /\b(bourbon|whisky|whiskey|rye|scotch|tequila|mezcal|gin|vodka|rum|wine|pinot|cabernet|chardonnay|riesling|rosé|rose\s*wine|beer|ipa|lager|stout|pilsner|kombucha|coffee\s*bean|single\s*origin|espresso|matcha|tea|cocktail|amaro|vermouth|aperitif|non-alcoholic|na\s*spirit)\b/.test(body + " " + title);
+    const isProductSignal =
+      /\b(grinder|kettle|dutch\s*oven|cast\s*iron|pizza\s*oven|espresso\s*machine|coffee\s*maker|knife|thermometer|scale|apparel|jacket|boots|backpack|cooler|tent|sleeping\s*bag|hiking|watch|headphones|speaker|bluetooth|charger|laptop|desk|chair|lamp|cutting\s*board|pan|skillet|kitchen\s*tool|weight|dumbbell)\b/.test(body + " " + title);
+
+    if (label.includes("watching")) {
+      if (isBookSignal && !isFilmSignal) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Watching' but the content reads as a BOOK. Pick a film / TV show / documentary instead, or change the label to Worth Reading." });
+      } else if (isAlbumOrPodcastSignal && !isFilmSignal) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Watching' but the content reads as an ALBUM or PODCAST. Pick a film / TV show instead, or change the label to Worth Listening." });
+      }
+    } else if (label.includes("reading")) {
+      if (isFilmSignal && !isBookSignal) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Reading' but the content reads as a FILM or TV show. Pick a book instead, or change the label to Worth Watching." });
+      } else if (isAlbumOrPodcastSignal && !isBookSignal) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Reading' but the content reads as an ALBUM or PODCAST. Pick a book instead." });
+      }
+    } else if (label.includes("drinking")) {
+      if (!isDrinkSignal && (isBookSignal || isFilmSignal || isAlbumOrPodcastSignal || isProductSignal)) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Drinking' but the content isn't a beverage. Pick an actual drink (bourbon, wine, beer, coffee bean, tea, cocktail, etc.)." });
+      }
+    } else if (label.includes("listening")) {
+      if (isBookSignal && !isAlbumOrPodcastSignal) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Listening' but the content reads as a BOOK. Pick an album or podcast instead." });
+      } else if (isFilmSignal && !isAlbumOrPodcastSignal) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Listening' but the content reads as a FILM. Pick an album or podcast instead." });
+      }
+    } else if (label.includes("trying")) {
+      if (isBookSignal || isFilmSignal || isAlbumOrPodcastSignal || (isDrinkSignal && !isProductSignal)) {
+        offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Trying' but the content isn't a physical product. Pick an actual product (kitchen tool, gear, tech accessory, etc.)." });
       }
     }
   }
@@ -1638,37 +1716,41 @@ export async function generateSaturdayLatteIssue(opts: {
     recentContext,
   );
 
-  // Repeat-detection guard: if the writer picked a tasting title or a car
-  // that appears in recentContext, retry ONCE with an explicit rejection
-  // list. Case-insensitive, punctuation-normalized comparison so trivial
-  // wording differences don't slip a real repeat past the check.
-  if (recentContext) {
-    const repeatOffenses = findRepeatOffenses(writer.content, recentContext);
-    if (repeatOffenses.length > 0) {
-      const rejectionMessage = repeatOffenses
-        .map((o) => `- Your draft's ${o.slot}: "${o.picked}" matches recent pick "${o.matched}". REJECT this and pick something different.`)
-        .join("\n");
-      console.warn("latte.writer_repeat_offenses_retry", {
-        count: repeatOffenses.length,
-        offenses: repeatOffenses,
-      });
-      const retryWriter = await runWriterPhase(
-        client,
-        opts.issueDate,
-        research.bundle,
-        recentCoverStories,
-        recentContext,
-        rejectionMessage,
-      );
-      writer = {
-        content: retryWriter.content,
-        contentType: retryWriter.contentType,
-        imagePrompts: retryWriter.imagePrompts,
-        inputTokens: writer.inputTokens + retryWriter.inputTokens,
-        outputTokens: writer.outputTokens + retryWriter.outputTokens,
-        latencyMs: writer.latencyMs + retryWriter.latencyMs,
-      };
-    }
+  // Label-content kind mismatch guard: Worth Watching MUST be a film,
+  // Worth Reading MUST be a book, Worth Drinking MUST be a beverage,
+  // Worth Listening MUST be audio, Worth Trying MUST be a product.
+  // Heuristic detection catches the obvious cases; anything ambiguous
+  // gets picked up by the image pipeline (poster mode for films,
+  // cover mode for books) and would otherwise ship a mismatched
+  // asset in the wrong slot.
+  const kindOffenses = recentContext
+    ? []
+    : findKindMismatchOffenses(writer.content);
+  const combinedOffensesBase = recentContext
+    ? [...findRepeatOffenses(writer.content, recentContext), ...findKindMismatchOffenses(writer.content)]
+    : kindOffenses;
+
+  if (combinedOffensesBase.length > 0) {
+    const rejectionMessage = combinedOffensesBase
+      .map((o) => `- Your draft's ${o.slot}: "${o.picked}" — ${o.matched}. REJECT this and pick something different.`)
+      .join("\n");
+    console.warn("latte.writer_offenses_retry", { count: combinedOffensesBase.length, offenses: combinedOffensesBase });
+    const retryWriter = await runWriterPhase(
+      client,
+      opts.issueDate,
+      research.bundle,
+      recentCoverStories,
+      recentContext,
+      rejectionMessage,
+    );
+    writer = {
+      content: retryWriter.content,
+      contentType: retryWriter.contentType,
+      imagePrompts: retryWriter.imagePrompts,
+      inputTokens: writer.inputTokens + retryWriter.inputTokens,
+      outputTokens: writer.outputTokens + retryWriter.outputTokens,
+      latencyMs: writer.latencyMs + retryWriter.latencyMs,
+    };
   }
 
   const writerCost =
