@@ -88,9 +88,11 @@ Check the following:
 1. Does this image clearly represent the specific item named (correct product/book/film)?
 2. Are there any physically impossible or broken details (a handle in the wrong place, a torn cover, a distorted shape)?
 3. **NO SPURIOUS DECORATIVE DEBRIS.** A single coffee bean sitting near an espresso machine is a FAIL. A single tea leaf near a teapot is a FAIL. A single stray herb sprig near a knife is a FAIL. Products live cleanly on their surface. Category-adjacent debris counts as debris.
-4. **For books:** the title text on the cover must be legible and match the actual book title. Garbled letterforms or stylized-different-words is a FAIL.
-5. Any obvious AI artifacts (extra objects, distorted geometry, impossible physics)?
-6. Does the composition follow the rule of thirds (off-center subject, not dead center)?
+4. **NO SELF-ACTUATING PRODUCTS. AUTOMATIC FAIL.** A grinder is not actively grinding by itself. A brew grinder / coffee maker / espresso machine is not pouring itself into anything. A jar is not tipping and pouring. A blender is not blending. The product must be AT REST on a surface. If you see the product mid-action with no human agent, FAIL and set retryHint to "product must be sitting at rest, not operating itself — no self-pouring, no self-grinding, no invisible-hand operations".
+5. **NO FLOATING PRODUCTS. AUTOMATIC FAIL.** Every product must be gravitationally supported by a visible surface — counter, table, shelf. If the product hovers with no support, FAIL and set retryHint to "ground the product on the counter — no floating".
+6. **For books:** the title text on the cover must be legible and match the actual book title. Garbled letterforms or stylized-different-words is a FAIL. If the item is named as a book (a novel, non-fiction title) and the image shows the item as an object OTHER than a book — e.g. a satellite, a sports ball, a household appliance — that is a FAIL. The book kind renders as a book, period.
+7. Any obvious AI artifacts (extra objects, distorted geometry, impossible physics)?
+8. Does the composition follow the rule of thirds (off-center subject, not dead center)?
 
 Verdict format:
 - If everything is right: return {"ok": true, "reason": "brief summary"}
@@ -105,6 +107,8 @@ Check the following:
 2. **NO HANDS, ARMS, OR HUMANS in the frame.** Food images must never show hands holding a spatula, fingers cutting, arms lifting - the geometry always renders wrong. If a hand is visible, FAIL this validation.
 3. Kitchen physics: hot cookware belongs on a stove, stone, or trivet - NEVER on bare wood. No random grease/oil puddles on the counter or table beside the pan.
 4. **Steam physics is an AUTOMATIC FAIL if wrong.** Steam ONLY escapes from open apertures. A kettle with a closed lid must NOT show steam plumes from the top of the lid, from the lid seam, or from anywhere except an open spout. Pour-over gooseneck kettles (Fellow Stagg, Hario Buono, Chemex-adjacent) always have closed lids — steam should come from the pouring stream hitting the coffee bed, not from the kettle top. If you see steam venting from the top of a closed lid, or from the sides of any closed vessel, FAIL and set retryHint to "kettle has closed lid — remove all steam plumes from the top of the lid and only show steam from the pouring stream / open cup / hot food".
+5. **Self-actuating objects are an AUTOMATIC FAIL.** With no hands allowed in food frames, no object may be depicted mid-action operating itself. If the kettle is tilted mid-pour with no hand holding it, FAIL. If a jar is pouring itself, FAIL. If a bottle is levitating over a pan, FAIL. The correct render is the object AT REST — upright, sitting on a surface. Set retryHint to "no hands allowed and no self-actuating objects — set the kettle upright on the stove/trivet, or show only the finished cup with the kettle off-frame".
+6. **Floating objects are an AUTOMATIC FAIL.** Every object must sit on a visible surface — stove, counter, trivet, cutting board, cast iron rack. If the pan, kettle, grinder, or any product hovers above the surface with no visible support, FAIL. Set retryHint to "ground the product on the counter/stove/trivet — no hovering".
 5. Composition off-center, not dead-center.
 6. Any AI artifacts.
 

@@ -134,6 +134,43 @@ function isFilmOrTvArticle(summary: WikiSummary): boolean {
 }
 
 /**
+ * Same shape as isFilmOrTvArticle but for books. Prevents returning
+ * a generic-topic Wikipedia article when the search should have found
+ * the specific book — e.g. "Orbital" (Samantha Harvey novel) resolving
+ * to the general topic article for orbital mechanics or an orbital
+ * sander product page, and then rendering as a satellite/tool on top
+ * of a book instead of the actual book cover.
+ */
+function isBookArticle(summary: WikiSummary): boolean {
+  const text = `${summary.description ?? ""} ${summary.extract ?? ""}`.toLowerCase();
+  if (!text) return false;
+  const bookSignals = [
+    "novel",
+    "novella",
+    "memoir",
+    "nonfiction",
+    "non-fiction",
+    "book by",
+    "written by",
+    "published by",
+    "published in",
+    "author",
+    "manuscript",
+    "chapter",
+    "booker prize",
+    "pulitzer",
+    "national book award",
+    "bestseller",
+    "her book",
+    "his book",
+    "the book",
+    "hardcover",
+    "paperback",
+  ];
+  return bookSignals.some((w) => text.includes(w));
+}
+
+/**
  * Public: try to find a Wikipedia article for the subject and return
  * its infobox image (product photo, movie poster, book cover). Returns
  * null if nothing was found or none of the candidates downloaded.
@@ -203,6 +240,17 @@ export async function fetchSubjectReferenceImage(
       // Alex Garland's "Civil War" film.
       if (kindHint === "film" && !isFilmOrTvArticle(summary)) {
         console.warn("subject-reference.film_summary_not_film", {
+          subject,
+          candidate: cand.title,
+          description: summary.description,
+        });
+        continue;
+      }
+      // Same guard for books. Prevents "Orbital" (Samantha Harvey novel)
+      // from resolving to an orbital-mechanics topic article and then
+      // rendering as a satellite on top of a book.
+      if ((kindHint === "book" || kindHint === "novel") && !isBookArticle(summary)) {
+        console.warn("subject-reference.book_summary_not_book", {
           subject,
           candidate: cand.title,
           description: summary.description,

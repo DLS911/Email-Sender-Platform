@@ -565,7 +565,7 @@ The 5 image fields (one prompt per field, tastingMenu has 3 sub-prompts):
 
 - **hero**: MUST name the cover story's primary place AND a SPECIFIC LANDMARK, iconic view, or unique feature of that place. Not a generic "downtown street" or "historic buildings" or "main street." Name the actual thing: "the Copper Queen Hotel neon sign in Bisbee at dusk," "the 1000-step Bisbee Stairs curving up Chihuahua Hill," "the Queen Mine headframe against Mule Mountains," "the Root River Trail bridge at Lanesboro with limestone bluffs behind," "Traverse City's Old Mission Peninsula lighthouse from the water at 6am." The hero should immediately show something unique to THIS place that a subscriber who's been there would recognize. If the writer can't name a specific landmark, the piece isn't researched enough - go do research. NEVER default to "downtown main street" or "historic buildings" or "person walking down a street" - those are boring AI defaults. Every hero prompt must specify a proper-noun landmark or iconic feature of the actual destination.
 - **coverDetail**: MUST reference a specific ONE-thing detail from THIS cover story's location. Not a generic version of that kind of detail. Example: "The interior of the Commonweal Theatre lobby in Lanesboro at 6pm — brass wall sconces, playbill stack on a walnut table, one folded program left on a leather bench." Not "a small-town theater lobby."
-- **tastingMenu**: array of 3 prompts, one per tasting menu item. **Each prompt MUST include the exact title of its tasting menu item, verbatim from tastingMenu[i].title.** This is non-negotiable — it is the only reliable defense against two similar-category items (two coffee items, two books, two films) rendering as interchangeable images. Example for a "Worth Trying: Fellow Ode Brew Grinder Gen 2" item: "The Fellow Ode Brew Grinder Gen 2 on a butcher-block counter beside a pour-over kettle, morning window light, one dark coffee bean on the counter." NOT: "a coffee grinder on a kitchen counter." The item's exact product/book/film name must appear inside the prompt.
+- **tastingMenu**: array of 3 prompts, one per tasting menu item. **Each prompt MUST include the exact title of its tasting menu item, verbatim from tastingMenu[i].title.** This is non-negotiable — it is the only reliable defense against two similar-category items (two coffee items, two books, two films) rendering as interchangeable images. Example for a "Worth Trying: Fellow Ode Brew Grinder Gen 2" item: "The Fellow Ode Brew Grinder Gen 2 sitting cleanly on a butcher-block counter, morning window light from the left." NOT: "a coffee grinder on a kitchen counter." The item's exact product/book/film name must appear inside the prompt. **DO NOT include category-adjacent debris in the prompt** — no coffee beans next to a grinder, no tea leaves next to a teapot, no herb sprigs next to a knife. Products live cleanly on their surface. **DO NOT describe the product as pouring itself, floating, mid-action, or performing its function without a person** — a grinder is a still object sitting on the counter, not actively grinding; a kettle is sitting on a stove or trivet, not tilted and self-pouring into a filter. Products at rest, no invisible-hand operations.
 - **hostsCorner**: MUST reference the specific technique from hostsCorner.moveTitle by name. Example for "The Cold-Start Cast Iron Steak": "A room-temperature ribeye in a cold cast iron skillet on a gas burner, first ninety seconds of the cold-start method, small pool of rendered fat around the meat, kitchen window light at 5pm." Not "a steak searing on cast iron."
 - theDrive: the specific car in a specific real-world setting with specific light. **CAR ACCURACY IS CRITICAL AND HAS BEEN A REPEATED FAILURE MODE** — image models WILL default to the previous generation of a nameplate unless the prompt spells out (a) the current generation, (b) 4-5 distinguishing visual features, (c) an explicit "NOT the [previous generation]" negative, and (d) a period-correct color. Readers who know cars notice immediately when a 2024 M2 renders as a 2020 M2. Every theDrive prompt MUST use the structure below.
 
@@ -855,9 +855,13 @@ async function runWriterPhase(
     const ctx = recentContext;
     const exclusions: string[] = [];
     if (ctx.cars.length > 0) {
-      // Detect era-monoculture: if ALL recent picks are from model years
-      // within the last 6 years, force the next pick to be a classic /
-      // restomod / oddball from Category 6 (or an older car >15 years old).
+      // Era-rotation. Writer's default is a strong bias toward modern cars
+      // (2024/2025 press-photo era), which reads as generic dealership
+      // content over time. Two triggers force a classic/older pick:
+      //   (a) MAJORITY modern in the last 3 picks: >= 2/3 modern → force older
+      //   (b) LAST 2 PICKS both modern → force older
+      // "Modern" = model year within the last 6 years. "Older" = model year
+      // 2010 or earlier (a real classic), OR a restomod based on such a car.
       const currentYear = new Date().getUTCFullYear();
       const isModern = (car: string): boolean => {
         const yr = car.match(/\b(19|20)\d{2}\b/);
@@ -865,9 +869,12 @@ async function runWriterPhase(
         const y = parseInt(yr[0], 10);
         return y >= currentYear - 6;
       };
-      const allModern = ctx.cars.every(isModern) && ctx.cars.length >= 3;
-      const eraRule = allModern
-        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** The last ${ctx.cars.length} Drive picks were all modern cars (within the last 6 model years). This issue MUST pick from Category 6 (Classics/Restomods/Cool Oddballs) — see WEEKEND_CAR_SPECTRUM voice module. Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise, Mercedes 500E, or any '90s JDM hero. The pick must be under $120k and a model year of 2010 or earlier (a real classic) OR a restomod based on a car that old. Do NOT pick another new car this issue.`
+      const recent3 = ctx.cars.slice(0, 3);
+      const modernInRecent3 = recent3.filter(isModern).length;
+      const last2AllModern = ctx.cars.slice(0, 2).length === 2 && ctx.cars.slice(0, 2).every(isModern);
+      const forceOlder = (recent3.length >= 3 && modernInRecent3 >= 2) || last2AllModern;
+      const eraRule = forceOlder
+        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** The recent Drive picks skew modern (${modernInRecent3}/${recent3.length} of the last ${recent3.length} picks are ${currentYear - 6}+ model years). This issue MUST pick a CLASSIC or restomod — Category 6 of the WEEKEND_CAR_SPECTRUM voice module. **Model year must be 2010 or earlier**, OR a restomod BASED on such a car. Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth / 500E / SL R107, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise/Esprit, Jaguar E-Type/XJ6, any '80s-'90s JDM hero, Saab 900 Turbo, Peugeot 205 GTI, VW GTI Mk1/Mk2, Ferrari 308/348/Testarossa, first-gen NSX. Under $120k. Do NOT pick another 2020s car this issue — a 2024/2025 model year is an automatic fail on this rule.`
         : "";
       exclusions.push(
         `## RECENT THE DRIVE PICKS — HARD RULE, DO NOT REPEAT ANY OF THESE:\n${ctx.cars.map((c) => `- ${c}`).join("\n")}\n\nThe car you pick for The Drive this issue MUST NOT be any car on the list above. Not the same year+model, not a different year of the same model, not a different trim of the same model. Pick from a completely different nameplate or generation. If you can only think of cars on the list, keep thinking — there are hundreds of cool cars under $120k across the spectrum.${eraRule}`,
