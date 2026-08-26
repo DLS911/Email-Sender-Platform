@@ -887,7 +887,15 @@ Render the landmark faithfully to these specific visual characteristics. Do NOT 
 **DISH / TECHNIQUE ACCURACY REQUIREMENT (research summary for what THIS specific dish/technique looks like):**
 ${dishDetail}
 
-Render the food and its immediate context to match those specific characteristics. Do NOT generate a generic pan-on-stove or generic-plated-dish approximation — render the actual dish state, cookware, and surface described above. Only realistic mise-en-place props; NO spilled coffee, NO stray herbs "for garnish," NO invented food debris on the counter.`;
+Render the food and its immediate context to match those specific characteristics. Do NOT generate a generic pan-on-stove or generic-plated-dish approximation — render the actual dish state, cookware, and surface described above.
+
+**COUNTER / CUTTING BOARD / TABLE IS CLEAN. THIS IS A HARD RULE.** The only liquid or food particles in the frame appear INSIDE the pan / on the plated food / on the cutting board where the specific prep is happening. Everywhere else — the counter, the table, the wooden surface next to the pan — is SPOTLESS. Specifically DO NOT render any of the following, ever:
+- A puddle or ring of coffee, tea, wine, oil, sauce, water, or any liquid on the counter/table/board next to the pan.
+- A "just-spilled" wetness or glossy patch anywhere outside the cooking vessel.
+- Fake condensation rings from a nonexistent glass.
+- Stray herbs / crumbs / seeds / grains scattered "for garnish" outside the plate.
+- A "moody" wet look on wood — wood in these frames is DRY and clean.
+Do not think of these as optional atmosphere; they are AI tells that immediately make the frame read as fake. Real kitchens have clean counters between actions.`;
       return generateOneImage(apiKey, enrichedPrompt, sectionTag);
     }
   }
