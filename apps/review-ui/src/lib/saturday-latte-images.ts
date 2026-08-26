@@ -179,6 +179,8 @@ Shoot in the style of Garden & Gun, Kinfolk, or National Geographic Traveler —
 
 Real signage that would naturally appear IN the scene is fine ONLY when it's genuine mundane infrastructure: a "STOP" traffic sign, a "MAIN ST" street sign, a real business's actual storefront name that you know exists at that address, a legible book cover title, a road route marker like "US-2" or "VT-100". None of these spell out the destination. If in doubt about whether a sign would exist: DON'T RENDER IT. Empty walls, blank storefronts, and no signage are better than invented decorative text.
 
+**RESTAURANTS, CAFES, STOREFRONTS — same rule.** No invented menu boards visible through the window ("Today's Specials," "Coffee $4"), no invented hours placard ("Open 7-3"), no invented shop-window vinyl lettering ("Fresh Bread Daily"), no invented restaurant name over the door. These are all Gemini-fabricated business signage that would misrepresent the specific location. Empty windows with warm interior light behind them read as genuine; invented restaurant-window text reads as AI. If depicting a restaurant/cafe/storefront and you don't know its real signage, keep the window CLEAR and the signage OFF-FRAME.
+
 === ADDITIONAL REJECTS ===
 
 Do NOT produce: HDR-look processing, over-saturated color, plastic or over-smoothed textures, perfectly-symmetric composition, dead-center subject, stock-photo staging, artificially shallow depth of field with unnatural bokeh, 'teal-and-orange' cinematic grading, over-styled food arrangements, spurious food debris on non-food frames, glassy AI-perfect water, uniformly-graded atmospheric haze, "beautiful dreamy soft mist" airbrush effect, sourceless ambient soft magic light, uniform slate-gray water wash, mirror-perfect reflections on open water, sunrise gradients that go from teal to magenta, mangled brand logos, or the flat generic AI-editorial plate look.`;
@@ -216,6 +218,7 @@ async function callGemini(
       contents: [{ role: "user", parts }],
       generationConfig: {
         responseModalities: ["IMAGE"],
+        imageConfig: { aspectRatio: "1:1" },
       },
     }),
   });
@@ -406,6 +409,44 @@ function extForMime(mimeType: string): string {
   if (mimeType.includes("jpeg") || mimeType.includes("jpg")) return "jpg";
   if (mimeType.includes("webp")) return "webp";
   return "png";
+}
+
+/**
+ * Read image width/height from PNG or JPEG headers without decoding
+ * the full image. Returns the SHORT side (min of width, height) so a
+ * caller can decide "is this big enough to ship as-is?" without
+ * pulling in a heavy image library. Returns 0 on unrecognized format
+ * so callers can fail closed (don't ship an unknown image).
+ */
+async function measureImageShortSide(bytes: Uint8Array): Promise<number> {
+  try {
+    if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const width = view.getUint32(16);
+      const height = view.getUint32(20);
+      return Math.min(width, height);
+    }
+    if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+      let i = 2;
+      while (i < bytes.length - 9) {
+        if (bytes[i] !== 0xff) return 0;
+        const marker = bytes[i + 1];
+        if (marker === undefined) return 0;
+        if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+          const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+          const height = view.getUint16(i + 5);
+          const width = view.getUint16(i + 7);
+          return Math.min(width, height);
+        }
+        const segLen = (bytes[i + 2] ?? 0) * 256 + (bytes[i + 3] ?? 0);
+        if (segLen < 2) return 0;
+        i += 2 + segLen;
+      }
+    }
+  } catch {
+    return 0;
+  }
+  return 0;
 }
 
 /**
@@ -698,6 +739,8 @@ ${preservationNote}
 
 You may change the SURROUNDING SCENE (background, light, other props, framing) per the editorial setting prompt below. You may NOT change any aspect of the reference subject itself (its form factor, artwork, title text, branding, or physical details).
 
+**If the subject is a VINYL RECORD or LP (a "listening" pick):** the album sleeve is 12" × 12" — a PERFECT SQUARE. Do NOT render it as a rectangular case, a CD jewel case, a cassette shell, or a tall portrait frame. If a physical case is shown, it is a square cardboard sleeve (or a square Discwasher-style outer sleeve). No 8-track cartridges, no rectangular boxes. Records themselves are 12" diameter circles.
+
 The output must be a 1:1 SQUARE aspect ratio image.
 
 === EDITORIAL SETTING ===
@@ -819,12 +862,20 @@ CRITICAL FIX ON RETRY: A previous attempt to generate this exact image failed va
     verdict = await validateImage(img.bytes, img.mimeType, ctx);
   }
 
-  // For tasting-menu BOOKS: opposite rule from theDrive. If two edit
-  // attempts failed on a book (usually because Gemini garbled the title
-  // text on the cover), ship the RAW Wikipedia cover instead. Real
-  // book covers from Wikipedia are always clean — a plain shot of the
-  // real cover is strictly better than an edited version with mangled
-  // text.
+  // For tasting-menu BOOKS: two-stage fallback when Gemini garbles the
+  // cover text on the first two attempts.
+  //
+  //   Stage 1 — retry with LOCKED FRAMING that gives Gemini almost no
+  //   room to garble: book flat on a table, camera looking down, cover
+  //   fills the frame, no props to distract, warm window light. This
+  //   is essentially the cover shot with real surface texture, so
+  //   Gemini has less reason to "reinterpret" the title.
+  //
+  //   Stage 2 — only if the flat retry also fails and the reference
+  //   image is big enough to look decent in the newsletter (>= 500px
+  //   on the short side), ship the raw Wikipedia cover. If the
+  //   Wikipedia thumb is too small, keep the last Gemini attempt
+  //   (even garbled) rather than shipping a visibly low-res image.
   let usedFallbackToReference = false;
   if (
     ctx &&
@@ -835,17 +886,46 @@ CRITICAL FIX ON RETRY: A previous attempt to generate this exact image failed va
     img.usedReference &&
     img.referenceUrl
   ) {
+    // Stage 1: locked-framing retry.
     try {
-      const raw = await downloadRawReference(img.referenceUrl);
-      if (raw) {
-        img = { bytes: raw.bytes, mimeType: raw.mimeType, usedReference: true, referenceUrl: img.referenceUrl };
-        usedFallbackToReference = true;
-        verdict = { ok: true, reason: "shipped raw Wikipedia cover after edit garbled the title" };
-        console.warn("latte.book_edit_failed_shipping_raw_cover", { slot, referenceUrl: img.referenceUrl });
+      const flatPrompt = `${sectionTag}
+
+The previous attempts to render this book cover garbled the title text. Retry with LOCKED FRAMING that leaves no room for reinterpretation:
+
+- Camera looks STRAIGHT DOWN at 90 degrees at a book lying flat on a wooden table.
+- The book cover fills roughly 75-80% of the square frame, centered.
+- The COVER IS THE REFERENCE IMAGE, IDENTICAL. Do not repaint the artwork. Do not reword the title. Do not restyle the typography. If you can only render the cover exactly as reference, that is the goal.
+- Warm side-window light rakes across the cover from one edge, natural falloff.
+- The wooden surface has visible grain and warmth (oak / walnut / reclaimed pine). No props on the table — no coffee cup, no glasses, no bookmark, no leaf, no flowers. Just the book on wood.
+- Slight physical realism cues: the cover has real book-cover material texture (matte paperback, glossy hardcover with dust jacket, or cloth-bound spine), a subtle shadow along one edge from directional light. Cover is not warped.
+
+The point of this frame is to reproduce the cover cleanly at a natural angle, not to build an editorial scene around it. Fidelity to the reference cover is the ONLY thing that matters.`;
+      const retryImg = await generateForSlot(apiKey, slot, flatPrompt, sectionTag, subjects);
+      const retryVerdict = await validateImage(retryImg.bytes, retryImg.mimeType, ctx);
+      if (retryVerdict.ok) {
+        img = retryImg;
+        verdict = retryVerdict;
+        attempts += 1;
+      } else {
+        // Stage 2: check raw Wikipedia size and use it if it's big enough.
+        const raw = await downloadRawReference(img.referenceUrl);
+        if (raw) {
+          const dims = await measureImageShortSide(raw.bytes);
+          if (dims >= 500) {
+            img = { bytes: raw.bytes, mimeType: raw.mimeType, usedReference: true, referenceUrl: img.referenceUrl };
+            usedFallbackToReference = true;
+            verdict = { ok: true, reason: "shipped raw Wikipedia cover after Gemini garbled and flat-retry also failed" };
+            console.warn("latte.book_shipped_raw_cover", { slot, referenceUrl: img.referenceUrl, shortSide: dims });
+          } else {
+            console.warn("latte.book_raw_cover_too_small_keeping_retry", { slot, shortSide: dims });
+            img = retryImg;
+            verdict = retryVerdict;
+          }
+        }
       }
     } catch (err) {
       console.error(
-        "latte.book_raw_cover_fallback_threw",
+        "latte.book_fallback_chain_threw",
         err instanceof Error ? err.message : String(err),
       );
     }
