@@ -1057,10 +1057,26 @@ function normalizeTitleForRepeat(s: string): string {
 }
 
 type RepeatOffense = {
-  slot: "tasting-1" | "tasting-2" | "tasting-3" | "theDrive";
+  slot: "tasting-1" | "tasting-2" | "tasting-3" | "theDrive" | "coverStory";
   picked: string;
   matched: string;
 };
+
+/**
+ * Pull the destination name from a Cover Story headline. Headlines are
+ * shaped as "<Destination> in <Season/Month>[: subtitle]" or occasionally
+ * "<Destination>, <State>: subtitle" — we take whatever's before the
+ * first " in " or " , " boundary. Normalized for match.
+ */
+function extractDestinationFromHeadline(headline: string): string {
+  const trimmed = headline.trim();
+  const sepIn = trimmed.search(/\s+in\s+/i);
+  const sepComma = trimmed.indexOf(",");
+  const sepColon = trimmed.indexOf(":");
+  const bounds = [sepIn, sepComma, sepColon].filter((n) => n > 0);
+  const cut = bounds.length > 0 ? Math.min(...bounds) : trimmed.length;
+  return trimmed.slice(0, cut).trim();
+}
 
 // Compare writer output against recent picks. Any tasting title or Drive
 // car whose normalized form matches a normalized recent-pick counts as
@@ -1101,6 +1117,30 @@ function findRepeatOffenses(
   ctx: LatteRecentContext,
 ): RepeatOffense[] {
   const offenses: RepeatOffense[] = [];
+  // Cover Story destination check. Extract the destination name from the
+  // headline (portion before the first " in ", ",", or ":") and compare
+  // against normalized recent destinations. Also cross-check against
+  // allRecommendations.destination for permanent recall.
+  const pickedDest = extractDestinationFromHeadline(content.coverStoryHeadline);
+  if (pickedDest) {
+    const pickedDestNorm = normalizeTitleForRepeat(pickedDest);
+    if (pickedDestNorm) {
+      const recentDestNorms = ctx.coverStoryHeadlines
+        .map((h) => normalizeTitleForRepeat(extractDestinationFromHeadline(h)))
+        .filter((n) => n && n !== pickedDestNorm); // exclude the current issue itself
+      const permanentDestNorms = (ctx.allRecommendations?.destination ?? [])
+        .map((h) => normalizeTitleForRepeat(extractDestinationFromHeadline(h)))
+        .filter((n) => n && n !== pickedDestNorm);
+      const all = new Set([...recentDestNorms, ...permanentDestNorms]);
+      if (all.has(pickedDestNorm)) {
+        offenses.push({
+          slot: "coverStory",
+          picked: content.coverStoryHeadline,
+          matched: `destination "${pickedDest}" has already been featured. Pick a completely different city / region.`,
+        });
+      }
+    }
+  }
   const recentTastingNorm = ctx.tastingMenuTitles.map((t) => ({
     original: t,
     norm: normalizeTitleForRepeat(t),
