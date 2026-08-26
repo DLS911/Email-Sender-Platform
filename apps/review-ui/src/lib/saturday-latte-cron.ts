@@ -426,8 +426,8 @@ export async function runLatteGenerate(
     }
 
     const [recentCoverStories, recentContext] = await Promise.all([
-      loadRecentCoverStories(db, 24),
-      loadRecentLatteContext(db, 24),
+      loadRecentCoverStories(db, 36),
+      loadRecentLatteContext(db, 36),
     ]);
     const start = Date.now();
     const issue = await generateSaturdayLatteIssue({

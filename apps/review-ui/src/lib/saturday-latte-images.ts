@@ -151,6 +151,7 @@ The "one lonely stool at a bar" or "one lonely chair in a restaurant" is a stron
 - **Fabric drapes with weight and gravity.** Linen falls in soft folds toward the floor, not defying gravity.
 
 **KITCHEN LOGIC (for Host's Corner and any food frame).**
+- **The kitchen must be spatially coherent.** Perspective is consistent throughout the frame — one horizon line, one vanishing direction, no impossible corners. Appliances go where they'd logically live: stove abuts a countertop, fridge stands upright against a wall, cabinets align to walls not to nothing, sink has plumbing under it, backsplash meets counter cleanly. NO floating cabinets. NO wall segments that terminate in mid-air. NO stove positioned in the middle of the room with no counter. NO fridge that faces sideways relative to the countertops. If you can't render a coherent kitchen, tighten the framing to just the pan-on-stove or the plated-dish-on-counter — a coherent tight frame beats an ambitious wide shot with impossible geometry.
 - **Hot cookware sits on a heat-appropriate surface.** A cast iron skillet, hot pan, or dutch oven that's actively cooking goes on the STOVE. A hot pan that's been removed from the stove goes on a TRIVET, a STONE surface, an INDUCTION mat, or a cast iron rack. It NEVER goes directly on bare wood — that would burn/scar the wood. If depicting an active cooking scene, put the pan on the stove; if depicting a finished/plated dish, the pan should be off-frame or on a trivet.
 - **Grease, oil, and cooking liquids appear only where cooking would produce them.** Inside the pan (rendered fat, sauce, glaze) or on the food itself (pan drippings on a plated steak). NOT as random puddles on the cutting board, counter, or table adjacent to the pan. A grease puddle sitting on bare wood next to a pan is nonsensical — cooks would wipe it up immediately, and no cooking process deposits grease onto adjacent surfaces.
 - **Cutting boards and counters stay clean** except for the specific food or action shown. A prep scene shows the ingredient being prepped and small realistic debris FROM THAT PREP (garlic paper flakes from crushing garlic, a few onion skins from mincing onion). Not random unrelated bits.
@@ -624,7 +625,9 @@ export async function generateTastingImageWithReference(
   const preservationNote =
     kind === "film"
       ? filmUseKeyframe && filmVisualStyle
-        ? `This slot is a "keyframe" from the film "${subject}" — a plausible still shot from the movie, displayed on a TV/laptop/tablet screen in an editorial home-viewing setting per the setting prompt below.
+        ? `This slot is a "keyframe" from the film "${subject}" — a plausible landscape still shot from the movie, rendered as if it IS the still from the actual movie. **DO NOT frame this as "a TV playing the movie in a living room." DO NOT include any TV, laptop, tablet, phone, monitor, or screen device in the image. DO NOT include a viewer, a watcher, a person on a couch, a hand on a remote, a silhouette watching, or ANY human figure that is not an actor from the film itself. The frame IS the film scene — nothing framing it, nothing observing it.**
+
+**ONLY people allowed in the frame are actors from the film performing in-character.** No editorial viewers, no reflected watchers in a screen, no partial silhouettes indicating a viewer's presence. If no actor is confidently identifiable for a given scene, show a landscape/environment shot from the film (setting only, no people) rather than inventing anonymous "watcher" figures.
 
 **CONTENT RULES (this is an adult audience — the goal is refined, not sanitized):**
 - **NO nudity or partial nudity.** No exposed skin beyond ordinary casual dress. No bathtub scenes, no shower scenes, no lingerie, no towel-wrapped subjects, no characters undressed or in bed under sheets. Even if the actual film has such a scene (Margot Robbie in the bathtub in The Big Short, any Wolf of Wall Street bedroom scene, any period drama boudoir moment), we do NOT render it.
@@ -647,25 +650,13 @@ ${filmVisualStyle}
 
 **Composition rule:** the still should look like a paused frame from the actual movie. Real film compositions are often IMPERFECT (an actor slightly off-center, a foreground element partially cropped, ambient details in the environment). Perfectly-composed hero-shot symmetry is the AI tell.
 
-**Reference the poster (attached below) for:** the film's color palette, the type of subject matter, the character(s) if identifiable, the general mood. But DO NOT put the poster on the TV — render a landscape KEY FRAME the poster's palette and subject matter would come from.
+**Reference the poster (attached below) for:** the film's color palette, the type of subject matter, the character(s) if identifiable, the general mood. Use it to inform what the film looks like — but DO NOT include the poster in the output. Render the actual scene, not the poster.
 
-**ABSOLUTE RULE: THE MOVIE POSTER APPEARS NOWHERE IN THE OUTPUT IMAGE. NOT ON A WALL. NOT ANYWHERE.**
+**ABSOLUTE RULE: THE MOVIE POSTER APPEARS NOWHERE IN THE OUTPUT IMAGE. NOT ON A WALL. NOT ANYWHERE. NOT INSIDE THE FILM SCENE.**
 
 You have been given the poster as REFERENCE input only. It is a color/subject/character guide. It is NOT to be visible in the output.
 
-Do NOT do any of the following (Gemini repeatedly violates this):
-- Do NOT frame the poster and hang it on a wall behind the TV.
-- Do NOT put the poster on a bulletin board.
-- Do NOT put the poster on a shelf, easel, or table.
-- Do NOT put a poster of ANY kind (framed, unframed, mounted, propped) on any surface in the scene.
-- Do NOT include a "movie-themed" wall decoration that references the film.
-- Do NOT put a smaller version of the poster in a picture frame elsewhere.
-
-**Walls in the scene stay BARE or have NON-FILM decor only:** a plant, a small abstract art print (not a movie poster), a bookshelf with books (no film titles visible), a window, an empty wall, a clock. Nothing that references the film in any way.
-
-**The TV / laptop is the ONE AND ONLY visible reference to the film in the scene.** Everything else in the room is generic residential decor.
-
-The scene around the TV/laptop is the editorial viewing context: cozy living room, dim lamps, a mug on the coffee table, a couch in the foreground, warm evening light. Walls are bare or have generic (non-film) decor only.`
+**The frame IS the film scene.** No TVs, no viewing rooms, no cozy living rooms wrapping the scene. If you imagined a photo of a TV playing this movie, WRONG — imagine instead you are a movie photographer on set, and this is a production still from the film. That is the target aesthetic.`
         : "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Rotate the setting across issues — pick ONE from: a framed print on a residential wall (movie room, hallway, apartment, home theater), an easel outside a cinema at dusk, an A-frame poster stand on a sidewalk, an art-house lobby wall with warm interior light, a bulletin-board-style community poster wall, held/carried by a person shown from behind (no face), a movie theater lobby marquee-adjacent poster board, or a poster shop / gallery display. **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. The scene around the poster should be editorial per the setting prompt below."
       : kind === "book"
         ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. **THE BOOK COVER MUST BE CLEAN — do NOT put crumbs, tater tots, food particles, herb sprigs, coffee grounds, sugar, salt, spilled liquid, or ANY debris on the cover or on the surface next to the book.** A book is not a food frame. Show the book alone on the surface with editorial-appropriate context per the setting prompt below (a wooden table, windowsill, bedside table, leather armchair, café tabletop — clean, no debris)."
