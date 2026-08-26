@@ -160,17 +160,16 @@ async function loadMostRecentCachedIssue(
   return (data ?? null) as CachedLatteIssue | null;
 }
 
-// Approved-only recent-picks memory. Two rules applied everywhere:
-//   1. approval_status = 'approved' — never let a pending or needs_work
-//      issue (an abandoned test draft) count as "already recommended."
-//      Only issues that made it past Mark's review are real memory.
-//   2. Lookback is intentionally deep (200 issues ~= 4 years of Saturdays).
-//      Once the system has recommended something, it never forgets.
+// Recent-picks memory = every issue ever generated, regardless of
+// approval status. If the writer picked something and it landed in
+// the DB, we remember it — otherwise a pending or needs_work draft
+// (which contains real picks the writer made) would get re-picked on
+// the next generate. Lookback is deep (200 issues ~= 4 years) so the
+// system remembers permanently.
 async function loadRecentCoverStories(db: SupabaseClient, limit = 12): Promise<string[]> {
   const { data, error } = await db
     .from("saturday_latte_issues")
     .select("cover_story_headline")
-    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) return [];
@@ -195,7 +194,6 @@ export async function loadRecentLatteContext(
   const { data, error } = await db
     .from("saturday_latte_issues")
     .select("cover_story_headline, sections")
-    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) {

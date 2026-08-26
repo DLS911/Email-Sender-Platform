@@ -193,14 +193,13 @@ function injectFallbackNote(html: string, issueDate: string, fallbackDate: strin
   return html.replace("<!-- FOOTER -->", `${note}\n<!-- FOOTER -->`);
 }
 
-// Approved-only recent memory (see saturday-latte-cron.ts for the full
-// rationale). Test issues that never made it past Mark's review must
-// not count as "already recommended."
+// Every issue counts as memory — see saturday-latte-cron.ts for
+// rationale. A pending or needs_work draft still contains real picks
+// the writer made; excluding them would let those picks repeat.
 async function loadRecentHeadlines(db: SupabaseClient, limit = 30): Promise<string[]> {
   const { data, error } = await db
     .from("daily_grind_issues")
     .select("headline")
-    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) return [];
@@ -235,7 +234,6 @@ async function loadRecentIssueSummaries(
   const { data, error } = await db
     .from("daily_grind_issues")
     .select("issue_date, headline, generation_meta")
-    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) return [];
@@ -303,7 +301,6 @@ async function loadRecentFormatStyles(db: SupabaseClient, limit = 10): Promise<s
   const { data, error } = await db
     .from("daily_grind_issues")
     .select("generation_meta")
-    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) return [];
@@ -322,7 +319,6 @@ async function loadRecentVerses(db: SupabaseClient, limit = 125): Promise<string
   const { data, error } = await db
     .from("daily_grind_issues")
     .select("sections")
-    .eq("approval_status", "approved")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) return [];
