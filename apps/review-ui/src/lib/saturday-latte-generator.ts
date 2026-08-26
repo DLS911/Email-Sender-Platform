@@ -1050,13 +1050,28 @@ function findRepeatOffenses(
   }
   const pickedCarNorm = normalizeTitleForRepeat(content.theDrive.car);
   if (pickedCarNorm) {
+    // For cars, we intentionally KEEP 2-char tokens (m2, m3, m4, i5, i8,
+    // gx, lx, es, rx, is, xt, q5, q7, a4, a6, s4, s6, r8, rs, gt, sq,
+    // ct, ex, gs, mx, mr, nx, xl, x1, x3, x5, x7, z4, z8, gr, sl, gl,
+    // fj, tt) so nameplate matches work. Model codes like these ARE the
+    // distinguishing signal — "BMW M2" and "BMW M3" collapse to just
+    // "bmw" without them, and the whole family shares that. With
+    // 2-char tokens included, "bmw m2" ∩ "bmw m2" hits both tokens and
+    // fires the ≥2 shared rule correctly.
+    //
+    // Exact normalized match is also enough (car A == car B), so this
+    // catches "2024 BMW M2" vs "2025 BMW M2" (both normalize to
+    // "bmw m2") AND catches near-matches on brand+model.
     const carHit = ctx.cars.find((c) => {
       const rNorm = normalizeTitleForRepeat(c);
       if (!rNorm) return false;
       if (rNorm === pickedCarNorm) return true;
-      const pickedTokens = pickedCarNorm.split(" ").filter((t) => t.length >= 3 && !/^\d+$/.test(t));
-      const recentTokens = new Set(rNorm.split(" "));
+      const pickedTokens = pickedCarNorm.split(" ").filter((t) => t.length >= 2 && !/^\d+$/.test(t));
+      const recentTokens = new Set(rNorm.split(" ").filter((t) => t.length >= 2 && !/^\d+$/.test(t)));
       const shared = pickedTokens.filter((t) => recentTokens.has(t));
+      // Same brand AND same model (2 shared tokens) is a dupe. Same
+      // brand alone (1 shared token) is not — a BMW M2 vs a BMW E30 M3
+      // are legitimately different picks.
       return shared.length >= 2;
     });
     if (carHit) {
