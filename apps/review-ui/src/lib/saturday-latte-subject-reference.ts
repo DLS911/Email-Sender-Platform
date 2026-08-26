@@ -59,6 +59,16 @@ async function wikipediaSummary(title: string): Promise<WikiSummary | null> {
   return (await res.json()) as WikiSummary;
 }
 
+export async function downloadRawReference(
+  imageUrl: string,
+): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+  try {
+    return await downloadImage(imageUrl);
+  } catch {
+    return null;
+  }
+}
+
 async function downloadImage(imageUrl: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
   const res = await fetch(imageUrl, {
     headers: { "User-Agent": WIKIPEDIA_UA },

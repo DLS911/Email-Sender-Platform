@@ -28,7 +28,7 @@ import {
   type ImageValidatorVerdict,
   validateImage,
 } from "./saturday-latte-image-validator";
-import { fetchSubjectReferenceImage } from "./saturday-latte-subject-reference";
+import { downloadRawReference, fetchSubjectReferenceImage } from "./saturday-latte-subject-reference";
 
 const STORAGE_BUCKET = "Latte Images";
 const GEMINI_MODEL = "gemini-2.5-flash-image";
@@ -573,6 +573,32 @@ export async function generateTastingImageWithReference(
   subject: string,
   kind: "book" | "film" | "product" | "drink" | "unknown",
 ): Promise<{ bytes: Uint8Array; mimeType: string; usedReference: boolean; referenceUrl?: string }> {
+  // Drinks skip the Wikipedia reference lookup entirely. Bourbon/wine/
+  // beer article searches return distiller portraits, brand history
+  // photos, or generic distillery buildings — none of which are a
+  // bottle. Feeding those into a Gemini reference-preserve edit
+  // reliably produces "bottle-shaped-poster-of-a-guy" output.
+  // Gemini can render a specific bottle from text alone; brand shapes
+  // for popular spirits are well-represented in its training. Use a
+  // sharpened text-only prompt that names the bottle explicitly and
+  // asks for a still-life on a clean surface with genuine editorial
+  // context.
+  if (kind === "drink") {
+    const drinkPrompt = `${sectionTag}
+
+The subject "${subject}" is a bottle (bourbon / whisky / wine / beer / spirit / non-alcoholic drink). Render THE ACTUAL BOTTLE — brand-correct label, proportions, and cap. Do NOT render a poster, a portrait, a distillery building, or a person. Do NOT include any framed art in the frame.
+
+Composition: the bottle sits upright at rest on a real surface (wooden bar top, marble counter, oak side table, whiskey shelf). A single companion object is optional and only if it makes sense — a rocks glass with an ice cube, an empty coupe, a tasting glass, a cork on the counter. NO food debris. NO random herbs. NO "flavor cue" props like a stray grain of barley or coffee bean. Bottle-forward, editorial still life.
+
+Lighting: warm directional side light from a window or a bar lamp, natural falloff. NO glossy studio product-shot look, NO ring-light AI glow.
+
+${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
+
+REMINDER: the subject "${subject}" must be recognizable as this specific bottle — correct label, correct silhouette, correct color, correct cap.`;
+    const gen = await generateOneImage(apiKey, drinkPrompt, sectionTag);
+    return { ...gen, usedReference: false };
+  }
+
   const kindHint =
     kind === "film"
       ? "film"
@@ -580,9 +606,7 @@ export async function generateTastingImageWithReference(
         ? "novel"
         : kind === "product"
           ? "product"
-          : kind === "drink"
-            ? ""
-            : "";
+          : "";
 
   let reference: Awaited<ReturnType<typeof fetchSubjectReferenceImage>> = null;
   try {
@@ -795,13 +819,38 @@ CRITICAL FIX ON RETRY: A previous attempt to generate this exact image failed va
     verdict = await validateImage(img.bytes, img.mimeType, ctx);
   }
 
-  // For theDrive: this slot must NEVER ship the raw dealership press
-  // photo (user's absolute rule). If both attempts above failed
-  // validation, run one more attempt with an EVEN sharper prompt that
-  // stacks both prior failure reasons. Then ship whatever the last
-  // Gemini attempt produced - a Gemini-edited image (even one the
-  // validator complained about) is preferable to a raw dealership shot.
-  const usedFallbackToReference = false;
+  // For tasting-menu BOOKS: opposite rule from theDrive. If two edit
+  // attempts failed on a book (usually because Gemini garbled the title
+  // text on the cover), ship the RAW Wikipedia cover instead. Real
+  // book covers from Wikipedia are always clean — a plain shot of the
+  // real cover is strictly better than an edited version with mangled
+  // text.
+  let usedFallbackToReference = false;
+  if (
+    ctx &&
+    verdict &&
+    !verdict.ok &&
+    (slot === "tasting-1" || slot === "tasting-2" || slot === "tasting-3") &&
+    ctx.tastingKind === "book" &&
+    img.usedReference &&
+    img.referenceUrl
+  ) {
+    try {
+      const raw = await downloadRawReference(img.referenceUrl);
+      if (raw) {
+        img = { bytes: raw.bytes, mimeType: raw.mimeType, usedReference: true, referenceUrl: img.referenceUrl };
+        usedFallbackToReference = true;
+        verdict = { ok: true, reason: "shipped raw Wikipedia cover after edit garbled the title" };
+        console.warn("latte.book_edit_failed_shipping_raw_cover", { slot, referenceUrl: img.referenceUrl });
+      }
+    } catch (err) {
+      console.error(
+        "latte.book_raw_cover_fallback_threw",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   if (ctx && verdict && !verdict.ok && slot === "the-drive") {
     console.warn("latte.image_drive_validator_fail_third_attempt", {
       slot,
