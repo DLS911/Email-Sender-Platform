@@ -118,6 +118,14 @@ const LATTE_IMAGE_STYLE_SUFFIX =
 - Public benches typically appear in a small run, not solo.
 The "one lonely stool at a bar" or "one lonely chair in a restaurant" is a strong AI-fabrication tell. Depict what would realistically be there in realistic multiples.
 
+**OBJECTS THAT COME IN PAIRS. HARD RULE — THE COUNT IS EXACTLY 2, NEVER 3.** For anything humans use in pairs, render exactly TWO — one for each foot / hand / ear. NO extra third one, NO orphan single. Applies to:
+- Boots, shoes, sneakers, sandals, slippers — a pair on a stable floor, on a porch, at a doorway = 2, not 3.
+- Gloves, mittens — a pair on a hook or bench = 2, not 3.
+- Socks laid out — a pair = 2, not 3.
+- Chopsticks, drumsticks — a pair = 2, not 3.
+- Earrings on a table, gloves on a saddle horn, ski poles leaning against a wall — exactly 2 each, or 0.
+"Three boots in a stable" is the signature AI hallucination on this — nobody has three feet. If you catch yourself about to add "one more for composition," DON'T. Better to render a single pair cleanly than three-of-a-two-part-thing.
+
 **NO GLASSY / UNIFORM WATER.** Real water surfaces have wind-driven ripple texture, directional wave patterns, subtle color variation from depth and reflection, and imperfect reflections. Do NOT render water as a smooth glass-mirror gradient. Bays, harbors, lakes, and oceans should show visible surface texture — small waves, wind lanes, real reflections that break at wave crests, not a flat AI-perfect reflection.
 - **Specifically for open water in landscape shots (Great Lakes, ocean bays, harbors):** the surface must show visible micro-chop — thousands of small facets catching light at different angles, wind fetch lanes running in one direction, darker patches where clouds shadow the water, brighter patches where sun hits, and a subtle color gradient from deeper (darker teal/navy) offshore to shallower (lighter green/gray) toward shore. NO uniform slate-gray or uniform teal wash. NO reflection of the sky that's cleaner and sharper than the sky itself. NO "flat matte painting of water" look.
 - **Water-reflection specifics:** if a lighthouse, boat, or shoreline structure reflects on the water, the reflection is BROKEN into thousands of pieces by chop — never a mirror-clean mirror. Vertical elements (mast, tower) show as vertical streaks of reflected color that jiggle and interrupt, not as a clean flipped copy.
@@ -803,6 +811,7 @@ ${preservationNote}
 You may change the SURROUNDING SCENE (background, light, other props, framing) per the editorial setting prompt below. You may NOT change any aspect of the reference subject itself (its form factor, artwork, title text, branding, or physical details).
 
 **If the subject is a VINYL RECORD or LP (a "listening" pick):** the album sleeve is 12" × 12" — a PERFECT SQUARE. Do NOT render it as a rectangular case, a CD jewel case, a cassette shell, or a tall portrait frame. If a physical case is shown, it is a square cardboard sleeve (or a square Discwasher-style outer sleeve). No 8-track cartridges, no rectangular boxes. Records themselves are 12" diameter circles.
+- **SCALE MATTERS.** A vinyl LP sleeve is ~30cm across — physically LARGE. In the frame it should read as a substantial object, not a tiny 4x4-inch coaster. Fill 55-75% of the square frame with the sleeve itself (or the sleeve plus the record leaning against it). Do NOT render the sleeve as a small decorative accent on a big table with lots of negative space around it — that scale reads wrong for anyone who has ever held a real LP. If unsure, err on the side of the sleeve being TOO large in frame rather than too small.
 
 The output must be a 1:1 SQUARE aspect ratio image.
 
