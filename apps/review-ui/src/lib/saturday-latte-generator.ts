@@ -948,6 +948,33 @@ async function runWriterPhase(
     if (exclusions.length > 0) {
       parts.push(`\n# MEMORY — recently covered items, DO NOT repeat:\n\n${exclusions.join("\n\n")}`);
     }
+    // Full permanent-recall memory from latte_recommendations. Every
+    // specific dish, restaurant, brand, tool, and person ever picked
+    // — grouped by kind. Fed to the writer as a comprehensive
+    // do-not-repeat exclusion set. This is on top of the section-
+    // level lists above.
+    if (ctx.allRecommendations && Object.keys(ctx.allRecommendations).length > 0) {
+      const kindOrder = [
+        "destination", "restaurant", "dish", "hotel_or_lodging", "shop", "landmark",
+        "car", "book", "book_creator", "film", "film_creator",
+        "album", "album_creator", "podcast", "podcast_creator",
+        "drink", "drink_brand", "product", "product_brand",
+        "cooking_move", "cooking_ingredient", "cooking_tool",
+        "sunday_reset_author", "sabbath_reference", "person",
+      ];
+      const kindsWithData = kindOrder.filter((k) => (ctx.allRecommendations?.[k]?.length ?? 0) > 0);
+      if (kindsWithData.length > 0) {
+        const blocks: string[] = [];
+        for (const kind of kindsWithData) {
+          const values = ctx.allRecommendations?.[kind] ?? [];
+          const uniq = Array.from(new Set(values.map((v) => v.trim()))).slice(0, 120);
+          if (uniq.length === 0) continue;
+          const label = kind.replace(/_/g, " ").toUpperCase();
+          blocks.push(`### ${label}\n${uniq.map((v) => `- ${v}`).join("\n")}`);
+        }
+        parts.push(`\n# PERMANENT MEMORY — every recommendation ever made across all past issues. DO NOT recommend anything on any of these lists (except where the section-level rules above explicitly allow, e.g. same-creator OK after one week):\n\n${blocks.join("\n\n")}\n\nEven specific dishes and brand mentions from prior issue bodies count. If a spot / dish / product / person appears on any list above, pick something else.`);
+      }
+    }
   }
   if (retryRejectionMessage) {
     parts.push(`\n\n# ⚠️ RETRY REJECTION NOTICE — YOUR PREVIOUS DRAFT REPEATED PICKS FROM THE RECENT LIST\n\n${retryRejectionMessage}\n\nRegenerate the entire issue, and make absolutely sure NONE of your picks appear on the recent-picks lists above.`);
@@ -1683,6 +1710,13 @@ export type LatteRecentContext = {
   sabbathReferences: string[];
   /** Restaurants / cafes / hotels / shops named in prior Cover Stories. */
   coverStorySpots: string[];
+  /**
+   * Full permanent-recall memory from latte_recommendations, grouped by
+   * kind. Every specific dish, restaurant, brand, tool, and person ever
+   * recommended shows up here. Fed to the writer as a comprehensive
+   * do-not-repeat exclusion set.
+   */
+  allRecommendations?: Record<string, string[]>;
 };
 
 export async function generateSaturdayLatteIssue(opts: {

@@ -14,6 +14,12 @@ import { Resend } from "resend";
 import { sendPreviewEmail } from "./preview-email";
 import { sendEditorEscalation } from "./editor-escalation";
 import {
+  extractHaikuBodyRecommendations,
+  extractStructuredRecommendations,
+  loadAllRecommendations,
+  recordRecommendations,
+} from "./saturday-latte-recommendations";
+import {
   type SaturdayLatteIssue,
   generateSaturdayLatteIssue,
 } from "./saturday-latte-generator";
@@ -261,6 +267,13 @@ export type RecentLatteContext = {
   sundayResetAuthors: string[];
   sabbathReferences: string[];
   coverStorySpots: string[];
+  /**
+   * Full recall from latte_recommendations, grouped by kind. Populated
+   * by loadRecentLatteContext when the table has rows. Every specific
+   * dish, restaurant, brand, and person ever recommended shows up here
+   * so the writer sees the complete history.
+   */
+  allRecommendations?: Record<string, string[]>;
 };
 
 export async function loadRecentLatteContext(
@@ -359,6 +372,19 @@ export async function loadRecentLatteContext(
       const ref = (sb as Record<string, unknown>).reference;
       if (typeof ref === "string" && ref.trim() !== "") ctx.sabbathReferences.push(ref.trim());
     }
+  }
+  // Load the permanent-recall recommendations table for the fine-grained
+  // memory (specific dishes, restaurants, brands, people ever mentioned).
+  // Best-effort; if the table isn't populated yet or the query fails,
+  // we still return the section-level context.
+  try {
+    const allRecs = await loadAllRecommendations(db, "saturday_latte");
+    if (Object.keys(allRecs).length > 0) ctx.allRecommendations = allRecs;
+  } catch (err) {
+    console.warn(
+      "latte.load_all_recommendations_failed",
+      err instanceof Error ? err.message : String(err),
+    );
   }
   return ctx;
 }
@@ -563,6 +589,30 @@ export async function runLatteGenerate(
     result.headline = issue.content.coverStoryHeadline;
     result.costUsd = issue.meta.totalCostUsd;
     result.latencyMs = Date.now() - start;
+
+    // Recommendations recorder. Structured extraction always fires;
+    // Haiku body pass runs in parallel best-effort so specific dishes
+    // and inline mentions land in latte_recommendations. Idempotent
+    // via the (brand,kind,normalized_value) unique index.
+    try {
+      const structured = extractStructuredRecommendations(issue.content, targetDate);
+      const haikuRows = await extractHaikuBodyRecommendations(issue.content, targetDate);
+      const combined = [...structured, ...haikuRows];
+      const rec = await recordRecommendations(db, combined);
+      if (rec.error) {
+        logger.warn("cron.saturday_latte_generate.recs_write_failed", { error: rec.error });
+      } else {
+        logger.info("cron.saturday_latte_generate.recs_recorded", {
+          structured: structured.length,
+          haiku: haikuRows.length,
+          inserted: rec.inserted,
+        });
+      }
+    } catch (err) {
+      logger.warn("cron.saturday_latte_generate.recs_threw", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     // Fire preview email to Mark for approval. Best-effort — if this
     // fails, log and continue; the send cron will refuse to ship a
