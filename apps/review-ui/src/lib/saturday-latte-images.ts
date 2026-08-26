@@ -515,6 +515,59 @@ Return ~120 words of dense visual description. If you don't know the landmark we
   }
 }
 
+/**
+ * Ask Haiku to describe what a specific dish/technique should VISUALLY
+ * look like when photographed for a food-editorial newsletter. Fed
+ * into the Host's Corner Gemini prompt so the render is grounded in
+ * what the dish actually IS, not a generic "kitchen scene." Same
+ * pattern as researchLandmarkVisualDetail for hero shots.
+ */
+export async function researchHostsCornerVisualDetail(
+  moveTitle: string,
+): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 500,
+      temperature: 0.2,
+      system: `You describe the specific visual characteristics of a cooking technique, dish, or preparation for a food-editorial image prompt. The description will be fed to an image generation model to render the dish accurately (not a generic kitchen scene).
+
+Focus on what the DISH or its RESULT actually looks like when photographed. Cover:
+- The FOOD itself: color, texture, doneness, plating, arrangement, portion size. If it's a technique in progress (a sear, a bloom, a rise), describe the STATE — the crust color, the fond in the pan, the surface texture.
+- The COOKWARE it lives in: cast iron skillet vs stainless saute pan vs enameled dutch oven vs stockpot vs sheet pan vs Chemex vs Pyrex. Correct handle style. Correct proportions.
+- The SURFACE / SETTING: on the stove (which burner style — coil / glass / gas / induction), on a butcher block, on a marble slab, on a wooden cutting board, on a plate.
+- The IMMEDIATE CONTEXT: what other props would realistically be in the frame (a cotton kitchen towel, a wooden spoon, a bench scraper, a jar of salt) — realistic mise-en-place, not decorative styling. NO stray coffee spills, NO random herbs "for garnish," NO fake grease puddles, NO invented food debris.
+- The LIGHT: what direction and quality the light would come from in a real food-editorial shoot (usually side light from a window, natural, gentle falloff).
+
+Return ~150 words of dense visual description. Explicitly note:
+- Any physical impossibilities to AVOID (a closed-lid kettle steaming from the top is wrong; a pan on bare wood without a trivet is wrong; spilled coffee on a counter is wrong).
+- If a HAND would normally be in the shot, note that we DO NOT show hands — describe the equivalent still-life alternative (a pan on the stove, a plated dish, a cutting board with prepped ingredients).
+
+If you don't know the technique/dish well enough to describe it accurately, return the literal string "UNKNOWN" instead of guessing.`,
+      messages: [
+        {
+          role: "user",
+          content: `Describe the specific visual characteristics for this Host's Corner cooking technique/dish, so it can be rendered accurately as a food-editorial still: "${moveTitle}"`,
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    text = text.trim();
+    if (!text || text.toUpperCase() === "UNKNOWN" || text.length < 40) return null;
+    return text;
+  } catch (err) {
+    console.warn(
+      "latte.hosts_corner_research_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+
 export async function researchFilmVisualStyle(filmTitle: string): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
@@ -724,7 +777,17 @@ You have been given the poster as REFERENCE input only. It is a color/subject/ch
 **The frame IS the film scene.** No TVs, no viewing rooms, no cozy living rooms wrapping the scene. If you imagined a photo of a TV playing this movie, WRONG — imagine instead you are a movie photographer on set, and this is a production still from the film. That is the target aesthetic.`
         : "This is the official movie POSTER for the film. Preserve the poster artwork and title text exactly. **Show the poster ONLY in poster-appropriate portrait settings** where it would naturally hang. Rotate the setting across issues — pick ONE from: a framed print on a residential wall (movie room, hallway, apartment, home theater), an easel outside a cinema at dusk, an A-frame poster stand on a sidewalk, an art-house lobby wall with warm interior light, a bulletin-board-style community poster wall, held/carried by a person shown from behind (no face), a movie theater lobby marquee-adjacent poster board, or a poster shop / gallery display. **DO NOT show the poster on any TV, laptop, tablet, or phone screen** — a portrait poster does not fill a landscape screen. The scene around the poster should be editorial per the setting prompt below."
       : kind === "book"
-        ? "This is the official BOOK COVER for the book. **The title text on the cover MUST be preserved EXACTLY as it appears** — do not modify letterforms, do not stylize the typography, do not blur the title, do not paraphrase or invent alternative words. If you cannot render the exact title clearly, prefer camera angles where the title is small in frame or partially obscured by another object (a hand on the cover, an angled view, the book partially closed) rather than rendering a centered garbled version. The cover art must also be preserved exactly. **THE BOOK COVER MUST BE CLEAN — do NOT put crumbs, tater tots, food particles, herb sprigs, coffee grounds, sugar, salt, spilled liquid, or ANY debris on the cover or on the surface next to the book.** A book is not a food frame. Show the book alone on the surface with editorial-appropriate context per the setting prompt below (a wooden table, windowsill, bedside table, leather armchair, café tabletop — clean, no debris)."
+        ? `This is the official BOOK COVER for "${subject}". Render this book with LOCKED FRAMING that leaves no room for reinterpretation:
+
+- Camera looks STRAIGHT DOWN at 90 degrees at the book lying FLAT on a wooden table.
+- The book cover fills roughly 75-80% of the square frame, centered or gently rule-of-thirds offset.
+- **THE COVER IS THE REFERENCE IMAGE, IDENTICAL.** Do not repaint the artwork. Do not reword or restyle the title text. Do not invent alternative typography. The cover output MUST match the reference cover pixel-close.
+- Warm side-window light rakes across the cover from one edge, natural falloff, real book-cover material texture (matte paperback, glossy hardcover with dust jacket, or cloth-bound).
+- The wooden surface has visible grain and warmth (oak / walnut / reclaimed pine).
+- **NOTHING ELSE ON THE TABLE OR ON THE BOOK.** No coffee cup, no glasses, no bookmark, no leaf, no petals, no herb sprig, no rolled paper, no scroll, no cylinder of paper, no cassette, no pen, no napkin, no crumb, no food particle, no plate, no candle, no plant. Nothing. Just the book on wood.
+- Do NOT show the book at an angle if you can help it — flat, cover up, camera looking down.
+
+The point of this frame is to reproduce the cover cleanly on a real surface, not to build an editorial scene. Fidelity to the reference cover is the ONLY thing that matters.`
         : kind === "product"
           ? "This is the official product photo. Preserve the product form factor, proportions, color, branding, and any physical details exactly (handle placement, port locations, dimensions). The product must appear as it actually exists - do not invent broken/modified variants. Place the product in the editorial context described in the setting prompt below."
           : "Preserve the subject exactly as the reference shows. Place it in the editorial context described in the setting prompt below.";
@@ -810,6 +873,21 @@ async function generateForSlot(
 ${landmarkDetail}
 
 Render the landmark faithfully to these specific visual characteristics. Do NOT generate a generic "concrete blocks in a desert" or "adobe buildings" or similar approximation - render the actual geometry, proportions, and material as described above.`;
+      return generateOneImage(apiKey, enrichedPrompt, sectionTag);
+    }
+  }
+  // Host's Corner: same research-injection pattern as hero. Haiku describes
+  // what the specific dish/technique looks like and Gemini uses that
+  // grounding instead of defaulting to a generic kitchen scene.
+  if (slot === "hosts-corner" && subjects.hostsCornerMove.trim() !== "") {
+    const dishDetail = await researchHostsCornerVisualDetail(subjects.hostsCornerMove);
+    if (dishDetail) {
+      const enrichedPrompt = `${prompt}
+
+**DISH / TECHNIQUE ACCURACY REQUIREMENT (research summary for what THIS specific dish/technique looks like):**
+${dishDetail}
+
+Render the food and its immediate context to match those specific characteristics. Do NOT generate a generic pan-on-stove or generic-plated-dish approximation — render the actual dish state, cookware, and surface described above. Only realistic mise-en-place props; NO spilled coffee, NO stray herbs "for garnish," NO invented food debris on the counter.`;
       return generateOneImage(apiKey, enrichedPrompt, sectionTag);
     }
   }
