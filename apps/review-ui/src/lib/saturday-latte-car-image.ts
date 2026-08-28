@@ -296,8 +296,19 @@ export async function findCommonsCandidateImages(
     if (!p) continue;
     const info = p.imageinfo?.[0];
     if (!info?.url || !info.mime?.startsWith("image/")) continue;
-    // Prefer landscape / near-square photos with reasonable resolution
     if ((info.width ?? 0) < 800) continue;
+    const title = (p.title ?? "").toLowerCase();
+    // Race-variant filter: Commons hosts road cars and race cars of the
+    // same nameplate in the same namespace. A search for "Lexus RC F"
+    // returns "File:Lexus RC F GT3 at Suzuka.jpg" alongside real road-
+    // car photos. Drop any candidate whose filename indicates a race
+    // variant or event; the writer picked a road car, so the reference
+    // must be a road car.
+    if (
+      /\bgt3\b|\bgt4\b|\bgte\b|\blmp1\b|\blmp2\b|\bimsa\b|\bdtm\b|\bwec\b|\bnascar\b|\bindycar\b|\bformula\b|\btouring[ _-]?car\b|\brace[ _-]?car\b|\bracing\b|\brolex\b|\bdaytona\b|\ble[ _-]?mans\b|\bsebring\b|\bnürburgring\b|\bnurburgring\b|\bwatkins[ _-]?glen\b|\bsuzuka\b|\blaguna[ _-]?seca\b|\brallye?\b|\bmotorsport\b|\bpaddock\b/i.test(title)
+    ) {
+      continue;
+    }
     const entry: { title: string; url: string; width?: number; height?: number } = {
       title: p.title ?? "",
       url: info.url,
@@ -336,6 +347,8 @@ export async function pickReferenceForScene(
       max_tokens: 300,
       temperature: 0.5, // higher temperature so the picker doesn't lock onto the same pose every time
       system: `You are picking the best reference photo for an editorial car image edit. You will be shown several candidate photos of the same car and a description of the target scene / shot type. Pick the ONE candidate whose POSE and ANGLE best matches what the target scene needs.
+
+**ROAD CAR ONLY.** If any candidate is a race-spec variant (sponsor livery / painted number panels / roll cage visible / racing slicks with no tread / racecar tow strap on the splitter / on a race track paddock), DO NOT pick it — pick a road-going candidate instead. The writer picked a road car; the reference must show the road car, not the GT3/GT4/racing variant of the same nameplate.
 
 CRITICAL PRINCIPLE: The image editing model preserves the reference car's pose. If asked to rotate the car (e.g. reference is a rear view but scene needs to show the front), the model synthesizes the missing angles and DRIFTS AWAY from the correct year/generation. So the reference pose must be COMPATIBLE with what the scene will show.
 
