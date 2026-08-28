@@ -85,6 +85,11 @@ export async function sendPreviewEmail(input: PreviewInput): Promise<PreviewSend
   if (!apiKey) return { ok: false, error: "RESEND_API_KEY missing" };
 
   const to = process.env.PREVIEW_APPROVER_EMAIL || DEFAULT_APPROVER;
+  // CC the editor (Austin by default) on every preview so both Mark and
+  // Austin see the draft. Editor gets visibility without needing to be
+  // pinged separately. Skipped if it's the same address as `to`.
+  const editorCc = process.env.EDITOR_ESCALATION_EMAIL || "austin@castorabbott.com";
+  const ccList = editorCc && editorCc.toLowerCase() !== to.toLowerCase() ? [editorCc] : [];
   const fromAddress = process.env.RESEND_FROM_ADDRESS || DEFAULT_FROM;
   const label = brandLabel(input.brand);
   const html = renderPreviewHtml(input);
@@ -100,6 +105,7 @@ ${input.issueText ?? ""}`;
     const result = await resend.emails.send({
       from: `Latte Preview <${fromAddress}>`,
       to: [to],
+      ...(ccList.length > 0 ? { cc: ccList } : {}),
       subject: `[Preview · ${input.issueDate}] ${input.subject}`,
       html,
       text,
