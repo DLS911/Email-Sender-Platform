@@ -14,7 +14,7 @@
 import { Resend } from "resend";
 import { approvalUrl, type ApprovalBrand } from "./approval-token";
 
-const DEFAULT_APPROVER = "austin@castorabbott.com";
+const DEFAULT_APPROVER = "mark@castorabbott.com";
 const DEFAULT_FROM = "latte@send.castorabbott.com";
 
 export type PreviewEmailBrand = ApprovalBrand;
