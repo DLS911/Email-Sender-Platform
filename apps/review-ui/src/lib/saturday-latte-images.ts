@@ -810,7 +810,11 @@ You have been given the poster as REFERENCE input only. It is a color/subject/ch
 
 The point of this frame is to reproduce the cover cleanly on a real surface, not to build an editorial scene. Fidelity to the reference cover is the ONLY thing that matters.`
         : kind === "product"
-          ? "This is the official product photo. Preserve the product form factor, proportions, color, branding, and any physical details exactly (handle placement, port locations, dimensions). The product must appear as it actually exists - do not invent broken/modified variants. Place the product in the editorial context described in the setting prompt below."
+          ? `This is the official product photo. Preserve the product form factor, proportions, color, branding, and any physical details exactly (handle placement, port locations, dimensions). The product must appear as it actually exists - do not invent broken/modified variants.
+
+**THE PRODUCT SITS ON A REAL SURFACE. HARD RULE. AUTOMATIC FAIL IF FLOATING.** Gravity is real. The product rests on a physical surface (butcher-block counter, marble slab, wooden table, shelf, cast iron rack, sheet pan on a stove) with a visible, plausible SHADOW beneath it consistent with the frame's light direction. NO hovering products. NO floating tools. NO tilted-in-mid-air compositions. NO "elegantly suspended above the counter" pose. If the product is a potato ricer, it sits flat on the counter with its handles resting where handles rest — it is not levitating with rice mid-air below it. If it's a grinder, it sits upright on the counter. If it's a pan, it sits on the stove or on a trivet. Every product frame must pass this "could a photographer walk into this room and pick this up without it falling" test.
+
+Place the product in the editorial context described in the setting prompt below.`
           : "Preserve the subject exactly as the reference shows. Place it in the editorial context described in the setting prompt below.";
 
   const instruction = `${sectionTag}

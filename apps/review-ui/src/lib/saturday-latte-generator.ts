@@ -377,6 +377,7 @@ The most engaging thing Mark can offer the reader in the first two sentences is 
 - ANY opening that specifies message length ("three lines," "one line," "half a page," "an address and a time," "twenty-two seconds," "just three words scrawled").
 - ANY opening that leads with a formal quoted line before Mark has spoken.
 - ANY opening whose first two sentences could be swapped between destinations by only changing the place name.
+- **ANY "[Destination] markets itself as: X, Y, Z." construction.** Used verbatim across issues ("October Sedona markets itself as: accessible, uncrowded, the light at its best"). Same rule for "[Destination] is famous for: X, Y, Z." / "[Destination] sells itself on: X, Y, Z." / any colon-then-triple-comma-list. Stock list-poetry — banned.
 
 **Openings that WORK — each uses a DIFFERENT structural approach so no single shape becomes a pattern:**
 - **Contrarian comparison.** "Traverse City is what people think Mackinac Island is, only cheaper and without the fudge crowd."
@@ -1509,6 +1510,9 @@ const AUTHOR_SCOPE_SYSTEM_PROMPT = `You are the author-credibility guard for Sat
 - Opens by specifying message length ("three lines," "one line," "half a page," "an address and a time," "twenty-two seconds," "just three words scrawled at the top"). BANNED entirely — reader recognizes these as tics.
 - Opens with a formal quoted line before Mark has spoken. BANNED.
 - The first two sentences would work for ANY destination by only swapping the place name. BANNED — this is the template test.
+- **"[Destination] markets itself as: [X], [Y], [Z]." BANNED.** This colon-then-triple-adjective construction ("October Sedona markets itself as: accessible, uncrowded, the light at its best") is now stock — used across multiple issues. Reader recognizes it. Rewrite without the colon-triple-adjective template. Same rule for "[Destination] is famous for: X, Y, Z." and "[Destination] sells itself on: X, Y, Z." — all BANNED.
+- **Any COLON-THEN-TRIPLE-BEAT construction is templated by default.** "[Subject] is: X, Y, Z." reads as list-poetry-cliché. Rewrite in prose. If you find yourself typing a colon followed by three comma-separated adjectives or phrases, STOP and rework the sentence.
+- **No verbatim recycling of prior-issue phrasing.** If a phrase or sentence template has appeared in a recent issue, don't reuse it — even if the destination is different. The reader gets these every week and notices.
 
 Rewrite ANY such opening as an insight-first opener where Mark states the counter-obvious observation, the pattern, or his opinion about the destination. Sources may be mentioned mid-piece, casually, woven into information-carrying sentences — never as the opening ritual. Example rewrites:
 
