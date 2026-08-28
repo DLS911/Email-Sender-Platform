@@ -379,6 +379,16 @@ You may NOT:
 
 **NO ERA-MIXING (this is critical).** Do NOT create a Frankenstein car that combines a modern face with an older body, or older headlights on a newer body. Every visible part of the car in the output MUST belong to the SAME year/generation as the reference. If the reference is a 2024 Mustang, every element (front fascia, headlights, taillights, wheels, hood details, side vents, mirrors) must be from the 2024-generation Mustang - NOT a 2019 body with the 2024 face grafted on, and NOT a 2024 body with the 2019 lights. The reference photo shows one specific model-year and generation; preserve THAT whole car, not a hybrid of multiple eras. If unsure whether a specific styling detail belongs to the reference's generation, err on the side of exactly matching what the reference photo shows pixel-for-pixel rather than inventing.
 
+**STREET-LEGAL ROAD CAR ONLY. NEVER THE RACE VARIANT. ABSOLUTE RULE.** The car we're rendering is the ROAD version — dealership-stock, street plates, DOT-legal. NEVER the race-spec version. Even if the writer's prompt mentions "track focused" or "track ready" or "circuit weapon," DO NOT render the actual race car. Race cars have distinguishing features that DO NOT belong on this render:
+- **No race liveries or sponsor decals** (no "GT3", "GT4", "Pirelli", "Michelin", "Petronas", "Red Bull", numbered door decals like "77" or "12")
+- **No roll cages visible through the windows**
+- **No towing eyes, no tow hooks flapping out of the front bumper**
+- **No wide race aero** — no massive rear wings on struts, no dive planes, no canards, no rear diffuser splitters, no race-spec front splitter with tow strap
+- **No racing slicks** — race tires have no tread pattern and a "PIRELLI GT" or "MICHELIN COMPETITION" wall marking; those don't belong on a road car
+- **No race-spec bucket seats visible through the windows** with harness cutouts
+- **No fire-suit driver behind the wheel** — the car should look empty or have a normal-clothed silhouette
+If the reference photo is a race car (Lexus RC F GT3, Porsche 911 GT3 R, BMW M4 GT3, etc.), render the ROAD VERSION of that nameplate instead — the RC F road car, the 911 GT3 (road-going), the M4 CSL. Same silhouette, minus the race hardware. When in doubt: production dealership car, license plates, silver / body-color wheels, factory-spec fascia.
+
 **OUTPUT ASPECT RATIO: 1:1 SQUARE.** The final image must be a square (1:1 aspect ratio) that fits into a newsletter's square image slot. Compose the frame so the car sits inside a square canvas with editorial-appropriate negative space above/below/beside it. Do NOT produce a wide rectangular image — the template will crop it awkwardly. If the reference car is elongated (long sedan), zoom in slightly and lose small amounts of the car's extreme ends rather than delivering a rectangular output. Off-center rule-of-thirds composition within the square frame is preferred.
 
 === EDITORIAL SETTING ===
