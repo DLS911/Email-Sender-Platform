@@ -11,7 +11,7 @@
  * car selection, and Host's Corner cooking technique.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { shelfSummaryForPrompt } from "./saturday-latte-book-shelf";
+import { LATTE_BOOK_SHELF, shelfSummaryForPrompt } from "./saturday-latte-book-shelf";
 import { composeWeekendWriterVoice } from "./saturday-latte-voice-modules";
 import {
   type LatteImagePrompts,
@@ -482,7 +482,7 @@ If the current season genuinely IS the pick (e.g., the show is having a critical
 
 Same rule for book series (recommend book 1 of a trilogy, not book 3) and for podcasts (name a specific episode ONLY if it stands alone; otherwise recommend the podcast from its first season/episode).
 
-**BOOK SHELF (curated) — for Worth Reading picks, pick from this shelf by default.** These are the books Mark actually recommends. Skew toward classics and well-established modern works, not this-month's-new-release. If the destination or research turns up a compelling region-specific book off-shelf (a Cormac McCarthy book for a West Texas story, an actual specific Bryson for a UK story), that's fine — otherwise pull from here. Respect the one-week creator spacing rule.
+**BOOK SHELF (curated) — Worth Reading picks MUST come from this shelf. HARD RULE.** The shelf is Mark's actual reading list. It is deliberately weighted toward pre-1980 classics — books that survived decades of readers making up their own minds, not this-year's-marketing-blitz novel. **NO OFF-SHELF PICKS.** Do not recommend a 2020s book. Do not recommend "New York Times 10 Best of [current year]" books. Do not recommend anything you saw in the research bundle that is not on this shelf — the research URL is not permission to break the shelf rule. If no shelf book perfectly fits the destination theme, still pick the CLOSEST shelf book; the reader would rather read a Steinbeck for the third time than a 2025 press-release novel. Respect the one-week creator spacing rule inside the shelf.
 
 {{LATTE_BOOK_SHELF}}
 
@@ -681,7 +681,7 @@ Example (Eureka Springs cover story):
       "REQUIRED. 15-30 words. Visual context for tasting menu item 3."
     ],
     "hostsCorner": "REQUIRED. 15-30 words showing the cooking technique result.",
-    "theDrive": "REQUIRED. 15-30 words of the specific car in an evocative real-world setting."
+    "theDrive": "REQUIRED. 15-30 words of the specific car in an evocative real-world setting THAT MATCHES THE COVER STORY'S CLIMATE / SEASON / LATITUDE. If the Cover Story is Bisbee AZ in January (cold high desert), the Drive scene is cold high desert / mountain road / snow-dusted pinyon — NOT palm trees, NOT tropical fog. If Cover Story is Cannon Beach OR in February (Pacific Northwest coast), Drive scene is misty PNW coast — NOT palm-lined avenue. If Cover Story is a Gulf Coast winter, Drive scene is coastal Florida winter — NOT snow-covered mountain pass. The Drive image must feel like it could be photographed WHILE the reader is on the Cover Story trip. Match the destination's climate and season, not a generic golden-hour anywhere-scene."
   }
 }
 
@@ -1282,6 +1282,39 @@ function findKindMismatchOffenses(content: SaturdayLatteContent): RepeatOffense[
   return offenses;
 }
 
+/**
+ * Off-shelf book pick check. Worth Reading picks MUST come from the
+ * curated book shelf. If the writer picks a title whose normalized
+ * form isn't on the shelf, fire a retry with an explicit rejection
+ * message naming the specific shelf-first requirement.
+ *
+ * Matching is on the normalized title tokens — the shelf title needs
+ * to appear as a normalized substring in the writer's pick (or vice
+ * versa) so "Meditations" matches shelf "Meditations" but a completely
+ * off-shelf 2025 novel produces no match and is flagged.
+ */
+function findOffShelfBookOffenses(content: SaturdayLatteContent): RepeatOffense[] {
+  const offenses: RepeatOffense[] = [];
+  const shelfNorms = LATTE_BOOK_SHELF.map((b) => normalizeTitleForRepeat(b.title)).filter(Boolean);
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const label = (item.label ?? "").toLowerCase();
+    if (!label.includes("reading")) continue;
+    const pickedNorm = normalizeTitleForRepeat(item.title);
+    if (!pickedNorm) continue;
+    const onShelf = shelfNorms.some(
+      (s) => s === pickedNorm || pickedNorm.includes(s) || s.includes(pickedNorm),
+    );
+    if (!onShelf) {
+      offenses.push({
+        slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+        picked: item.title,
+        matched: `NOT ON THE BOOK SHELF. Worth Reading picks MUST come from the curated shelf (pre-1980 canon + a small handful of already-canonical late-20th titles). Replace this pick with a book from the shelf.`,
+      });
+    }
+  }
+  return offenses;
+}
+
 // Duplicate of the parser in saturday-latte-cron.ts, kept local so the
 // generator can normalize picks without pulling in the cron helpers.
 function extractCreatorHelperForTitle(title: string): string | null {
@@ -1807,8 +1840,8 @@ export async function generateSaturdayLatteIssue(opts: {
     ? []
     : findKindMismatchOffenses(writer.content);
   const combinedOffensesBase = recentContext
-    ? [...findRepeatOffenses(writer.content, recentContext), ...findKindMismatchOffenses(writer.content)]
-    : kindOffenses;
+    ? [...findRepeatOffenses(writer.content, recentContext), ...findKindMismatchOffenses(writer.content), ...findOffShelfBookOffenses(writer.content)]
+    : [...kindOffenses, ...findOffShelfBookOffenses(writer.content)];
 
   if (combinedOffensesBase.length > 0) {
     const rejectionMessage = combinedOffensesBase

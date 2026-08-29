@@ -245,19 +245,28 @@ ${tastingBodies}`;
 export async function recordRecommendations(
   db: SupabaseClient,
   rows: RecommendationRow[],
-): Promise<{ inserted: number; error: string | null }> {
-  if (rows.length === 0) return { inserted: 0, error: null };
+): Promise<{ inserted: number; error: string | null; attempted: number }> {
+  if (rows.length === 0) return { inserted: 0, error: null, attempted: 0 };
   const deduped = new Map<string, RecommendationRow>();
   for (const r of rows) {
     const key = `${r.brand}|${r.kind}|${r.normalized_value}`;
     if (!deduped.has(key)) deduped.set(key, r);
   }
   const arr = Array.from(deduped.values());
+  // Log the payload preview so a failed write is visible in Vercel logs.
+  console.info("latte.recs_upsert_attempt", {
+    attempted: arr.length,
+    sample: arr.slice(0, 5).map((r) => ({ kind: r.kind, value: r.value })),
+  });
   const { error, count } = await db
     .from("latte_recommendations")
     .upsert(arr, { onConflict: "brand,kind,normalized_value", ignoreDuplicates: true, count: "exact" });
-  if (error) return { inserted: 0, error: error.message };
-  return { inserted: count ?? arr.length, error: null };
+  if (error) {
+    console.error("latte.recs_upsert_failed", { attempted: arr.length, error: error.message });
+    return { inserted: 0, error: error.message, attempted: arr.length };
+  }
+  console.info("latte.recs_upsert_ok", { attempted: arr.length, inserted: count ?? 0 });
+  return { inserted: count ?? arr.length, error: null, attempted: arr.length };
 }
 
 /** Load every recommendation ever made for the brand, grouped by kind. */
