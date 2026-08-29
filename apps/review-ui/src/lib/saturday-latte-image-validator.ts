@@ -67,7 +67,7 @@ Verdict format:
       const kindNote = kind === "film"
         ? `For a film pick, the image is one of TWO modes:
 
-**POSTER MODE:** the actual movie POSTER (from Wikipedia infobox) displayed in a poster-appropriate setting (framed wall, cinema easel, sidewalk kiosk, art-house lobby, home movie room, poster shop). **NO HUMANS in the frame — no person holding the poster, no silhouette walking past, no viewer looking at it. Frame is architecture + the poster only.** **If the poster is on a TV/laptop/tablet/phone screen, FAIL.** If the poster looks stylized/AI-invented rather than the real Wikipedia poster, FAIL. If a movie-scene image ALSO appears in the frame alongside the poster (a keyframe on a TV plus the poster on a wall), FAIL — poster mode is poster ONLY.
+**POSTER MODE:** the actual movie POSTER (from Wikipedia infobox) displayed in a poster-appropriate setting (framed wall, cinema easel, sidewalk kiosk, art-house lobby, home movie room, held by person from behind). **If the poster is on a TV/laptop/tablet/phone screen, FAIL.** If the poster looks stylized/AI-invented rather than the real Wikipedia poster, FAIL.
 
 **KEYFRAME MODE:** a landscape still from the film rendered as if it IS the actual movie still — no TV, no laptop, no tablet, no phone, no screen device framing it. The frame IS the film scene. In keyframe mode:
 - **If there is ANY TV, laptop, tablet, phone, monitor, or screen device visible in the image, FAIL.** The keyframe should look like a production still, not a photo of a screen playing a movie.
