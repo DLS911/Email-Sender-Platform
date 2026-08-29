@@ -158,82 +158,6 @@ async function validateUrlForField(
   return { keep: live, reason: live ? "head-ok" : "head-fail" };
 }
 
-/**
- * Extract "by X" author/creator from a tasting title. Kept simple —
- * returns just the trailing name portion so it can be concatenated
- * into a search query.
- */
-function extractCreatorTail(title: string): string {
-  const m = title.match(/\s+by\s+([^,;:(\-—]+)/i);
-  return m && m[1] ? m[1].trim() : "";
-}
-
-/**
- * Guaranteed-good search-URL fallback for a tasting menu item. Called
- * when the writer's URL is dropped by validation (dead link, 404,
- * soft-404) so the reader still gets a clickable title that resolves
- * to real search results. Search URLs are stable — they don't require
- * a specific product page to exist and the search engine handles
- * whatever the title/creator combination looks like.
- *
- * Fallbacks are chosen to match how a reader would actually go find
- * the item:
- *   - Books → Bookshop.org search (indie-friendly) with author appended
- *   - Films → IMDB find search (definitive canonical index)
- *   - Albums → Apple Music search
- *   - Podcasts → Apple Podcasts search
- *   - Drinks → Total Wine search (fallback: Google search)
- *   - Products → Google search including the product name
- */
-export function synthesizeTastingFallbackUrl(item: TastingMenuItem): string | null {
-  const title = (item.title ?? "").trim();
-  if (!title) return null;
-  const label = (item.label ?? "").toLowerCase();
-  const creator = extractCreatorTail(title);
-  const displayTitle = creator
-    ? title.replace(new RegExp(`\\s+by\\s+${creator}.*$`, "i"), "").trim()
-    : title;
-  const q = encodeURIComponent(creator ? `${displayTitle} ${creator}` : displayTitle);
-
-  if (label.includes("reading")) {
-    return `https://bookshop.org/beta-search?keywords=${q}`;
-  }
-  if (label.includes("watching")) {
-    return `https://www.imdb.com/find/?q=${encodeURIComponent(displayTitle)}&s=tt`;
-  }
-  if (label.includes("listening")) {
-    if (/podcast|episode|hosted\s*by/i.test(item.body ?? "")) {
-      return `https://podcasts.apple.com/us/search?term=${q}`;
-    }
-    return `https://music.apple.com/us/search?term=${q}`;
-  }
-  if (label.includes("drinking")) {
-    return `https://www.totalwine.com/search/all?text=${encodeURIComponent(displayTitle)}`;
-  }
-  if (label.includes("trying")) {
-    return `https://www.google.com/search?q=${q}`;
-  }
-  return `https://www.google.com/search?q=${q}`;
-}
-
-/**
- * Guaranteed-good fallback for The Drive URL when the writer's URL is
- * dropped or missing. Modern cars go to a Car and Driver / Google
- * spec-sheet search; older cars go to a Bring a Trailer market-listing
- * search where the reader can gauge real values.
- */
-export function synthesizeCarFallbackUrl(car: string): string | null {
-  const trimmed = (car ?? "").trim();
-  if (!trimmed) return null;
-  const yearMatch = trimmed.match(/\b(19|20)\d{2}\b/);
-  const year = yearMatch ? parseInt(yearMatch[0], 10) : null;
-  const q = encodeURIComponent(trimmed);
-  if (year && year <= 2010) {
-    return `https://bringatrailer.com/?s=${q}`;
-  }
-  return `https://www.google.com/search?q=${q}+specs`;
-}
-
 export type ValidationResult = {
   content: SaturdayLatteContent;
   validated: number;
@@ -269,21 +193,9 @@ export async function validateContentUrls(
         field: `tastingMenu[${idx}].url`,
         url: item.url,
         apply: (keep) => {
-          if (!keep) {
-            // Replace the dead URL with a guaranteed-good search-URL
-            // fallback keyed off the item's label + title. Reader
-            // still gets a clickable title that resolves to real
-            // results instead of an unlinked plain-text title.
-            const fallback = synthesizeTastingFallbackUrl(newTastingMenu[idx]!);
-            if (fallback) newTastingMenu[idx]!.url = fallback;
-            else delete newTastingMenu[idx]!.url;
-          }
+          if (!keep) delete newTastingMenu[idx]!.url;
         },
       });
-    } else {
-      // Writer emitted no URL at all — synthesize one from label + title.
-      const fallback = synthesizeTastingFallbackUrl(item);
-      if (fallback) newTastingMenu[i]!.url = fallback;
     }
   }
 
@@ -294,16 +206,9 @@ export async function validateContentUrls(
       field: "theDrive.url",
       url: newDrive.url,
       apply: (keep) => {
-        if (!keep) {
-          const fallback = synthesizeCarFallbackUrl(newDrive.car);
-          if (fallback) newDrive.url = fallback;
-          else delete newDrive.url;
-        }
+        if (!keep) delete newDrive.url;
       },
     });
-  } else if (newDrive.car) {
-    const fallback = synthesizeCarFallbackUrl(newDrive.car);
-    if (fallback) newDrive.url = fallback;
   }
 
   // Host's Corner Learn more
