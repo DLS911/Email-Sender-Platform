@@ -20,6 +20,86 @@ import type {
 } from "./saturday-latte-html-template";
 
 const HEAD_TIMEOUT_MS = 6000;
+const GET_TIMEOUT_MS = 8000;
+const GET_BYTE_LIMIT = 32_768;
+
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+// Soft-404 markers that appear in body text/title/URL when a site
+// returns 200 but the page is actually missing. Catches the common
+// cases (Wikipedia stubs, IMDB "page not found", Amazon "page can't
+// be found", Bandcamp "sorry, that something isn't here"). Case-
+// insensitive substring match on a small body sample.
+const SOFT_404_MARKERS = [
+  "page not found",
+  "page cannot be found",
+  "page can't be found",
+  "not found - page",
+  "not found · ",
+  "404 not found",
+  "404 error",
+  "we can't find the page",
+  "the page you requested",
+  "the page you're looking for doesn't exist",
+  "the page you were looking for doesn't exist",
+  "sorry, we couldn't find",
+  "sorry, that page",
+  "sorry, that something isn't here",
+  "this page isn't available",
+  "this content isn't available",
+  "no longer available",
+  "removed from",
+  "sorry, we couldn't find that",
+  "wikipedia does not have an article with this exact name",
+  "the article you are looking for does not exist",
+];
+
+async function isSoft404Body(url: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GET_TIMEOUT_MS);
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      redirect: "follow",
+      headers: { "User-Agent": UA, Accept: "text/html,*/*" },
+    });
+    clearTimeout(timeoutId);
+    if (response.status >= 400) return true;
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
+      // Non-HTML 200 (image/pdf/json) — trust the status code.
+      return false;
+    }
+    const reader = response.body?.getReader();
+    if (!reader) return false;
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (total < GET_BYTE_LIMIT) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        total += value.length;
+      }
+    }
+    try {
+      await reader.cancel();
+    } catch {
+      // ignore
+    }
+    const body = Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8").toLowerCase();
+    const finalUrl = response.url.toLowerCase();
+    if (finalUrl.includes("/404") || finalUrl.includes("/notfound") || finalUrl.includes("/not-found")) return true;
+    for (const marker of SOFT_404_MARKERS) {
+      if (body.includes(marker)) return true;
+    }
+    return false;
+  } catch (_err) {
+    return true;
+  }
+}
 
 async function urlIsLive(url: string): Promise<boolean> {
   try {
@@ -29,16 +109,19 @@ async function urlIsLive(url: string): Promise<boolean> {
       method: "HEAD",
       signal: controller.signal,
       redirect: "follow",
-      headers: {
-        // Some sites block default fetch UA; mimic a browser
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
+      headers: { "User-Agent": UA },
     });
     clearTimeout(timeoutId);
-    // Some sites refuse HEAD but allow GET (returns 405). Treat as live.
-    if (response.status === 405) return true;
-    return response.status >= 200 && response.status < 400;
+    // HEAD flat-refused → try GET.
+    if (response.status === 405 || response.status === 501) {
+      return !(await isSoft404Body(url));
+    }
+    if (response.status >= 400) return false;
+    // HEAD passed. Now the soft-404 check — GET a small chunk of the
+    // page and look for "page not found" markers in the body. Costs a
+    // little bandwidth but catches the common soft-404 pattern where a
+    // site's error page returns 200 with a "page can't be found" body.
+    return !(await isSoft404Body(url));
   } catch (_err) {
     return false;
   }
