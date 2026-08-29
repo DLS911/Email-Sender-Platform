@@ -1125,19 +1125,33 @@ function findRepeatOffenses(
   const pickedDest = extractDestinationFromHeadline(content.coverStoryHeadline);
   if (pickedDest) {
     const pickedDestNorm = normalizeTitleForRepeat(pickedDest);
+    const currentHeadlineNorm = normalizeTitleForRepeat(content.coverStoryHeadline);
     if (pickedDestNorm) {
-      const recentDestNorms = ctx.coverStoryHeadlines
-        .map((h) => normalizeTitleForRepeat(extractDestinationFromHeadline(h)))
-        .filter((n) => n && n !== pickedDestNorm); // exclude the current issue itself
-      const permanentDestNorms = (ctx.allRecommendations?.destination ?? [])
-        .map((h) => normalizeTitleForRepeat(extractDestinationFromHeadline(h)))
-        .filter((n) => n && n !== pickedDestNorm);
-      const all = new Set([...recentDestNorms, ...permanentDestNorms]);
-      if (all.has(pickedDestNorm)) {
+      // Two-way substring match against every previous headline in
+      // BOTH the section-level list AND the permanent-recall
+      // destination list. Catches "Bisbee, Arizona" appearing in a
+      // previously-titled "Copper Country: Bisbee, Arizona" headline
+      // even when the naive extractor would return "copper country"
+      // for the prior and "bisbee arizona" for the current.
+      const priorHeadlineNorms = [
+        ...ctx.coverStoryHeadlines,
+        ...(ctx.allRecommendations?.destination ?? []),
+      ]
+        .map((h) => normalizeTitleForRepeat(h))
+        .filter((n) => n && n !== currentHeadlineNorm);
+      const hit = priorHeadlineNorms.find(
+        (priorNorm) =>
+          priorNorm === pickedDestNorm ||
+          priorNorm.includes(pickedDestNorm) ||
+          pickedDestNorm.includes(priorNorm) ||
+          // Extract every prior's destination too and cross-check.
+          normalizeTitleForRepeat(extractDestinationFromHeadline(priorNorm)) === pickedDestNorm,
+      );
+      if (hit) {
         offenses.push({
           slot: "coverStory",
           picked: content.coverStoryHeadline,
-          matched: `destination "${pickedDest}" has already been featured. Pick a completely different city / region.`,
+          matched: `destination "${pickedDest}" has already been featured (matched against "${hit}"). Pick a completely different city / region.`,
         });
       }
     }

@@ -65,15 +65,25 @@ type RecommendationRow = {
 };
 
 function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\([^)]*\)/g, " ")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\b(the|a|an|of|and|for|in|on|at|with|by|to)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    s
+      .toLowerCase()
+      // Strip the trailing " by <author>" (or "by <director>") so
+      // "One Hundred Years of Solitude" and "One Hundred Years of
+      // Solitude by Gabriel García Márquez" collapse to the same
+      // normalized value.
+      .replace(/\s+by\s+.+$/i, "")
+      // Strip the trailing ": subtitle" so "A Marriage at Sea: A True
+      // Story of Love..." collapses to "A Marriage at Sea".
+      .replace(/\s*:\s*.+$/, "")
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\b(the|a|an|of|and|for|in|on|at|with|by|to)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 function labelKindForTasting(label: string): "book" | "film" | "album" | "podcast" | "drink" | "product" | "unknown" {
