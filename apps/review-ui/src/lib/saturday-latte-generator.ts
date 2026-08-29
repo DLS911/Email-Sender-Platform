@@ -556,8 +556,8 @@ A SECULAR quote — Parker Palmer, Marcus Aurelius, Annie Dillard, Wendell Berry
 
 ### 7. Sabbath
 A short Bible verse + 2-3 sentence reflection.
-- verse: the verse text (no surrounding quote marks — the template adds them)
-- reference: "Matthew 11:28" or "Proverbs 27:23 (ESV)"
+- verse: the verse text in **ESV (English Standard Version) wording exactly** — no NIV, KJV, NLT, MSG. No surrounding quote marks (the template adds them).
+- reference: "Book Chapter:Verse (ESV)" — e.g. "Isaiah 30:15 (ESV)", "Psalm 65:9 (ESV)", "Lamentations 3:22-23 (ESV)". The (ESV) suffix is required.
 - reflection: 2-3 sentences. Reverent, NOT preachy. The verse does the heavy lifting.
 
 The verse should relate to rest, abundance, peace, gratitude — Saturday/Sunday morning themes. Not industry-tactic themes (those are for Daily Grind).
@@ -1311,6 +1311,8 @@ async function swapSabbathVerse(
     temperature: 0.7,
     system: `You pick a Sabbath verse for The Saturday Morning Latte, a Saturday-morning lifestyle newsletter. The verse must relate to rest, abundance, presence, gratitude, or the small things — Saturday/Sunday morning themes, not industry tactics. The reflection is 2-3 sentences, reverent but not preachy.
 
+**ALWAYS use the ESV (English Standard Version).** Quote the verse text in ESV wording exactly. The reference line must read "Book Chapter:Verse (ESV)" — no NIV, KJV, NLT, MSG, or any other translation.
+
 BANNED VERSES (do not pick any of these):
 ${allBanned.map((b) => `- ${b}`).join("\n")}
 
@@ -1318,8 +1320,8 @@ Pick something different. Lean into less-cited verses: Psalms 23/65/103/126/131,
 
 Return ONLY this JSON, no preamble:
 {
-  "verse": "the verse text in clean prose",
-  "reference": "Book Chapter:Verse (Translation)",
+  "verse": "the verse text in ESV wording, clean prose",
+  "reference": "Book Chapter:Verse (ESV)",
   "reflection": "2-3 sentences, reverent not preachy"
 }`,
     messages: [{ role: "user", content: `Theme for this issue: ${theme}` }],
