@@ -467,7 +467,7 @@ Worth Watching, Worth Drinking, Worth Reading, Worth Listening, Worth Trying —
 The label determines what KIND of thing the title MUST be. There is no interpretation, no cleverness, no exceptions:
 - **Worth Watching** → a FILM, DOCUMENTARY, or TV SHOW. Never a book. Never an album. Never a podcast. Never a product. The title must be a movie or TV series that a reader could stream / rent / buy on video.
 - **Worth Reading** → a BOOK (novel, memoir, non-fiction, essay collection, poetry). Never a film. Never an article. Never a podcast episode.
-- **Worth Drinking** → a specific BEVERAGE — a bourbon, whisky, wine, beer, coffee bean, tea, cocktail, non-alcoholic spirit, kombucha, drinking-vinegar. Never a coffee maker (that's Worth Trying). Never a food item.
+- **Worth Drinking** → a specific BEVERAGE — a bourbon, whisky, wine, beer, coffee bean, tea, cocktail, non-alcoholic spirit, kombucha, drinking-vinegar. Never a coffee maker (that's Worth Trying). Never a food item. **ROTATE THE DRINK CATEGORY.** Do NOT default to bourbon every issue. If the recent-picks list has 2+ bourbons already, this week is wine / beer / coffee / tea / mezcal / rye / gin / natural wine / cider / amaro / NA-spirit / kombucha instead. Bourbon is one category among many; do not treat it as the safe default.
 - **Worth Listening** → an ALBUM, PODCAST, or specific audio series. Never a book. Never a film.
 - **Worth Trying** → a PHYSICAL PRODUCT — kitchen tool, coffee gear, outdoor gear, tech accessory, apparel, home item. Never a food/drink (those go under Worth Drinking or Worth Eating if we add that). Never a book/film/album.
 

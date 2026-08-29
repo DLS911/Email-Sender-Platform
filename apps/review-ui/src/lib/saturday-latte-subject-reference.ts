@@ -267,6 +267,37 @@ export async function fetchSubjectReferenceImage(
         });
         continue;
       }
+      // Author-article guard for books. If the Wikipedia article's title
+      // matches an AUTHOR name (short, no book-title tokens overlapping
+      // the requested subject) rather than the book title itself, reject
+      // — the infobox image would be the author's portrait, not a book
+      // cover. Catches "Sophie Elmhirst" resolving from a search for
+      // "A Marriage at Sea by Sophie Elmhirst" and returning a headshot.
+      if (kindHint === "book" || kindHint === "novel") {
+        const subjectNorm = subject.toLowerCase().replace(/\s+by\s+.+$/i, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+        const candNorm = cand.title.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+        const subjectTokens = new Set(subjectNorm.split(" ").filter((t) => t.length >= 3));
+        const candTokens = candNorm.split(" ").filter((t) => t.length >= 3);
+        const shared = candTokens.filter((t) => subjectTokens.has(t));
+        if (subjectTokens.size > 0 && shared.length === 0) {
+          console.warn("subject-reference.book_candidate_no_title_overlap_likely_author", {
+            subject,
+            candidate: cand.title,
+          });
+          continue;
+        }
+        // Also reject if the article's description literally says the
+        // subject is a PERSON (author, writer, born, novelist).
+        const desc = (summary.description ?? "").toLowerCase();
+        if (/\b(author|writer|novelist|journalist|essayist|poet|born|british author|american author)\b/.test(desc) && !/\b(novel|book|memoir|nonfiction|non-fiction)\b/.test(desc)) {
+          console.warn("subject-reference.book_candidate_is_a_person", {
+            subject,
+            candidate: cand.title,
+            description: summary.description,
+          });
+          continue;
+        }
+      }
 
       const imgUrl = summary?.originalimage?.source ?? summary?.thumbnail?.source;
       if (!imgUrl) continue;
