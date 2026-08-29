@@ -460,7 +460,7 @@ A 450-650 word piece on a destination, an experience, or a discovery. Reference 
 Worth Watching, Worth Drinking, Worth Reading, Worth Listening, Worth Trying — pick three labels. Each item:
 - label: e.g. "Worth Watching" or "Worth Drinking"
 - title: the actual name (movie, product, book, etc.)
-- url: **USE A URL FROM THE RESEARCH BUNDLE. DO NOT INVENT ONE.** The research pass returns verified citation URLs (IMDB for films, publisher/Amazon for books, manufacturer/retailer for products). Copy one of those verbatim. If NO research URL is available for the item you're picking, prefer a URL you can guarantee exists: an English Wikipedia article URL for well-known books/films (https://en.wikipedia.org/wiki/ + the article title), the primary manufacturer domain root for products (e.g. https://oxo.com, https://fellowproducts.com), an IMDB search URL for films (https://www.imdb.com/find/?q= + the title). **NEVER emit a plausible-looking-but-invented URL — the validator will drop it and the reader sees an unlinked title in the email.**
+- url: the actual URL where the item can be found (IMDB for movies, manufacturer/Amazon for products, publisher/Amazon for books). USE A URL FROM RESEARCH IF AVAILABLE.
 - body: 80-150 words. The Unexpected Variable named. An insight from the Physics/Wisdom/Insider frame.
 
 **⚠️ LABEL–CONTENT KIND MUST MATCH. HARD RULE. Automatic fail if violated.**
