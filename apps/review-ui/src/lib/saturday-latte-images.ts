@@ -587,6 +587,57 @@ If you don't know the technique/dish well enough to describe it accurately, retu
   }
 }
 
+/**
+ * Ask Haiku to describe what a specific brand-named product actually
+ * looks like. Fed into the text-only product prompt when Wikipedia
+ * has no reference image, so Gemini renders the SPECIFIC product
+ * (Thermapen ONE's fold-out probe body, Ooni Karu's chimney and
+ * side-loading fuel tray, Fellow Stagg's flat top and gooseneck) not
+ * a generic thermometer / pizza oven / kettle.
+ */
+export async function researchProductVisualDetail(
+  productName: string,
+): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 400,
+      temperature: 0.2,
+      system: `You describe the specific visual characteristics of a named commercial product so an image model can render THIS product, not a generic version of its category.
+
+Focus on the distinguishing physical features that separate this product from its category peers:
+- Body shape, proportions, and form factor
+- Distinctive design details (buttons, screens, handles, ports, ratchets, hinges)
+- Color scheme(s) available and the SIGNATURE color if the brand has one
+- Any visible logo / branding placement (small silver on the body, engraved into the handle, on a display screen, etc.)
+- Material (matte plastic, brushed aluminum, powder-coated steel, wood)
+- Any signature detail that makes THIS product recognizable to someone who has held it
+
+Return ~120 words of dense visual description. If you don't know this specific product well, return "UNKNOWN" — do NOT guess.`,
+      messages: [
+        {
+          role: "user",
+          content: `Describe the specific visual characteristics of this product so it can be rendered accurately: ${productName}`,
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    text = text.trim();
+    if (!text || text.toUpperCase() === "UNKNOWN" || text.length < 40) return null;
+    return text;
+  } catch (err) {
+    console.warn(
+      "latte.product_research_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+
 export async function researchFilmVisualStyle(filmTitle: string): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
@@ -732,6 +783,23 @@ REMINDER: the subject "${subject}" must be recognizable as this specific bottle 
   }
 
   if (!reference) {
+    // For products with no Wikipedia reference, do a Haiku visual
+    // research pass and inject the description into the text-only
+    // prompt so the generic-thermometer / generic-pizza-oven default
+    // gets replaced with the actual product's distinguishing features.
+    if (kind === "product") {
+      const detail = await researchProductVisualDetail(subject);
+      if (detail) {
+        const enrichedPrompt = `${slotPrompt}
+
+**PRODUCT ACCURACY REQUIREMENT (research summary for what THIS specific product looks like):**
+${detail}
+
+Render the product to match those specific visual characteristics — body shape, distinctive design details, color scheme, logo placement, material. Do NOT default to a generic version of the product category.`;
+        const gen = await generateOneImage(apiKey, enrichedPrompt, sectionTag);
+        return { ...gen, usedReference: false };
+      }
+    }
     const gen = await generateOneImage(apiKey, slotPrompt, sectionTag);
     return { ...gen, usedReference: false };
   }
@@ -916,6 +984,8 @@ Render the landmark faithfully to these specific visual characteristics. Do NOT 
 ${dishDetail}
 
 Render the food and its immediate context to match those specific characteristics. Do NOT generate a generic pan-on-stove or generic-plated-dish approximation — render the actual dish state, cookware, and surface described above.
+
+**FOOD SITS ON A REAL SURFACE. NEVER FLOATING. HARD RULE.** Every piece of food in the frame is physically supported — sitting in a pan, on a plate, on a cutting board, on a wire rack. A pork chop is IN the pan or ON the plate — not levitating above the counter. A rolled dough is on the wooden board. A roasted chicken is on the trivet or the platter. Every food item must have a visible surface directly under it with a plausible shadow. If the composition would require the food to hover, RE-STAGE it flat on a real surface. Floating food is an AI tell that reads as instantly fake.
 
 **COUNTER / CUTTING BOARD / TABLE IS CLEAN. THIS IS A HARD RULE.** The only liquid or food particles in the frame appear INSIDE the pan / on the plated food / on the cutting board where the specific prep is happening. Everywhere else — the counter, the table, the wooden surface next to the pan — is SPOTLESS. Specifically DO NOT render any of the following, ever:
 - A puddle or ring of coffee, tea, wine, oil, sauce, water, or any liquid on the counter/table/board next to the pan.
