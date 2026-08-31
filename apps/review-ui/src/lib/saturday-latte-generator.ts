@@ -581,6 +581,10 @@ Reply prompt. 1-2 sentences asking one specific question.
 
 - **No travel-magazine voice.** "A hidden gem awaits" is banned. Mark wouldn't say that.
 
+- **NO SENTENCE APPEARS TWICE IN THE ISSUE. HARD RULE.** Read your draft as a whole before returning. Every sentence — cover story, preheader, tasting bodies, host's corner, drive body, sunday prep, sabbath reflection, PS — must be unique. If a strong insight (a specific ratio, a specific number, a specific observation) would be equally good in the preheader AND the cover story body AND a tasting body, PICK ONE PLACE and rewrite the other occurrences with different phrasing. The preheader should TEASE the cover story, not paraphrase or duplicate a sentence from it. The Host's Corner body should not reuse a sentence from the Cover Story to establish setting. Duplicated sentences read as machine-generated the moment a reader spots them. Write it once, in the right section, and vary everywhere else.
+
+- **NO PHRASING TEMPLATES ACROSS SECTIONS.** If the Cover Story uses "runs at about X% capacity most Y days, which means ..." don't reach for the same "X, which means Y" construction three paragraphs later. If the preheader uses "the Y before Z" the cover body can't lead with the same "the Y before Z." Vary sentence structure across sections. If two sentences share the same rhythm and scaffolding with only nouns swapped, one of them needs a full rewrite.
+
 ## Cover Story Inline Hyperlinks
 The published Latte hyperlinks named restaurants, hotels, and attractions in the cover story body. Include a coverStoryLinks array with text/url pairs. The renderer will find the first occurrence of each text in body paragraphs and convert it to a hyperlink. Use URLs from research items (restaurant_food, destination, activity). 3-8 links typical.
 
