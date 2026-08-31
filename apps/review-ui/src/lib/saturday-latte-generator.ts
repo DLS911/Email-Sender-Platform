@@ -463,7 +463,7 @@ Worth Watching, Worth Drinking, Worth Reading, Worth Listening, Worth Trying —
 - label: e.g. "Worth Watching" or "Worth Drinking"
 - title: the actual name (movie, product, book, etc.)
 - url: the actual URL where the item can be found (IMDB for movies, manufacturer/Amazon for products, publisher/Amazon for books). USE A URL FROM RESEARCH IF AVAILABLE.
-- body: 80-150 words. The Unexpected Variable named. An insight from the Physics/Wisdom/Insider frame.
+- body: 80-150 words. Surface the counter-intuitive dimension that decides whether this pick actually fits the reader's life — the maintenance cost, the sensory hit that specs don't capture, the effort required, the aspirational-vs-actual gap, the long-tail experience. **Do NOT literally write the phrase "the unexpected variable" — that's the INTERNAL frame you're applying, not a phrase the reader should ever see. Show the insight without naming the frame.**
 
 **⚠️ LABEL–CONTENT KIND MUST MATCH. HARD RULE. Automatic fail if violated.**
 The label determines what KIND of thing the title MUST be. There is no interpretation, no cleverness, no exceptions:
@@ -507,7 +507,7 @@ A specific car. 100-200 words.
 - car: full year/make/model (e.g. "2024 Lexus LC 500", "1995 Porsche 993 Carrera", "1988 BMW E30 M3", "1990 Mazda Miata NA", "1985 Ford Bronco II restomod with Coyote V8", "1972 Datsun 240Z LS-swap"). Include the era clearly for older/vintage picks so the reader knows the exact car.
 - url: manufacturer page, Car and Driver / MotorTrend review, Bring a Trailer auction of a comparable example, or Wikipedia article for older cars. Use a research URL when available.
 - specs: "5.0L V8 • 471 HP • Naturally aspirated, 7,300 RPM redline" — three short specs separated by " • "
-- body: Why this car, in Mark's voice. Include "the unexpected variable" — what the marketing misses (or for classics, what the enthusiast community knows). For older cars, include acquisition context ("Clean examples run $35-45k on Bring a Trailer"), maintenance context ("You can wrench on this yourself or find one shop in your city that can"), and the "hidden in plain sight" angle when relevant. End with a single line of conviction.
+- body: Why this car, in Mark's voice. Surface what the marketing misses (or for classics, what the enthusiast community knows) — but **do NOT literally write "the unexpected variable"** or "the hidden variable" or any variant. Show the insight without naming the frame. For older cars, include acquisition context ("Clean examples run $35-45k on Bring a Trailer"), maintenance context ("You can wrench on this yourself or find one shop in your city that can"), and the "hidden in plain sight" angle when relevant. End with a single line of conviction.
 
 **IMPORTANT — The Drive scope is broader than new cars.** Anything cool under $120k qualifies. New cars, five-year-old used deals, classic restorations, restomods, air-cooled Porsches, '90s JDM heroes, cheap classics, cult obscurities — all in scope. See the WEEKEND_CAR_SPECTRUM voice module for the six categories (Icons, Sports Sedans, Wagons, Weekend Cars, Practical with Soul, and Classics/Restomods/Oddballs). Rotate across categories and across eras. Do NOT default to new cars only — the Classics/Restomods/Oddballs category should appear roughly every 3-4 issues.
 
@@ -585,6 +585,8 @@ Reply prompt. 1-2 sentences asking one specific question.
 - **First-person about Mark's life is required**, not banned. Wife, four kids ages 13-20, coastal Florida salt canal, the cars Mark has owned (4 Porsches: 924/944/968/Cayenne, Audi S4/S6, BMW X3M, Lincoln Navigator). Reference these naturally.
 
 - **No travel-magazine voice.** "A hidden gem awaits" is banned. Mark wouldn't say that.
+
+- **"THE UNEXPECTED VARIABLE" IS AN INTERNAL FRAME, NEVER A PHRASE IN THE OUTPUT.** The concept guides your writing — surface the counter-intuitive dimension that decides whether the pick fits. But the LITERAL PHRASE "the unexpected variable" (or "the hidden variable," "the sneaky variable," "the surprise variable," any close paraphrase) must NEVER appear verbatim in the body of any section. Readers get 7+ Latte issues and immediately register the repeated phrase as a tell. Show the insight; don't name the frame. If you catch yourself typing "the unexpected variable is..." STOP and rewrite in prose that arrives at the same insight without naming the mechanism.
 
 - **NO SENTENCE APPEARS TWICE IN THE ISSUE. HARD RULE.** Read your draft as a whole before returning. Every sentence — cover story, preheader, tasting bodies, host's corner, drive body, sunday prep, sabbath reflection, PS — must be unique. If a strong insight (a specific ratio, a specific number, a specific observation) would be equally good in the preheader AND the cover story body AND a tasting body, PICK ONE PLACE and rewrite the other occurrences with different phrasing. The preheader should TEASE the cover story, not paraphrase or duplicate a sentence from it. The Host's Corner body should not reuse a sentence from the Cover Story to establish setting. Duplicated sentences read as machine-generated the moment a reader spots them. Write it once, in the right section, and vary everywhere else.
 
