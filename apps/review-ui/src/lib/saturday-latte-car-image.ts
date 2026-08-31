@@ -416,7 +416,34 @@ export async function fetchCarReferenceImage(
   carName: string,
   sceneIntent?: string,
 ): Promise<CarReferenceImage> {
-  // Multi-candidate path — only when sceneIntent is provided
+  // PRIMARY PATH: Wikipedia REST first. The Wikipedia article for a
+  // specific car nameplate has ONE infobox photo which is the canonical
+  // press image for the current generation. That's dramatically more
+  // accurate than picking from Commons at random — Commons has 20+ M2
+  // photos across F87/G87 generations and race variants, and picking
+  // by pose alone regularly grabs the wrong generation.
+  //
+  // We accept the loss of per-issue pose variety for the accuracy gain:
+  // the same M2 gets the same canonical Wikipedia photo every time, and
+  // Gemini rewrites the background/lighting. Austin's explicit priority:
+  // "just find the wiki version and change the bg."
+  try {
+    const wiki = await fetchFromWikipedia(carName);
+    if (wiki) {
+      console.info("car-image.wiki_primary_hit", { car: carName, source: wiki.sourceUrl });
+      return wiki;
+    }
+    console.info("car-image.wiki_primary_miss", { car: carName });
+  } catch (err) {
+    console.error(
+      "car-image.wiki_primary_threw",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  // SECONDARY: Commons multi-candidate only when Wikipedia has no
+  // article for the car. Common for obscure classics, JDM specials,
+  // one-off restomods where Wikipedia has no dedicated page.
   if (sceneIntent) {
     try {
       const candidates = await findCommonsCandidateImages(carName, 15);
@@ -435,26 +462,13 @@ export async function fetchCarReferenceImage(
           searchQuery: `commons+vision:${carName}`,
         };
       }
+      console.info("car-image.commons_no_candidates", { car: carName });
     } catch (err) {
       console.warn(
         "car-image.commons_path_failed",
         err instanceof Error ? err.message : String(err),
       );
     }
-  }
-
-  // Primary path: Wikipedia REST API (real URLs, no hallucination)
-  try {
-    const wiki = await fetchFromWikipedia(carName);
-    if (wiki) {
-      console.info("car-image.wiki_hit", { car: carName, source: wiki.sourceUrl });
-      return wiki;
-    }
-  } catch (err) {
-    console.error(
-      "car-image.wiki_path_threw",
-      err instanceof Error ? err.message : String(err),
-    );
   }
 
   // Fallback path: Haiku web_search with HEAD verification
