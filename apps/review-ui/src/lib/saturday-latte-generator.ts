@@ -11,7 +11,8 @@
  * car selection, and Host's Corner cooking technique.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { shelfSummaryForPrompt } from "./saturday-latte-book-shelf";
+import { LATTE_BOOK_SHELF, shelfSummaryForPrompt } from "./saturday-latte-book-shelf";
+import { LATTE_DRINK_SHELF, drinkShelfSummaryForPrompt } from "./saturday-latte-drink-shelf";
 import { editorReviewIssue, findDuplicateSentencesInContent } from "./saturday-latte-editor";
 import { composeWeekendWriterVoice } from "./saturday-latte-voice-modules";
 import {
@@ -486,6 +487,10 @@ Same rule for book series (recommend book 1 of a trilogy, not book 3) and for po
 **BOOK SHELF (curated) — for Worth Reading picks, pick from this shelf by default.** These are the books Mark actually recommends. Skew toward classics and well-established modern works, not this-month's-new-release. If the destination or research turns up a compelling region-specific book off-shelf (a Cormac McCarthy book for a West Texas story, an actual specific Bryson for a UK story), that's fine — otherwise pull from here. Respect the one-week creator spacing rule.
 
 {{LATTE_BOOK_SHELF}}
+
+**DRINK SHELF (curated) — Worth Drinking picks MUST come from this shelf. HARD RULE.** The shelf spans bourbon, rye, scotch, Irish, Japanese, tequila/mezcal, rum, gin, wine (red/white/rosé/sparkling/natural), fortified/aperitif, amaro/digestif, beer, cider, cocktails, non-alcoholic, coffee beans, tea. **ROTATE CATEGORIES.** Do not stack two bourbons in a row across recent issues. Do not stack two wines. Vary. Bourbon is one column out of 21 — treat it that way. **NO OFF-SHELF DRINKS.** No Redwood Empire, no random craft spirit the writer saw in research today — pick from the shelf. If none of the shelf items fit the destination theme, pick the closest one; a reader would rather revisit Highland Park 12 than get pushed a shaky research-only pick.
+
+{{LATTE_DRINK_SHELF}}
 
 Pull from research: products, watchReadListen, cooking.
 
@@ -990,7 +995,9 @@ async function runWriterPhase(
 
   const systemPrompt =
     composeWeekendWriterVoice() +
-    STRUCTURAL_INSTRUCTIONS.replace("{{LATTE_BOOK_SHELF}}", shelfSummaryForPrompt());
+    STRUCTURAL_INSTRUCTIONS
+      .replace("{{LATTE_BOOK_SHELF}}", shelfSummaryForPrompt())
+      .replace("{{LATTE_DRINK_SHELF}}", drinkShelfSummaryForPrompt());
 
   const start = Date.now();
   const response = await client.messages.create({
@@ -1296,6 +1303,60 @@ function findKindMismatchOffenses(content: SaturdayLatteContent): RepeatOffense[
       if (isBookSignal || isFilmSignal || isAlbumOrPodcastSignal || (isDrinkSignal && !isProductSignal)) {
         offenses.push({ slot: `tasting-${i + 1}` as RepeatOffense["slot"], picked: item.title, matched: "labeled 'Worth Trying' but the content isn't a physical product. Pick an actual product (kitchen tool, gear, tech accessory, etc.)." });
       }
+    }
+  }
+  return offenses;
+}
+
+/**
+ * Off-shelf book check. Worth Reading picks MUST come from the curated
+ * book shelf. If the writer picks a title whose normalized form isn't
+ * on the shelf, fire a retry with a specific rejection message.
+ */
+function findOffShelfBookOffenses(content: SaturdayLatteContent): RepeatOffense[] {
+  const offenses: RepeatOffense[] = [];
+  const shelfNorms = LATTE_BOOK_SHELF.map((b) => normalizeTitleForRepeat(b.title)).filter(Boolean);
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const label = (item.label ?? "").toLowerCase();
+    if (!label.includes("reading")) continue;
+    const pickedNorm = normalizeTitleForRepeat(item.title);
+    if (!pickedNorm) continue;
+    const onShelf = shelfNorms.some(
+      (s) => s === pickedNorm || pickedNorm.includes(s) || s.includes(pickedNorm),
+    );
+    if (!onShelf) {
+      offenses.push({
+        slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+        picked: item.title,
+        matched: `NOT ON THE BOOK SHELF. Worth Reading picks MUST come from the curated shelf. Replace this pick with a book from the shelf.`,
+      });
+    }
+  }
+  return offenses;
+}
+
+/**
+ * Off-shelf drink check. Same rule for Worth Drinking: pick from the
+ * curated drink shelf. Prevents the writer defaulting to whatever
+ * bourbon showed up in research today (Redwood Empire, etc.).
+ */
+function findOffShelfDrinkOffenses(content: SaturdayLatteContent): RepeatOffense[] {
+  const offenses: RepeatOffense[] = [];
+  const shelfNorms = LATTE_DRINK_SHELF.map((d) => normalizeTitleForRepeat(d.title)).filter(Boolean);
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const label = (item.label ?? "").toLowerCase();
+    if (!label.includes("drinking")) continue;
+    const pickedNorm = normalizeTitleForRepeat(item.title);
+    if (!pickedNorm) continue;
+    const onShelf = shelfNorms.some(
+      (s) => s === pickedNorm || pickedNorm.includes(s) || s.includes(pickedNorm),
+    );
+    if (!onShelf) {
+      offenses.push({
+        slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+        picked: item.title,
+        matched: `NOT ON THE DRINK SHELF. Worth Drinking picks MUST come from the curated shelf. Replace this pick with a drink from the shelf.`,
+      });
     }
   }
   return offenses;
@@ -1848,9 +1909,16 @@ export async function generateSaturdayLatteIssue(opts: {
     ? [
         ...findRepeatOffenses(writer.content, recentContext),
         ...findKindMismatchOffenses(writer.content),
+        ...findOffShelfBookOffenses(writer.content),
+        ...findOffShelfDrinkOffenses(writer.content),
         ...editorOffenses,
       ]
-    : [...kindOffenses, ...editorOffenses];
+    : [
+        ...kindOffenses,
+        ...findOffShelfBookOffenses(writer.content),
+        ...findOffShelfDrinkOffenses(writer.content),
+        ...editorOffenses,
+      ];
 
   if (combinedOffensesBase.length > 0) {
     const rejectionMessage = combinedOffensesBase
