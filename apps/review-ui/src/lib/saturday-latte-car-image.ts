@@ -41,6 +41,82 @@ export type CarReferenceImage = {
   searchQuery: string;
 };
 
+/**
+ * Ask Haiku vision to verify a candidate reference image actually shows
+ * the requested car (year + make + model + variant match). Used as a
+ * gate between fetching a candidate and using it as the edit input, so
+ * a wrong-generation photo from Wikipedia doesn't get shipped as-is.
+ *
+ * Returns { match: true, reason } if the image visibly matches the
+ * requested car. Returns { match: false, reason } if the image is a
+ * DIFFERENT year / generation / variant / body style of the same
+ * nameplate. Never throws — a Haiku failure returns { match: true,
+ * reason: "verifier unavailable, assuming ok" } so the pipeline
+ * doesn't stall.
+ */
+async function verifyCarReferenceMatch(
+  bytes: Uint8Array,
+  mimeType: string,
+  carName: string,
+): Promise<{ match: boolean; reason: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { match: true, reason: "verifier disabled (no ANTHROPIC_API_KEY)" };
+  try {
+    const client = new Anthropic({ apiKey });
+    const b64 = Buffer.from(bytes).toString("base64");
+    const imageMime = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 300,
+      temperature: 0.1,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `You are verifying a car photograph.
+
+Is this photo specifically a ${carName}? Match must be exact on:
+- Year and generation (a "2018 Porsche 911 GT3 RS" is the 991.2 generation — the 992-gen shown from 2022 onward is NOT a 2018)
+- Nameplate variant (a "McLaren F1 LM" is NOT a standard McLaren F1 — the LM has a wide rear wing, single center exhaust, and matte magnesium wheels)
+- Trim / body style (an "M2" is NOT an M4; a "GT3" is NOT a GT3 RS; a "Cayman GT4 RS" is NOT a base Cayman)
+
+Return JSON only: {"match": true, "reason": "brief"} or {"match": false, "reason": "brief description of what the photo actually shows"}. No preamble.`,
+            },
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                media_type: imageMime as any,
+                data: b64,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    const stripped = text.replace(/```json\s*|\s*```/g, "").trim();
+    const first = stripped.indexOf("{");
+    const last = stripped.lastIndexOf("}");
+    if (first === -1 || last === -1) return { match: true, reason: "no verdict JSON; assuming ok" };
+    const parsed = JSON.parse(stripped.slice(first, last + 1)) as { match?: boolean; reason?: string };
+    return {
+      match: parsed.match !== false,
+      reason: parsed.reason ?? "",
+    };
+  } catch (err) {
+    console.warn(
+      "car-image.verify_threw",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { match: true, reason: "verifier threw, assuming ok" };
+  }
+}
+
 // ─── Wikipedia primary path ────────────────────────────────────────────
 
 type WikiSearchResult = {
@@ -427,13 +503,23 @@ export async function fetchCarReferenceImage(
   // the same M2 gets the same canonical Wikipedia photo every time, and
   // Gemini rewrites the background/lighting. Austin's explicit priority:
   // "just find the wiki version and change the bg."
+  // Track the best-effort candidate across all paths so we ship
+  // something even if nothing verifies clean.
+  let fallbackCandidate: CarReferenceImage | null = null;
+
   try {
     const wiki = await fetchFromWikipedia(carName);
     if (wiki) {
-      console.info("car-image.wiki_primary_hit", { car: carName, source: wiki.sourceUrl });
-      return wiki;
+      const verdict = await verifyCarReferenceMatch(wiki.bytes, wiki.mimeType, carName);
+      if (verdict.match) {
+        console.info("car-image.wiki_primary_hit_verified", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
+        return wiki;
+      }
+      console.warn("car-image.wiki_primary_rejected_by_verifier", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
+      fallbackCandidate = wiki;
+    } else {
+      console.info("car-image.wiki_primary_miss", { car: carName });
     }
-    console.info("car-image.wiki_primary_miss", { car: carName });
   } catch (err) {
     console.error(
       "car-image.wiki_primary_threw",
@@ -441,28 +527,41 @@ export async function fetchCarReferenceImage(
     );
   }
 
-  // SECONDARY: Commons multi-candidate only when Wikipedia has no
-  // article for the car. Common for obscure classics, JDM specials,
-  // one-off restomods where Wikipedia has no dedicated page.
+  // SECONDARY: Commons multi-candidate. Try each candidate and verify.
   if (sceneIntent) {
     try {
       const candidates = await findCommonsCandidateImages(carName, 15);
-      if (candidates.length > 0) {
-        const pickedUrl = await pickReferenceForScene(candidates, sceneIntent);
-        const dl = await downloadImage(pickedUrl, WIKIPEDIA_UA);
-        console.info("car-image.commons_pick_hit", {
-          car: carName,
-          candidates_count: candidates.length,
-          picked: pickedUrl,
-        });
-        return {
-          bytes: dl.bytes,
-          mimeType: dl.mimeType,
-          sourceUrl: pickedUrl,
-          searchQuery: `commons+vision:${carName}`,
-        };
+      for (const cand of candidates.slice(0, 5)) {
+        try {
+          const dl = await downloadImage(cand.url, WIKIPEDIA_UA);
+          const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
+          if (verdict.match) {
+            console.info("car-image.commons_hit_verified", { car: carName, picked: cand.url, reason: verdict.reason });
+            return {
+              bytes: dl.bytes,
+              mimeType: dl.mimeType,
+              sourceUrl: cand.url,
+              searchQuery: `commons+verify:${carName}`,
+            };
+          }
+          console.info("car-image.commons_candidate_rejected", { car: carName, url: cand.url, reason: verdict.reason });
+          if (!fallbackCandidate) {
+            fallbackCandidate = {
+              bytes: dl.bytes,
+              mimeType: dl.mimeType,
+              sourceUrl: cand.url,
+              searchQuery: `commons+fallback:${carName}`,
+            };
+          }
+        } catch (err) {
+          console.warn(
+            "car-image.commons_candidate_download_failed",
+            cand.url,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
       }
-      console.info("car-image.commons_no_candidates", { car: carName });
+      if (candidates.length === 0) console.info("car-image.commons_no_candidates", { car: carName });
     } catch (err) {
       console.warn(
         "car-image.commons_path_failed",
@@ -471,29 +570,54 @@ export async function fetchCarReferenceImage(
     }
   }
 
-  // Fallback path: Haiku web_search with HEAD verification
-  console.info("car-image.wiki_miss_falling_back_to_haiku", { car: carName });
+  // TERTIARY: Haiku web_search — fires when Wikipedia/Commons couldn't
+  // give us a verified match. Explicitly searches for the specific
+  // year/variant string and verifies each candidate against the
+  // requested car.
+  console.info("car-image.falling_back_to_haiku_websearch", { car: carName });
   const candidates = await findCandidateImageUrlsViaHaiku(carName);
-  if (candidates.length === 0) {
-    throw new Error(`car-image: Wikipedia had no match and Haiku returned no candidates for "${carName}"`);
-  }
-
   const errors: string[] = [];
   for (const url of candidates) {
     try {
       const dl = await downloadImage(url);
-      return {
-        bytes: dl.bytes,
-        mimeType: dl.mimeType,
-        sourceUrl: url,
-        searchQuery: `haiku:${carName}`,
-      };
+      const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
+      if (verdict.match) {
+        console.info("car-image.haiku_hit_verified", { car: carName, url, reason: verdict.reason });
+        return {
+          bytes: dl.bytes,
+          mimeType: dl.mimeType,
+          sourceUrl: url,
+          searchQuery: `haiku+verify:${carName}`,
+        };
+      }
+      console.info("car-image.haiku_candidate_rejected", { car: carName, url, reason: verdict.reason });
+      if (!fallbackCandidate) {
+        fallbackCandidate = {
+          bytes: dl.bytes,
+          mimeType: dl.mimeType,
+          sourceUrl: url,
+          searchQuery: `haiku+fallback:${carName}`,
+        };
+      }
     } catch (err) {
       errors.push(`${url.slice(0, 60)}… : ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+
+  // Final fallback: nothing verified clean. Ship the best-effort
+  // candidate we saw along the way so the pipeline doesn't throw, and
+  // log loudly so Austin sees a "shipped unverified reference" line
+  // in the logs.
+  if (fallbackCandidate) {
+    console.warn("car-image.shipped_unverified_fallback", {
+      car: carName,
+      source: fallbackCandidate.sourceUrl,
+      searchQuery: fallbackCandidate.searchQuery,
+    });
+    return fallbackCandidate;
+  }
   throw new Error(
-    `car-image: all ${candidates.length} Haiku candidates failed. errors: ${errors.slice(0, 3).join(" | ")}`,
+    `car-image: Wikipedia + Commons + Haiku all returned zero candidates for "${carName}"; errors: ${errors.slice(0, 3).join(" | ")}`,
   );
 }
 

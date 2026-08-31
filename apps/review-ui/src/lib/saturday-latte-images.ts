@@ -357,20 +357,20 @@ export async function editDriveImageBackground(
   sectionTag: string,
   carName: string,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  // Minimal, direct prompt. The reference image IS the source of truth
-  // for the car. Only the scene around it changes. Long lists of "don't
-  // do X" instructions dilute this — Gemini drowns in them and defaults
-  // to its training-data version of the nameplate. Short and firm works
-  // better.
+  // Minimal, direct prompt. The reference IS the source of truth for
+  // the car itself — same generation, same body, same wheels, same
+  // color, same badging. Angle/pose can change to fit the scene, but
+  // it must still be THIS car — not a regenerated approximation of the
+  // nameplate.
   const instruction = `Place this exact ${carName} into a new scene.
 
-The car in the image below IS the car. Keep every pixel of it identical — same body, same wheels, same lights, same grille, same color, same ride height, same pose. Do not regenerate the car. Do not restyle it. Do not swap generations. Treat the car as a fixed object you're compositing into a new environment.
+The car in the image below IS the car. In the output, THIS specific car — same generation, same body shape, same wheels, same lights, same grille, same badging, same color, same trim — must be what's rendered. You may re-angle the car to fit the new scene (a driving 3/4 front, a side-profile pan, a low-and-behind hero shot) as long as it is UNMISTAKABLY the same car from the reference. Do not swap generations. Do not swap trims. Do not invent a new interpretation of the nameplate. If the reference is a 2024 G87 M2 in Zandvoort Blue with the exact factory wheel design, the output is that same G87 M2 in that same blue with those same wheels, just at a different angle in a different scene.
 
-Change only the surroundings — the background, the road/surface under the car, the sky, the light on the car body — to this scene:
+Change the surroundings — background, road/surface, sky, light on the body — to this scene:
 
 ${slotPrompt}
 
-Output: 1:1 square, off-center rule-of-thirds composition, the car placed on a real driveable surface within the scene.`;
+Output: 1:1 square, off-center rule-of-thirds composition, the car on a real driveable surface within the scene.`;
 
   const base64 = Buffer.from(reference.bytes).toString("base64");
   return callGemini(apiKey, [
