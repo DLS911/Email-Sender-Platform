@@ -12,6 +12,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { shelfSummaryForPrompt } from "./saturday-latte-book-shelf";
+import { editorReviewIssue, findDuplicateSentencesInContent } from "./saturday-latte-editor";
 import { composeWeekendWriterVoice } from "./saturday-latte-voice-modules";
 import {
   type LatteImagePrompts,
@@ -1058,7 +1059,7 @@ function normalizeTitleForRepeat(s: string): string {
 }
 
 type RepeatOffense = {
-  slot: "tasting-1" | "tasting-2" | "tasting-3" | "theDrive" | "coverStory";
+  slot: "tasting-1" | "tasting-2" | "tasting-3" | "theDrive" | "coverStory" | string;
   picked: string;
   matched: string;
 };
@@ -1820,13 +1821,36 @@ export async function generateSaturdayLatteIssue(opts: {
   const kindOffenses = recentContext
     ? []
     : findKindMismatchOffenses(writer.content);
+  // Editor pass. Runs in parallel with the deterministic dupe-sentence
+  // check so we get both a human-like editorial review AND a guaranteed
+  // catch for verbatim sentence repeats. Anything must_fix from either
+  // source is joined into the retry queue with the specific issue named.
+  const [editorFindings, dupeSentenceFindings] = await Promise.all([
+    editorReviewIssue(client, writer.content),
+    Promise.resolve(findDuplicateSentencesInContent(writer.content)),
+  ]);
+  const editorOffenses = [...editorFindings, ...dupeSentenceFindings]
+    .filter((f) => f.severity === "must_fix")
+    .map((f, i) => ({
+      slot: `editor-${i + 1}` as RepeatOffense["slot"],
+      picked: f.location,
+      matched: f.issue,
+    }));
+  const shouldFixCount = editorFindings.filter((f) => f.severity === "should_fix").length;
+  if (shouldFixCount > 0) {
+    console.info("latte.editor_should_fix_findings", { count: shouldFixCount });
+  }
   const combinedOffensesBase = recentContext
-    ? [...findRepeatOffenses(writer.content, recentContext), ...findKindMismatchOffenses(writer.content)]
-    : kindOffenses;
+    ? [
+        ...findRepeatOffenses(writer.content, recentContext),
+        ...findKindMismatchOffenses(writer.content),
+        ...editorOffenses,
+      ]
+    : [...kindOffenses, ...editorOffenses];
 
   if (combinedOffensesBase.length > 0) {
     const rejectionMessage = combinedOffensesBase
-      .map((o) => `- Your draft's ${o.slot}: "${o.picked}" — ${o.matched}. REJECT this and pick something different.`)
+      .map((o) => `- ${o.slot} · "${o.picked}" — ${o.matched}.`)
       .join("\n");
     console.warn("latte.writer_offenses_retry", { count: combinedOffensesBase.length, offenses: combinedOffensesBase });
     const retryWriter = await runWriterPhase(
