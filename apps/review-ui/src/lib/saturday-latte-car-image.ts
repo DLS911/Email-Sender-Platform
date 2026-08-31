@@ -75,14 +75,25 @@ async function verifyCarReferenceMatch(
           content: [
             {
               type: "text",
-              text: `You are verifying a car photograph.
+              text: `You are verifying a car reference photograph. It will be used as the base image for a background/lighting edit, so it needs to show the WHOLE car clearly.
 
-Is this photo specifically a ${carName}? Match must be exact on:
-- Year and generation (a "2018 Porsche 911 GT3 RS" is the 991.2 generation — the 992-gen shown from 2022 onward is NOT a 2018)
-- Nameplate variant (a "McLaren F1 LM" is NOT a standard McLaren F1 — the LM has a wide rear wing, single center exhaust, and matte magnesium wheels)
-- Trim / body style (an "M2" is NOT an M4; a "GT3" is NOT a GT3 RS; a "Cayman GT4 RS" is NOT a base Cayman)
+Two checks must BOTH pass for match=true:
 
-Return JSON only: {"match": true, "reason": "brief"} or {"match": false, "reason": "brief description of what the photo actually shows"}. No preamble.`,
+1) EXACT MATCH TO REQUESTED CAR: is this photo specifically a ${carName}?
+   - Year and generation (a "2018 Porsche 911 GT3 RS" is the 991.2 generation — the 992-gen shown from 2022 onward is NOT a 2018)
+   - Nameplate variant (a "McLaren F1 LM" has a wide rear wing, single center exhaust, and matte magnesium wheels — the standard F1 does NOT)
+   - Trim / body style (M2 ≠ M4, GT3 ≠ GT3 RS, Cayman GT4 RS ≠ base Cayman)
+
+2) FULL-CAR COMPOSITION: the photo must show the whole car — not a detail crop.
+   - A rear-wing-only close-up = FAIL
+   - A bumper-only shot = FAIL
+   - A wheel/tire close-up = FAIL
+   - An interior/dashboard shot = FAIL
+   - An engine bay shot = FAIL
+   - A logo/badge close-up = FAIL
+   - PASS shots: 3/4 front, 3/4 rear, side profile, direct front, direct rear, low-angle hero — anywhere the whole car (or clearly most of it, 3+ wheels visible) is in frame.
+
+Return JSON only: {"match": true, "reason": "brief"} or {"match": false, "reason": "brief description of the failure — wrong year / wrong variant / detail shot only / etc"}. No preamble.`,
             },
             {
               type: "image",
@@ -237,22 +248,31 @@ async function findCandidateImageUrlsViaHaiku(carName: string): Promise<string[]
   if (!apiKey) throw new Error("car-image: ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey });
 
-  const system = `You find direct image URLs for a specific year and generation of a car. Use the web_search tool to find factory-spec press photos.
+  const system = `You find direct image URLs for a very specific year+generation+trim of a car. Use the web_search tool.
 
 **Do NOT hallucinate URLs.** Only return URLs that appeared verbatim in web_search results. If you did not see the URL in a search result, do not include it.
 
-Preferred sources:
-- Manufacturer press / media sites (media.audi.com, press.bmwgroup.com, press.porsche.com, media.lexus.com, media.toyota.com, media.ford.com, etc.)
-- Reputable automotive journalism (Car and Driver, MotorTrend, Road & Track, Autoblog, Autoweek) when the photo is confirmed factory-spec press
+Search strategy (use these query patterns — very specific, targeting FULL-CAR press photos):
+- "<carName> full side profile press photo"
+- "<carName> 3/4 front factory press"
+- "<carName> media gallery" site:press.OR-media.-.com
+- Combine year + generation code where relevant ("2018 991.2 GT3 RS side profile", "G87 M2 factory press")
 
-Reject: enthusiast forums, tuner sites, Instagram, Pinterest, used-car listings, stock photo sites.
+The photo MUST be:
+- The WHOLE car in frame — NOT a detail crop of a wing, wheel, bumper, interior, engine bay, badge, or headlight.
+- The EXACT year/gen/variant requested (2018 GT3 RS = 991.2 gen, not 992-gen).
+- A press photo or high-quality journalism photo — factory-spec, not a modified/tuner example.
+
+Preferred sources: press.bmwgroup.com, media.porsche.com, media.audi.com, media.ford.com, media.gm.com, media.toyota.com, and reputable auto journalism (Car and Driver, MotorTrend, Road & Track, Autoblog, Autoweek, Top Gear, Autocar).
+
+Reject: enthusiast forums, tuner sites, Instagram, Pinterest, used-car listings, stock-photo sites, detail-shot crops, interior shots, engine-bay shots.
 
 The URL must be a DIRECT image file URL (.jpg, .jpeg, .png, .webp) that appeared as an actual result in a search — not a page URL you assume contains an image.
 
 Return ONLY JSON:
 {"candidates": ["https://...jpg", "..."]}
 
-Empty array is fine if you can't find real factory-spec image URLs.`;
+Return 4-6 candidates so downstream verification can walk them if some are detail shots. Empty array is fine if you can't find real full-car press URLs.`;
 
   const response = await client.messages.create({
     model: HAIKU_MODEL,
@@ -264,7 +284,7 @@ Empty array is fine if you can't find real factory-spec image URLs.`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         type: "web_search_20260209" as any,
         name: "web_search",
-        max_uses: WEB_SEARCH_MAX_USES,
+        max_uses: 4,
         allowed_callers: ["direct"],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
@@ -272,7 +292,7 @@ Empty array is fine if you can't find real factory-spec image URLs.`;
     messages: [
       {
         role: "user",
-        content: `Find 2-3 direct image URLs for a factory-spec press photo of: ${carName}. URLs must appear verbatim in your search results, no guessing.`,
+        content: `Find 4-6 direct image URLs of the FULL CAR (not a detail shot) for a factory-spec press photo of: ${carName}. Use the very-specific queries described in the system prompt. URLs must appear verbatim in your search results, no guessing.`,
       },
     ],
   });
@@ -503,35 +523,77 @@ export async function fetchCarReferenceImage(
   // the same M2 gets the same canonical Wikipedia photo every time, and
   // Gemini rewrites the background/lighting. Austin's explicit priority:
   // "just find the wiki version and change the bg."
-  // Track the best-effort candidate across all paths so we ship
-  // something even if nothing verifies clean.
+  // NEW ORDER (Austin: "stop using wiki. very specific searches. verify
+  // it's the full car"):
+  // 1. WEB SEARCH FIRST — Haiku web_search with year+gen+full-car query,
+  //    verify each result for correct model AND full-car composition.
+  // 2. Wikipedia only if web search returns nothing.
+  // 3. Commons multi-candidate as last resort.
+  //
+  // Track best-effort fallback across paths so we ship something even
+  // if nothing verifies clean.
   let fallbackCandidate: CarReferenceImage | null = null;
+  const errors: string[] = [];
 
+  // 1) WEB SEARCH — primary
+  try {
+    const webCandidates = await findCandidateImageUrlsViaHaiku(carName);
+    for (const url of webCandidates) {
+      try {
+        const dl = await downloadImage(url);
+        const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
+        if (verdict.match) {
+          console.info("car-image.web_hit_verified", { car: carName, url, reason: verdict.reason });
+          return {
+            bytes: dl.bytes,
+            mimeType: dl.mimeType,
+            sourceUrl: url,
+            searchQuery: `web+verify:${carName}`,
+          };
+        }
+        console.info("car-image.web_candidate_rejected", { car: carName, url, reason: verdict.reason });
+        if (!fallbackCandidate) {
+          fallbackCandidate = {
+            bytes: dl.bytes,
+            mimeType: dl.mimeType,
+            sourceUrl: url,
+            searchQuery: `web+fallback:${carName}`,
+          };
+        }
+      } catch (err) {
+        errors.push(`web:${url.slice(0, 60)}… : ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  } catch (err) {
+    console.warn("car-image.web_search_failed", err instanceof Error ? err.message : String(err));
+  }
+
+  // 2) Wikipedia REST — secondary
   try {
     const wiki = await fetchFromWikipedia(carName);
     if (wiki) {
       const verdict = await verifyCarReferenceMatch(wiki.bytes, wiki.mimeType, carName);
       if (verdict.match) {
-        console.info("car-image.wiki_primary_hit_verified", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
+        console.info("car-image.wiki_secondary_hit_verified", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
         return wiki;
       }
-      console.warn("car-image.wiki_primary_rejected_by_verifier", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
-      fallbackCandidate = wiki;
+      console.warn("car-image.wiki_secondary_rejected", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
+      if (!fallbackCandidate) fallbackCandidate = wiki;
     } else {
-      console.info("car-image.wiki_primary_miss", { car: carName });
+      console.info("car-image.wiki_secondary_miss", { car: carName });
     }
   } catch (err) {
     console.error(
-      "car-image.wiki_primary_threw",
+      "car-image.wiki_secondary_threw",
       err instanceof Error ? err.message : String(err),
     );
   }
 
-  // SECONDARY: Commons multi-candidate. Try each candidate and verify.
+  // 3) Commons multi-candidate — tertiary
   if (sceneIntent) {
     try {
-      const candidates = await findCommonsCandidateImages(carName, 15);
-      for (const cand of candidates.slice(0, 5)) {
+      const commonsCands = await findCommonsCandidateImages(carName, 15);
+      for (const cand of commonsCands.slice(0, 5)) {
         try {
           const dl = await downloadImage(cand.url, WIKIPEDIA_UA);
           const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
@@ -561,7 +623,6 @@ export async function fetchCarReferenceImage(
           );
         }
       }
-      if (candidates.length === 0) console.info("car-image.commons_no_candidates", { car: carName });
     } catch (err) {
       console.warn(
         "car-image.commons_path_failed",
@@ -570,44 +631,8 @@ export async function fetchCarReferenceImage(
     }
   }
 
-  // TERTIARY: Haiku web_search — fires when Wikipedia/Commons couldn't
-  // give us a verified match. Explicitly searches for the specific
-  // year/variant string and verifies each candidate against the
-  // requested car.
-  console.info("car-image.falling_back_to_haiku_websearch", { car: carName });
-  const candidates = await findCandidateImageUrlsViaHaiku(carName);
-  const errors: string[] = [];
-  for (const url of candidates) {
-    try {
-      const dl = await downloadImage(url);
-      const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
-      if (verdict.match) {
-        console.info("car-image.haiku_hit_verified", { car: carName, url, reason: verdict.reason });
-        return {
-          bytes: dl.bytes,
-          mimeType: dl.mimeType,
-          sourceUrl: url,
-          searchQuery: `haiku+verify:${carName}`,
-        };
-      }
-      console.info("car-image.haiku_candidate_rejected", { car: carName, url, reason: verdict.reason });
-      if (!fallbackCandidate) {
-        fallbackCandidate = {
-          bytes: dl.bytes,
-          mimeType: dl.mimeType,
-          sourceUrl: url,
-          searchQuery: `haiku+fallback:${carName}`,
-        };
-      }
-    } catch (err) {
-      errors.push(`${url.slice(0, 60)}… : ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
   // Final fallback: nothing verified clean. Ship the best-effort
-  // candidate we saw along the way so the pipeline doesn't throw, and
-  // log loudly so Austin sees a "shipped unverified reference" line
-  // in the logs.
+  // candidate so the pipeline doesn't throw.
   if (fallbackCandidate) {
     console.warn("car-image.shipped_unverified_fallback", {
       car: carName,
@@ -617,7 +642,7 @@ export async function fetchCarReferenceImage(
     return fallbackCandidate;
   }
   throw new Error(
-    `car-image: Wikipedia + Commons + Haiku all returned zero candidates for "${carName}"; errors: ${errors.slice(0, 3).join(" | ")}`,
+    `car-image: Web + Wikipedia + Commons all returned zero candidates for "${carName}"; errors: ${errors.slice(0, 3).join(" | ")}`,
   );
 }
 
