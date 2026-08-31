@@ -357,45 +357,20 @@ export async function editDriveImageBackground(
   sectionTag: string,
   carName: string,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const instruction = `${sectionTag}
+  // Minimal, direct prompt. The reference image IS the source of truth
+  // for the car. Only the scene around it changes. Long lists of "don't
+  // do X" instructions dilute this — Gemini drowns in them and defaults
+  // to its training-data version of the nameplate. Short and firm works
+  // better.
+  const instruction = `Place this exact ${carName} into a new scene.
 
-=== BACKGROUND-ONLY EDIT (car must not change) ===
+The car in the image below IS the car. Keep every pixel of it identical — same body, same wheels, same lights, same grille, same color, same ride height, same pose. Do not regenerate the car. Do not restyle it. Do not swap generations. Treat the car as a fixed object you're compositing into a new environment.
 
-The image below is a reference photograph of "${carName}". This car — every pixel of the car body, wheels, headlights, tail lights, grille, badging, ride height, color, and factory-spec styling — must appear in the output image IDENTICAL to how it appears in the reference. Do not stylize the car. Do not remove details. Do not add details. Do not change the color. Do not change the wheel design. Do not modify the front fascia. Do not modify the fender width or flare geometry. Do not modify the exhaust arrangement. The car is a fixed subject that MUST be preserved.
+Change only the surroundings — the background, the road/surface under the car, the sky, the light on the car body — to this scene:
 
-You may ONLY change the BACKGROUND and the LIGHT on the car (as would happen if the same car were photographed at a different location and time of day). Specifically:
-- Replace the current background scene entirely with the editorial setting described below.
-- Adjust the lighting on the car to match the direction and quality of light in the new scene (a car in golden-hour side light will have that light on its side; a car in overcast morning light will have flat diffuse light on its body). But do not change the car's color or add reflections that would obscure its bodywork detail.
-- Reframe the composition if needed — off-center, rule-of-thirds, negative space on one side — but ALWAYS with the same car intact.
-- Ground the car realistically in the new scene: the surface it sits on (asphalt, wet coastal road, gravel, cobblestone, dirt road, cracked concrete, cobblestone plaza), a shadow beneath it consistent with the light source, and appropriate weather (dry, wet, fog, mist).
-- **PHYSICALLY REAL PLACEMENT — HARD RULE.** Cars go where cars actually go. Legal driveable surfaces only: paved roads, dirt roads, parking areas, driveways, garages, showroom floors, canyon roads, coastal cliff roads, historic town centers, gas station forecourts, a real racing paddock. Cars do NOT belong in: the ocean, a river, a pond, a lake, half-submerged in water, on top of unaccessible rocks, on a cliff edge with no visible road, on a beach at the surf line (water washing over the tires), in the middle of an open field with no visible path, on top of a mountain peak, on ice with no road, floating, tilted at impossible angles. A car in water reads as an AI hallucination and is an automatic fail. If the destination is coastal/beachy, pick a road-adjacent-to-water shot, a coastal highway pullout, a marina parking lot — the WATER is in the background, not under the car.
+${slotPrompt}
 
-You may NOT:
-- Change any aspect of the car itself (body, wheels, lights, grille, badges, ride height, color).
-- Add aftermarket-looking modifications (bigger wheels, lowered stance, wider fenders, aftermarket exhaust).
-- Add or remove performance styling elements from the car.
-- Reshape the car body from a different generation or trim.
-- Add close-up details of the car's badge that would require rendering the logo up close (keep the badge at the same distance as in the reference).
-
-**WHEEL SIZE MUST MATCH THE REFERENCE EXACTLY.** Common Gemini artifact: the wheels come out smaller than the reference — a 19" wheel gets rendered as if it were a 17", making the car look like it has doughnut spares. Match the wheel DIAMETER (as a fraction of the wheel-well opening) pixel-close to the reference. If the reference wheel fills 95% of its wheel arch, the output wheel fills 95% of its wheel arch. Do NOT shrink the wheels to "fit" a new composition. Do NOT change the wheel design (5-spoke stays 5-spoke, mesh stays mesh, dish stays dish, painted-black stays painted-black). The wheels are a car's face — same rule as headlights: preserve exactly.
-
-**NO ERA-MIXING (this is critical).** Do NOT create a Frankenstein car that combines a modern face with an older body, or older headlights on a newer body. Every visible part of the car in the output MUST belong to the SAME year/generation as the reference. If the reference is a 2024 Mustang, every element (front fascia, headlights, taillights, wheels, hood details, side vents, mirrors) must be from the 2024-generation Mustang - NOT a 2019 body with the 2024 face grafted on, and NOT a 2024 body with the 2019 lights. The reference photo shows one specific model-year and generation; preserve THAT whole car, not a hybrid of multiple eras. If unsure whether a specific styling detail belongs to the reference's generation, err on the side of exactly matching what the reference photo shows pixel-for-pixel rather than inventing.
-
-**RENDER THE ROAD CAR IN THE REFERENCE. DO NOT ADD RACE-CAR HARDWARE THE REFERENCE DOESN'T SHOW.** The reference photo IS the source of truth — it should already show the correct road-going car. Preserve exactly what's there. Do NOT invent or add:
-- Sponsor / livery decals that aren't in the reference (no painted number panels, no "Pirelli", "Red Bull", team liveries)
-- A roll cage visible through the windows if the reference doesn't have one
-- Racing slicks (bald competition tires) if the reference has treaded street tires
-- A tow strap or race tow eye bolted to the front splitter if the reference doesn't have one
-- A fire-suit driver
-Aggressive factory aero IS fine when it's what the road car actually has — a 911 GT3 RS's swan-neck wing, a Z06's factory splitter, a Camaro ZL1 1LE's tri-plane wing, a Cayman GT4 RS's ducktail all ship on street-legal road cars from the factory. Preserve those exactly as they appear in the reference. The rule is "match the reference," not "no aero."
-
-**OUTPUT ASPECT RATIO: 1:1 SQUARE.** The final image must be a square (1:1 aspect ratio) that fits into a newsletter's square image slot. Compose the frame so the car sits inside a square canvas with editorial-appropriate negative space above/below/beside it. Do NOT produce a wide rectangular image — the template will crop it awkwardly. If the reference car is elongated (long sedan), zoom in slightly and lose small amounts of the car's extreme ends rather than delivering a rectangular output. Off-center rule-of-thirds composition within the square frame is preferred.
-
-=== EDITORIAL SETTING ===
-
-${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
-
-REMINDER: the CAR itself is fixed to the reference. Only the BACKGROUND and LIGHT may change. Preserve the car exactly.`;
+Output: 1:1 square, off-center rule-of-thirds composition, the car placed on a real driveable surface within the scene.`;
 
   const base64 = Buffer.from(reference.bytes).toString("base64");
   return callGemini(apiKey, [
