@@ -143,11 +143,12 @@ Verdict format:
 
 Check the following:
 1. Does the detail feel specific to the named location (not a generic version)?
-2. **Realistic quantities of objects that come in sets.** A bar with ONE stool is a FAIL - bars have multiple stools. A restaurant with one lonely table is a FAIL. A dining table with one chair is a FAIL. Depict realistic multiples.
-3. Rule of thirds composition, off-center.
-4. Any physics issues (impossible steam, wrong reflections, floating debris)?
-5. Any AI artifacts (mangled logos, distorted geometry)?
-6. If people are in frame, do they face meaningful subjects (no zombie stares)?
+2. **GENERIC-SCENE AUTOMATIC FAIL.** If the image is a street food stand, a food stall, a night market crowd, a busy morning market, a bustling plaza, a generic downtown crowd, people milling around, or any "market scene / crowd scene" default — FAIL. Cover Detail must be a TIGHT editorial still-life OR a single named architectural / interior / object detail. Set retryHint to "rewrite as a tight still-life or single named architectural element at a specific spot — no crowd scenes, no generic food stands."
+3. **Realistic quantities of objects that come in sets.** A bar with ONE stool is a FAIL - bars have multiple stools. A restaurant with one lonely table is a FAIL. A dining table with one chair is a FAIL. Depict realistic multiples.
+4. Rule of thirds composition, off-center.
+5. Any physics issues (impossible steam, wrong reflections, floating debris)?
+6. Any AI artifacts (mangled logos, distorted geometry)?
+7. If people are in frame, do they face meaningful subjects (no zombie stares)?
 
 Verdict format:
 - If right: {"ok": true, "reason": "brief"}
