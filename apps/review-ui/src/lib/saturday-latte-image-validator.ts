@@ -129,10 +129,11 @@ Check the following:
 1. Does the image show something recognizably from THIS specific location (a signature landmark, geography, architecture, or feature - not a generic version of that kind of place)?
 2. **Geographic accuracy: does the image invent impossible proximity between features?** For example, a Burlington VT scene where downtown brick storefronts open directly onto Lake Champlain is wrong - real Burlington has streets, a park, and open ground between downtown and the water. Rendering a compressed impossible relationship between features is a FAIL.
 3. **NO SPURIOUS ON-IMAGE TEXT.** If the image has ANY text spelling out the location name (a "Welcome to ${ctx.subject}" sign, a "${ctx.subject} Cove" placard, a wooden sign carved with the town name, a chalkboard titled with the destination, a garbled banner across the top), that is an AUTOMATIC FAIL. Any typography that reads as the destination name — anywhere in the frame, on any object, in any style — fails this check. Also fail: watermarks, made-up title overlays, decorative letters that don't belong to real signage. Real generic in-scene signage that reads correctly (a legible "MAIN ST" street sign, a "STOP" sign, a route marker) is fine, as long as it does not spell the location name.
-4. Are people (if any) facing meaningful subjects, not staring at nothing (no AI zombie stares)?
-5. Composition off-center, not dead-center.
-6. Water surfaces have realistic ripples (not glassy AI-perfect reflections). Fog has directional structure (not uniform gradient).
-7. Any AI artifacts.
+4. **MINIMAL PEOPLE — AUTOMATIC FAIL if crowded.** Hero should rely on nature / architecture / geography for beauty, not on people. 0-2 people in the frame is fine (a single figure walking a beach, two people at a distance on a pier). Any of the following is a FAIL: a crowd, a group of 3+ people all facing camera, a busy sidewalk of tourists, a plaza filled with people, people posing. Also fail: multiple obviously-AI-generated faces staring at nothing. Retry hint: "remove people from the frame — this hero should be pure landscape / architecture, at most one distant figure."
+5. Are people (if any 1-2) facing meaningful subjects, not staring at nothing (no AI zombie stares)?
+6. Composition off-center, not dead-center.
+7. Water surfaces have realistic ripples (not glassy AI-perfect reflections). Fog has directional structure (not uniform gradient).
+8. Any AI artifacts.
 
 Verdict format:
 - If right: {"ok": true, "reason": "brief"}

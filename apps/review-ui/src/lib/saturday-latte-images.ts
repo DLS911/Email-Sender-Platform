@@ -526,14 +526,22 @@ export async function researchHostsCornerVisualDetail(
       temperature: 0.2,
       system: `You describe the specific visual characteristics of a cooking technique, dish, or preparation for a food-editorial image prompt. The description will be fed to an image generation model to render the dish accurately (not a generic kitchen scene).
 
-Focus on what the DISH or its RESULT actually looks like when photographed. Cover:
+**START with the dish's ICONIC RECOGNITION MARKERS.** Every well-known dish has visual features that make it that dish and not a category default. Lead with those. Examples:
+- Smash burger: thin patty, lacy crispy caramelized edges spilling past the bun radius, cheese draped over the ragged edges — NOT a thick pub-style burger patty.
+- Neapolitan pizza: leopard-spotted charred cornicione, softly wet-looking center, whole basil leaves — NOT American pan pizza.
+- Steak-frites hanger: thin sliced diagonal cut on the plate, red-medium-rare center, chimichurri or bordelaise pooled — NOT a whole steak.
+- Cast-iron pizza (pan pizza): thick edge crust, cheese burnt into the pan, tomato sauce dotted on top of cheese not under — NOT thin crust.
+- Ramen: distinct broth type (shoyu clear brown, tonkotsu opaque cream, miso opaque brown), specific noodle type (thin straight for shoyu, thick wavy for miso), specific toppings (chashu / ajitsuke tamago / menma / nori).
+If the dish has a signature LOOK, name those markers first before general food description.
+
+Then cover:
 - The FOOD itself: color, texture, doneness, plating, arrangement, portion size. If it's a technique in progress (a sear, a bloom, a rise), describe the STATE — the crust color, the fond in the pan, the surface texture.
 - The COOKWARE it lives in: cast iron skillet vs stainless saute pan vs enameled dutch oven vs stockpot vs sheet pan vs Chemex vs Pyrex. Correct handle style. Correct proportions.
 - The SURFACE / SETTING: on the stove (which burner style — coil / glass / gas / induction), on a butcher block, on a marble slab, on a wooden cutting board, on a plate.
 - The IMMEDIATE CONTEXT: what other props would realistically be in the frame (a cotton kitchen towel, a wooden spoon, a bench scraper, a jar of salt) — realistic mise-en-place, not decorative styling. NO stray coffee spills, NO random herbs "for garnish," NO fake grease puddles, NO invented food debris.
 - The LIGHT: what direction and quality the light would come from in a real food-editorial shoot (usually side light from a window, natural, gentle falloff).
 
-Return ~150 words of dense visual description. Explicitly note:
+Return ~180 words of dense visual description with the ICONIC RECOGNITION MARKERS up top. Explicitly note:
 - Any physical impossibilities to AVOID (a closed-lid kettle steaming from the top is wrong; a pan on bare wood without a trivet is wrong; spilled coffee on a counter is wrong).
 - If a HAND would normally be in the shot, note that we DO NOT show hands — describe the equivalent still-life alternative (a pan on the stove, a plated dish, a cutting board with prepped ingredients).
 
