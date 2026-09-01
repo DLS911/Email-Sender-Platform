@@ -526,13 +526,20 @@ export async function researchHostsCornerVisualDetail(
       temperature: 0.2,
       system: `You describe the specific visual characteristics of a cooking technique, dish, or preparation for a food-editorial image prompt. The description will be fed to an image generation model to render the dish accurately (not a generic kitchen scene).
 
-**START with the dish's ICONIC RECOGNITION MARKERS.** Every well-known dish has visual features that make it that dish and not a category default. Lead with those. Examples:
-- Smash burger: thin patty, lacy crispy caramelized edges spilling past the bun radius, cheese draped over the ragged edges — NOT a thick pub-style burger patty.
-- Neapolitan pizza: leopard-spotted charred cornicione, softly wet-looking center, whole basil leaves — NOT American pan pizza.
-- Steak-frites hanger: thin sliced diagonal cut on the plate, red-medium-rare center, chimichurri or bordelaise pooled — NOT a whole steak.
-- Cast-iron pizza (pan pizza): thick edge crust, cheese burnt into the pan, tomato sauce dotted on top of cheese not under — NOT thin crust.
-- Ramen: distinct broth type (shoyu clear brown, tonkotsu opaque cream, miso opaque brown), specific noodle type (thin straight for shoyu, thick wavy for miso), specific toppings (chashu / ajitsuke tamago / menma / nori).
-If the dish has a signature LOOK, name those markers first before general food description.
+**STEP 1 — WHAT STATE IS THE MOVE?** Read the move title carefully. Is it about the technique IN PROGRESS (a patty being smashed, dough proofing, a bloom on a pour-over, a sear in progress, a reduction bubbling)? Or is it about the FINISHED DISH plated for eating? Never mix the two.
+
+- **Technique-in-progress move** → describe the STATE inside the cookware only, in mid-action. For "The Smash Burger" or "The Smash Burger Method": one thin ball of ground beef just smashed flat with a stiff spatula onto a screaming-hot cast iron surface, wispy lacy crispy caramelized edges forming past the patty's original circumference, no bun visible, no cheese yet, no plate — the entire frame is the patty on the metal. NOT a finished cheeseburger with bun. Same rule for any technique move: show only what's in the pan at the described moment.
+- **Finished dish move** → describe the plated result: patty on bun with cheese, plate on table, etc.
+
+If the move title says "the sear," "the smash," "the bloom," "the proof," "the reduction," "the crust" — it's a technique-in-progress move. Show the pan/state, not the plated dish.
+
+**STEP 2 — ICONIC RECOGNITION MARKERS.** Whatever state the move describes, lead with the specific visual features that make it recognizably itself. Examples for reference (adapt to the actual move):
+- Smash-burger patty in pan (in-progress): thin patty, lacy crispy caramelized edges spilling past the original ball radius, browning fond in the cast iron around it, spatula still visible or just-off-frame — NO bun, NO cheese, NO plate.
+- Finished smash burger (plated): two thin patties stacked, cheese draped over ragged edges, potato bun, on a plate.
+- Neapolitan pizza (finished): leopard-spotted charred cornicione, softly wet-looking center, whole basil leaves.
+- Neapolitan launch (in-progress): a raw pie on a wooden peel about to be launched into the oven, mozzarella still white and puffed cold.
+- Cast-iron pan pizza: thick edge crust, cheese burnt into the pan, tomato sauce dotted on top of cheese not under.
+- Ramen (finished bowl): distinct broth (shoyu clear brown / tonkotsu opaque cream / miso opaque brown), specific noodle type, specific toppings (chashu / ajitsuke tamago / menma / nori).
 
 Then cover:
 - The FOOD itself: color, texture, doneness, plating, arrangement, portion size. If it's a technique in progress (a sear, a bloom, a rise), describe the STATE — the crust color, the fond in the pan, the surface texture.
