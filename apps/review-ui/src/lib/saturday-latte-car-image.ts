@@ -54,6 +54,70 @@ export type CarReferenceImage = {
  * reason: "verifier unavailable, assuming ok" } so the pipeline
  * doesn't stall.
  */
+/**
+ * Independent binary vision check. Runs AFTER the main verifier as a
+ * defense-in-depth layer. Asks Haiku one question with fresh eyes:
+ * "does this image show the whole exterior of a car?" If no, we
+ * reject regardless of the main verifier's verdict. Catches cases
+ * where the main verifier gets talked into a false positive on a
+ * suspension close-up or interior shot.
+ */
+async function isPhotoOfWholeCar(
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<{ ok: boolean; reason: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: true, reason: "second-pass disabled" };
+  try {
+    const client = new Anthropic({ apiKey });
+    const b64 = Buffer.from(bytes).toString("base64");
+    const imageMime = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 120,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Look at this image. Answer ONE question with strict JSON:
+
+Does this image show the WHOLE EXTERIOR of a road-going car (all four wheels or nearly so, full body from roof to sills, no cropping that removes the front or rear)?
+
+Return {"ok": true, "reason": "brief"} if yes, {"ok": false, "reason": "what it actually is — e.g. 'suspension close-up', 'engine bay only', 'interior shot', 'wheel detail', 'headlight only'"} if no. No preamble.`,
+            },
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                media_type: imageMime as any,
+                data: b64,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    const stripped = text.replace(/```json\s*|\s*```/g, "").trim();
+    const first = stripped.indexOf("{");
+    const last = stripped.lastIndexOf("}");
+    if (first === -1 || last === -1) return { ok: true, reason: "no JSON; assuming ok" };
+    const parsed = JSON.parse(stripped.slice(first, last + 1)) as { ok?: boolean; reason?: string };
+    return { ok: parsed.ok !== false, reason: parsed.reason ?? "" };
+  } catch (err) {
+    console.warn(
+      "car-image.second_pass_threw",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { ok: true, reason: "second-pass threw, assuming ok" };
+  }
+}
+
 async function verifyCarReferenceMatch(
   bytes: Uint8Array,
   mimeType: string,
@@ -94,12 +158,20 @@ THREE checks must ALL pass for match=true:
    - Nameplate variant (a "McLaren F1 LM" has a wide rear wing, single center exhaust, and matte magnesium wheels — the standard F1 does NOT)
    - Trim / body style (M2 ≠ M4, GT3 ≠ GT3 RS, Cayman GT4 RS ≠ base Cayman)
 
-2) FULL-CAR COMPOSITION — STRICT. The photo must show the WHOLE car. Both of these must be true for pass:
+2) FULL-CAR EXTERIOR COMPOSITION — STRICT. The photo must show the WHOLE car FROM OUTSIDE. All of these must be true for pass:
    (a) At least 3 of the 4 wheels are clearly visible in the frame.
-   (b) The full body outline is in-frame from roofline down to the sills — no cropping of the roof, no cropping of the rocker panels, no cropping that cuts off the front OR rear of the car.
-   Failing shots (all FAIL):
-   - Rear-wing-only close-up, bumper-only, wheel/tire close-up, interior/dashboard, engine bay, headlight or badge detail, front-fender-only crop, side-mirror close-up, ANY tight crop that shows less than 60% of the car body.
-   Passing shots: 3/4 front, 3/4 rear, side profile, direct front, direct rear, low-angle hero — as long as the WHOLE car is in the frame with 3+ wheels visible.${staticGate}
+   (b) The full exterior body outline is in-frame from roofline down to the sills — no cropping of the roof, no cropping of the rocker panels, no cropping that cuts off the front OR rear of the car.
+   (c) You can identify the CAR AS A WHOLE — not just one component of it.
+   Failing shots — ALL of these AUTOMATICALLY FAIL:
+   - Suspension close-up, undercarriage shot, chassis-only, subframe photo, control-arm detail
+   - Engine bay, transmission, exhaust-only shot, brake caliper close-up
+   - Interior / dashboard / gauge cluster / steering wheel / seat detail
+   - Headlight, taillight, badge, logo, mirror, door-handle close-ups
+   - Rear-wing-only close-up, bumper-only, wheel/tire close-up
+   - Front-fender-only crop, quarter-panel-only shot
+   - Cutaway / X-ray / technical diagram
+   - Any tight crop that shows less than 60% of the exterior body
+   Passing shots: 3/4 front, 3/4 rear, side profile, direct front, direct rear, low-angle hero — as long as the WHOLE exterior of the car is in the frame with 3+ wheels visible and you can identify it as a car at first glance.${staticGate}
 
 Return JSON only: {"match": true, "reason": "brief"} or {"match": false, "reason": "brief description of the failure — wrong year / wrong variant / detail shot only / etc"}. No preamble.`,
             },
@@ -786,6 +858,13 @@ export async function fetchCarReferenceImage(
         const dl = await downloadImage(url, BROWSER_UA);
         const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName, sceneIntent);
         if (verdict.match) {
+          const second = await isPhotoOfWholeCar(dl.bytes, dl.mimeType);
+          if (!second.ok) {
+            verdict.match = false;
+            verdict.reason = `second-pass rejected: ${second.reason}`;
+          }
+        }
+        if (verdict.match) {
           console.info("car-image.scraped_hit_verified", { car: carName, url, reason: verdict.reason });
           return {
             bytes: dl.bytes,
@@ -820,6 +899,13 @@ export async function fetchCarReferenceImage(
         const dl = await downloadImage(url);
         const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName, sceneIntent);
         if (verdict.match) {
+          const second = await isPhotoOfWholeCar(dl.bytes, dl.mimeType);
+          if (!second.ok) {
+            verdict.match = false;
+            verdict.reason = `second-pass rejected: ${second.reason}`;
+          }
+        }
+        if (verdict.match) {
           console.info("car-image.web_hit_verified", { car: carName, url, reason: verdict.reason });
           return {
             bytes: dl.bytes,
@@ -850,6 +936,13 @@ export async function fetchCarReferenceImage(
     if (wiki) {
       const verdict = await verifyCarReferenceMatch(wiki.bytes, wiki.mimeType, carName, sceneIntent);
       if (verdict.match) {
+        const second = await isPhotoOfWholeCar(wiki.bytes, wiki.mimeType);
+        if (!second.ok) {
+          verdict.match = false;
+          verdict.reason = `second-pass rejected: ${second.reason}`;
+        }
+      }
+      if (verdict.match) {
         console.info("car-image.wiki_secondary_hit_verified", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
         return wiki;
       }
@@ -873,6 +966,13 @@ export async function fetchCarReferenceImage(
         try {
           const dl = await downloadImage(cand.url, WIKIPEDIA_UA);
           const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName, sceneIntent);
+        if (verdict.match) {
+          const second = await isPhotoOfWholeCar(dl.bytes, dl.mimeType);
+          if (!second.ok) {
+            verdict.match = false;
+            verdict.reason = `second-pass rejected: ${second.reason}`;
+          }
+        }
           if (verdict.match) {
             console.info("car-image.commons_hit_verified", { car: carName, picked: cand.url, reason: verdict.reason });
             return {
