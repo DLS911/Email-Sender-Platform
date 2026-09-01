@@ -241,6 +241,176 @@ async function fetchFromWikipedia(carName: string): Promise<CarReferenceImage | 
 
 // ─── Haiku fallback path ───────────────────────────────────────────────
 
+/**
+ * Two-step web-scraped image finder:
+ *   Step 1 — Haiku web_search returns PAGE URLs (reviews, press releases,
+ *            gallery pages) for the target car. Very view-specific
+ *            queries per scene intent.
+ *   Step 2 — Fetch each page's HTML, parse <img> tags, filter for
+ *            likely content images (not icons/logos/ads).
+ * Returns raw image URLs to be verified downstream. Anthropic's
+ * web_search does NOT typically return direct image URLs; page-scraping
+ * is how we get to real hero shots from the sites that host them.
+ */
+async function findWebPagesForCar(
+  carName: string,
+  sceneIntent?: string,
+): Promise<string[]> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return [];
+  const client = new Anthropic({ apiKey });
+  const wantsDriving = sceneIntent && /\b(driving|driv[ea]|mid-corner|action|pan|track|highway|racing|apex|cornering|motion)\b/i.test(sceneIntent);
+  const viewList = wantsDriving
+    ? [
+        `${carName} driving action review`,
+        `${carName} first drive review with photos`,
+        `${carName} track test gallery`,
+        `${carName} press photo gallery`,
+      ]
+    : [
+        `${carName} review photo gallery`,
+        `${carName} press release photos`,
+        `${carName} hero shot review`,
+        `${carName} media gallery`,
+      ];
+
+  try {
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 1200,
+      temperature: 0.1,
+      system: `You find PAGE URLs (not direct image URLs) using web_search. Each page must be a page that likely contains full-car photos of the requested car — a review article with hero images, a manufacturer press release with a gallery, an automotive-journalism gallery page.
+
+Return 6-10 page URLs. Prefer: press.bmwgroup.com, media.porsche.com, media.audi.com, media.ford.com, media.gm.com, media.stellantis.com, media.mclaren.com, caranddriver.com, motortrend.com, roadandtrack.com, autoblog.com, autoweek.com, topgear.com, autocar.co.uk. Reject: enthusiast forums, Reddit, Instagram, Pinterest, stock-photo sites, used-car listings.
+
+Return ONLY JSON:
+{"pages": ["https://...", "https://..."]}`,
+      tools: [
+        {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          type: "web_search_20260209" as any,
+          name: "web_search",
+          max_uses: 6,
+          allowed_callers: ["direct"],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      ],
+      messages: [
+        {
+          role: "user",
+          content: `Find 6-10 review / gallery / press-release PAGE URLs for the car: ${carName}.
+
+Run web_search for each of these queries:
+1. ${viewList[0]}
+2. ${viewList[1]}
+3. ${viewList[2]}
+4. ${viewList[3]}
+
+Return the page URLs (not image URLs) that most likely contain full-car hero photos.`,
+        },
+      ],
+    });
+    let text = "";
+    for (const block of response.content) if (block.type === "text") text += block.text;
+    const stripped = text.replace(/```json\s*|\s*```/g, "").trim();
+    const first = stripped.indexOf("{");
+    const last = stripped.lastIndexOf("}");
+    if (first === -1 || last === -1) return [];
+    const parsed = JSON.parse(stripped.slice(first, last + 1)) as { pages?: unknown };
+    if (!Array.isArray(parsed.pages)) return [];
+    return parsed.pages
+      .filter((p): p is string => typeof p === "string" && (p.startsWith("http://") || p.startsWith("https://")))
+      .map((p) => p.trim());
+  } catch (err) {
+    console.warn(
+      "car-image.find_pages_failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return [];
+  }
+}
+
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+
+/**
+ * Fetch a web page, parse its HTML, and return candidate image URLs
+ * that look like content images (not icons, logos, ads, tracking).
+ * Returns up to `limit` URLs, resolved to absolute form.
+ *
+ * Best-effort: on fetch failure / 403 / non-HTML content, returns [].
+ */
+async function extractImageUrlsFromPage(pageUrl: string, limit = 8): Promise<string[]> {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(pageUrl, {
+      headers: { "User-Agent": BROWSER_UA, Accept: "text/html,*/*" },
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    clearTimeout(t);
+    if (!res.ok) return [];
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("text/html")) return [];
+    const html = await res.text();
+    const finalUrl = res.url || pageUrl;
+    const baseUrl = new URL(finalUrl);
+
+    const urls = new Set<string>();
+    // Match <img src="..."> AND srcset variants + og:image / twitter:image meta tags
+    const patterns: RegExp[] = [
+      /<img[^>]+src=["']([^"']+)["']/gi,
+      /<img[^>]+data-src=["']([^"']+)["']/gi,
+      /<img[^>]+data-lazy-src=["']([^"']+)["']/gi,
+      /<source[^>]+srcset=["']([^"'\s]+)/gi,
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi,
+      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/gi,
+    ];
+    for (const re of patterns) {
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(html)) !== null) {
+        const raw = m[1];
+        if (!raw) continue;
+        try {
+          const abs = new URL(raw, baseUrl).toString();
+          urls.add(abs);
+        } catch {
+          // ignore malformed URLs
+        }
+      }
+    }
+
+    const skipPatterns =
+      /\b(icon|favicon|logo|avatar|badge|sprite|placeholder|pixel|1x1|spacer|blank|nav|header|footer|ads?|advert|banner|tracking|analytics|beacon|doubleclick|googlesyndication|gtag|facebook\.com\/tr|linkedin\.com\/px|amazon-adsystem|scorecardresearch|newrelic|segment|mixpanel|gravatar)\b/i;
+    const preferredExtensions = /\.(jpe?g|png|webp)(?:[?#]|$)/i;
+
+    const candidates = Array.from(urls).filter((u) => {
+      if (skipPatterns.test(u)) return false;
+      if (!preferredExtensions.test(u)) return false;
+      // Reject tiny thumbnails (URL hints like "150x150", "thumb", "small")
+      if (/\b(50x50|75x75|100x100|150x150|_thumb|_small|_icon|_avatar)\b/i.test(u)) return false;
+      return true;
+    });
+
+    // Score: content-photo indicators bump higher
+    const score = (u: string): number => {
+      let s = 0;
+      if (/(hero|lead|main|featured|large|gallery|photo|image|IMG_|DSC_|_XL_|_LG_|_MAX|1920|1600|1200|2000|2560)/i.test(u)) s += 5;
+      if (/press|media/i.test(u)) s += 3;
+      if (u.includes("/uploads/") || u.includes("/wp-content/")) s += 1;
+      // Penalize very long query-string variants that suggest tracked / resized
+      if (u.length > 400) s -= 1;
+      return s;
+    };
+    candidates.sort((a, b) => score(b) - score(a));
+
+    return candidates.slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
 async function findCandidateImageUrlsViaHaiku(
   carName: string,
   sceneIntent?: string,
@@ -559,7 +729,53 @@ export async function fetchCarReferenceImage(
   let fallbackCandidate: CarReferenceImage | null = null;
   const errors: string[] = [];
 
-  // 1) WEB SEARCH — primary
+  // 1) PAGE-SCRAPE PRIMARY. Web-search returns article/gallery/press
+  // page URLs → we fetch each page and pull image URLs from its HTML
+  // → verify each. Anthropic web_search does NOT return direct .jpg
+  // URLs; this two-step is how we reach real hero shots that live on
+  // Car and Driver, MotorTrend, media.porsche.com, etc.
+  try {
+    const pageUrls = await findWebPagesForCar(carName, sceneIntent);
+    console.info("car-image.pages_found", { car: carName, count: pageUrls.length });
+    const imageUrls: string[] = [];
+    for (const page of pageUrls.slice(0, 8)) {
+      const extracted = await extractImageUrlsFromPage(page, 6);
+      for (const u of extracted) if (!imageUrls.includes(u)) imageUrls.push(u);
+      if (imageUrls.length >= 20) break;
+    }
+    console.info("car-image.images_extracted_from_pages", { car: carName, count: imageUrls.length });
+    for (const url of imageUrls.slice(0, 12)) {
+      try {
+        const dl = await downloadImage(url, BROWSER_UA);
+        const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
+        if (verdict.match) {
+          console.info("car-image.scraped_hit_verified", { car: carName, url, reason: verdict.reason });
+          return {
+            bytes: dl.bytes,
+            mimeType: dl.mimeType,
+            sourceUrl: url,
+            searchQuery: `scraped+verify:${carName}`,
+          };
+        }
+        console.info("car-image.scraped_candidate_rejected", { car: carName, url: url.slice(0, 80), reason: verdict.reason });
+        if (!fallbackCandidate) {
+          fallbackCandidate = {
+            bytes: dl.bytes,
+            mimeType: dl.mimeType,
+            sourceUrl: url,
+            searchQuery: `scraped+fallback:${carName}`,
+          };
+        }
+      } catch (err) {
+        errors.push(`scraped:${url.slice(0, 60)}… : ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  } catch (err) {
+    console.warn("car-image.page_scrape_failed", err instanceof Error ? err.message : String(err));
+  }
+
+  // 2) Direct-image web_search — kept as a supplemental path in case
+  // Haiku happens to return real .jpg URLs.
   try {
     const webCandidates = await findCandidateImageUrlsViaHaiku(carName, sceneIntent);
     for (const url of webCandidates) {
@@ -575,7 +791,6 @@ export async function fetchCarReferenceImage(
             searchQuery: `web+verify:${carName}`,
           };
         }
-        console.info("car-image.web_candidate_rejected", { car: carName, url, reason: verdict.reason });
         if (!fallbackCandidate) {
           fallbackCandidate = {
             bytes: dl.bytes,
