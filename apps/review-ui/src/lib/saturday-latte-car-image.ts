@@ -345,7 +345,7 @@ Return the page URLs (not image URLs) that most likely contain full-car hero pho
   }
 }
 
-const BROWSER_UA =
+export const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 /**
@@ -355,7 +355,7 @@ const BROWSER_UA =
  *
  * Best-effort: on fetch failure / 403 / non-HTML content, returns [].
  */
-async function extractImageUrlsFromPage(pageUrl: string, limit = 8): Promise<string[]> {
+export async function extractImageUrlsFromPage(pageUrl: string, limit = 8): Promise<string[]> {
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 8000);

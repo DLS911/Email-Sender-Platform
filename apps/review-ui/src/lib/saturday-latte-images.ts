@@ -28,6 +28,7 @@ import {
   type ImageValidatorVerdict,
   validateImage,
 } from "./saturday-latte-image-validator";
+import { fetchProductReferenceImage } from "./saturday-latte-product-image";
 import { downloadRawReference, fetchSubjectReferenceImage } from "./saturday-latte-subject-reference";
 
 const STORAGE_BUCKET = "Latte Images";
@@ -744,13 +745,39 @@ REMINDER: the subject "${subject}" must be recognizable as this specific bottle 
           : "";
 
   let reference: Awaited<ReturnType<typeof fetchSubjectReferenceImage>> = null;
-  try {
-    reference = await fetchSubjectReferenceImage(subject, kindHint);
-  } catch (err) {
-    console.warn(
-      "latte.tasting_reference_lookup_failed",
-      err instanceof Error ? err.message : String(err),
-    );
+  // Products: try the page-scrape pipeline first (same architecture as
+  // cars). Real retailer / manufacturer / review pages, extracted
+  // <img>, Haiku-verified for exact product + full-product composition.
+  if (kind === "product") {
+    try {
+      const productRef = await fetchProductReferenceImage(subject);
+      if (productRef) {
+        reference = {
+          bytes: productRef.bytes,
+          mimeType: productRef.mimeType,
+          sourceUrl: productRef.sourceUrl,
+          articleTitle: `scraped:${subject}`,
+        };
+      }
+    } catch (err) {
+      console.warn(
+        "latte.product_scrape_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  // Everything else (books, films, drinks) still uses the Wikipedia
+  // reference lookup — those categories work fine with Wikipedia's
+  // canonical infobox images (book covers, movie posters).
+  if (!reference) {
+    try {
+      reference = await fetchSubjectReferenceImage(subject, kindHint);
+    } catch (err) {
+      console.warn(
+        "latte.tasting_reference_lookup_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   if (!reference) {
