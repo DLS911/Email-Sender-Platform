@@ -84,14 +84,12 @@ Two checks must BOTH pass for match=true:
    - Nameplate variant (a "McLaren F1 LM" has a wide rear wing, single center exhaust, and matte magnesium wheels — the standard F1 does NOT)
    - Trim / body style (M2 ≠ M4, GT3 ≠ GT3 RS, Cayman GT4 RS ≠ base Cayman)
 
-2) FULL-CAR COMPOSITION: the photo must show the whole car — not a detail crop.
-   - A rear-wing-only close-up = FAIL
-   - A bumper-only shot = FAIL
-   - A wheel/tire close-up = FAIL
-   - An interior/dashboard shot = FAIL
-   - An engine bay shot = FAIL
-   - A logo/badge close-up = FAIL
-   - PASS shots: 3/4 front, 3/4 rear, side profile, direct front, direct rear, low-angle hero — anywhere the whole car (or clearly most of it, 3+ wheels visible) is in frame.
+2) FULL-CAR COMPOSITION — STRICT. The photo must show the WHOLE car. Both of these must be true for pass:
+   (a) At least 3 of the 4 wheels are clearly visible in the frame.
+   (b) The full body outline is in-frame from roofline down to the sills — no cropping of the roof, no cropping of the rocker panels, no cropping that cuts off the front OR rear of the car.
+   Failing shots (all FAIL):
+   - Rear-wing-only close-up, bumper-only, wheel/tire close-up, interior/dashboard, engine bay, headlight or badge detail, front-fender-only crop, side-mirror close-up, ANY tight crop that shows less than 60% of the car body.
+   Passing shots: 3/4 front, 3/4 rear, side profile, direct front, direct rear, low-angle hero — as long as the WHOLE car is in the frame with 3+ wheels visible.
 
 Return JSON only: {"match": true, "reason": "brief"} or {"match": false, "reason": "brief description of the failure — wrong year / wrong variant / detail shot only / etc"}. No preamble.`,
             },
@@ -243,40 +241,58 @@ async function fetchFromWikipedia(carName: string): Promise<CarReferenceImage | 
 
 // ─── Haiku fallback path ───────────────────────────────────────────────
 
-async function findCandidateImageUrlsViaHaiku(carName: string): Promise<string[]> {
+async function findCandidateImageUrlsViaHaiku(
+  carName: string,
+  sceneIntent?: string,
+): Promise<string[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("car-image: ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey });
 
+  // Derive preferred view from scene intent. Driving scenes want action /
+  // 3/4 front pan references; static scenes want a hero 3/4 front or side
+  // profile. Reference pose should match the target so Gemini doesn't
+  // have to invent a new pose (which is when it regenerates and drifts).
+  const wantsDriving = sceneIntent && /\b(driving|driv[ea]|mid-corner|action|pan|track|highway|racing|apex|cornering|motion)\b/i.test(sceneIntent);
+  const viewList = wantsDriving
+    ? [
+        `${carName} action driving shot 3/4 front`,
+        `${carName} press photo cornering full car`,
+        `${carName} panning shot full profile`,
+        `${carName} 3/4 front hero press photo`,
+      ]
+    : [
+        `${carName} 3/4 front hero press photo full car`,
+        `${carName} side profile press photo full car`,
+        `${carName} 3/4 rear press photo full car`,
+        `${carName} static beauty shot factory press`,
+      ];
+
   const system = `You find direct image URLs for a very specific year+generation+trim of a car. Use the web_search tool.
+
+**RUN MULTIPLE SEARCHES. Do NOT stop after one search.** You will be given a list of 4 specific-view queries. Run each one until you have collected direct-image URLs from all of them.
 
 **Do NOT hallucinate URLs.** Only return URLs that appeared verbatim in web_search results. If you did not see the URL in a search result, do not include it.
 
-Search strategy (use these query patterns — very specific, targeting FULL-CAR press photos):
-- "<carName> full side profile press photo"
-- "<carName> 3/4 front factory press"
-- "<carName> media gallery" site:press.OR-media.-.com
-- Combine year + generation code where relevant ("2018 991.2 GT3 RS side profile", "G87 M2 factory press")
-
-The photo MUST be:
-- The WHOLE car in frame — NOT a detail crop of a wing, wheel, bumper, interior, engine bay, badge, or headlight.
-- The EXACT year/gen/variant requested (2018 GT3 RS = 991.2 gen, not 992-gen).
+Every candidate MUST be:
+- The WHOLE car in frame — NOT a detail crop of a wing, wheel, bumper, interior, engine bay, badge, headlight. All (or almost all) four wheels visible AND the full body outline (roofline to sills) visible.
+- The EXACT year/gen/variant requested.
 - A press photo or high-quality journalism photo — factory-spec, not a modified/tuner example.
 
-Preferred sources: press.bmwgroup.com, media.porsche.com, media.audi.com, media.ford.com, media.gm.com, media.toyota.com, and reputable auto journalism (Car and Driver, MotorTrend, Road & Track, Autoblog, Autoweek, Top Gear, Autocar).
+Preferred sources: press.bmwgroup.com, media.porsche.com, media.audi.com, media.ford.com, media.gm.com, media.toyota.com, media.stellantis.com, media.mclaren.com, Car and Driver, MotorTrend, Road & Track, Autoblog, Autoweek, Top Gear, Autocar.
 
 Reject: enthusiast forums, tuner sites, Instagram, Pinterest, used-car listings, stock-photo sites, detail-shot crops, interior shots, engine-bay shots.
 
-The URL must be a DIRECT image file URL (.jpg, .jpeg, .png, .webp) that appeared as an actual result in a search — not a page URL you assume contains an image.
+The URL must be a DIRECT image file URL (.jpg, .jpeg, .png, .webp) that appeared as an actual result in a search — NOT a page URL you assume contains an image.
 
 Return ONLY JSON:
 {"candidates": ["https://...jpg", "..."]}
 
-Return 4-6 candidates so downstream verification can walk them if some are detail shots. Empty array is fine if you can't find real full-car press URLs.`;
+Return 6-10 candidates covering different angles. Empty array is only OK if truly no real full-car press URLs surfaced.`;
 
   const response = await client.messages.create({
     model: HAIKU_MODEL,
-    max_tokens: HAIKU_MAX_TOKENS,
+    max_tokens: 1500,
     temperature: 0.1,
     system,
     tools: [
@@ -284,7 +300,7 @@ Return 4-6 candidates so downstream verification can walk them if some are detai
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         type: "web_search_20260209" as any,
         name: "web_search",
-        max_uses: 4,
+        max_uses: 6,
         allowed_callers: ["direct"],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
@@ -292,7 +308,15 @@ Return 4-6 candidates so downstream verification can walk them if some are detai
     messages: [
       {
         role: "user",
-        content: `Find 4-6 direct image URLs of the FULL CAR (not a detail shot) for a factory-spec press photo of: ${carName}. Use the very-specific queries described in the system prompt. URLs must appear verbatim in your search results, no guessing.`,
+        content: `Find 6-10 direct image URLs of the FULL CAR for a factory-spec press photo of: ${carName}.
+
+Run web_search for EACH of these specific-view queries:
+1. ${viewList[0]}
+2. ${viewList[1]}
+3. ${viewList[2]}
+4. ${viewList[3]}
+
+Return all real direct-image URLs you find across those searches. URLs must appear verbatim in the search results — no guessing, no constructing.`,
       },
     ],
   });
@@ -537,7 +561,7 @@ export async function fetchCarReferenceImage(
 
   // 1) WEB SEARCH — primary
   try {
-    const webCandidates = await findCandidateImageUrlsViaHaiku(carName);
+    const webCandidates = await findCandidateImageUrlsViaHaiku(carName, sceneIntent);
     for (const url of webCandidates) {
       try {
         const dl = await downloadImage(url);
