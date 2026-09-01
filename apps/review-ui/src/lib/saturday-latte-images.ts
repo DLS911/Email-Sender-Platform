@@ -357,13 +357,11 @@ export async function editDriveImageBackground(
   sectionTag: string,
   carName: string,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  // Austin's key insight: Nano Banana in the UI perfectly does this
-  // task when given ONE simple sentence ("make this car drive on a
-  // mountain road with a coastline"). My long preservation-heavy
-  // prompts kick Gemini into GENERATION mode instead of EDIT mode,
-  // and that's why the car drifts. Matching the UI-style prompt
-  // literally — one sentence, no preservation rules, no style suffix.
-  const instruction = `Take this exact ${carName} and place it in the following scene: ${slotPrompt}`;
+  // One-sentence UI-style prompt (matches Nano Banana web behavior).
+  // Trailing clause tells Gemini to keep the same viewing angle so it
+  // doesn't invent parts of the car the reference doesn't show — e.g.
+  // if reference is a 3/4 front, don't ask Gemini to render the rear.
+  const instruction = `Take this exact ${carName} and place it in the following scene: ${slotPrompt}. Keep the car at the same viewing angle as it appears in the reference image — do not rotate the car or invent parts of it that aren't visible in the reference.`;
 
   const base64 = Buffer.from(reference.bytes).toString("base64");
   return callGemini(apiKey, [

@@ -77,7 +77,9 @@ async function verifyCarReferenceMatch(
               type: "text",
               text: `You are verifying a car reference photograph. It will be used as the base image for a background/lighting edit, so it needs to show the WHOLE car clearly.
 
-Two checks must BOTH pass for match=true:
+THREE checks must ALL pass for match=true:
+
+0) IT IS AN ACTUAL PHOTOGRAPH OF A CAR. If the image is a company/brand logo (e.g. "BMW Group" wordmark, a Porsche crest on white background), a chart/infographic, a magazine cover with mostly text and no full-car photo, a rendering that isn't a real photograph, or ANY image where a car is not the primary photographic subject — FAIL immediately.
 
 1) EXACT MATCH TO REQUESTED CAR: is this photo specifically a ${carName}?
    - Year and generation (a "2018 Porsche 911 GT3 RS" is the 991.2 generation — the 992-gen shown from 2022 onward is NOT a 2018)
