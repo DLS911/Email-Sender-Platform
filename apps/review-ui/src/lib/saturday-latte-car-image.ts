@@ -390,19 +390,40 @@ async function extractImageUrlsFromPage(pageUrl: string, limit = 8): Promise<str
     const candidates = Array.from(urls).filter((u) => {
       if (skipPatterns.test(u)) return false;
       if (!preferredExtensions.test(u)) return false;
-      // Reject tiny thumbnails (URL hints like "150x150", "thumb", "small")
-      if (/\b(50x50|75x75|100x100|150x150|_thumb|_small|_icon|_avatar)\b/i.test(u)) return false;
+      // Reject obvious small thumbnails
+      if (/\b(50x50|75x75|100x100|150x150|200x200|250x250|300x300|_thumb|_small|_icon|_avatar|-thumbnail-|-mini-|-small-)\b/i.test(u)) return false;
+      // Reject URLs that specify small explicit widths in query strings
+      const wMatch = u.match(/[?&](?:w|width|resize)=(\d+)/i);
+      if (wMatch && parseInt(wMatch[1] ?? "0", 10) < 800) return false;
+      // Reject URLs with size-suffix patterns like -400x300 (below 800)
+      const sizeSuffix = u.match(/-(\d+)x(\d+)\.(?:jpe?g|png|webp)/i);
+      if (sizeSuffix) {
+        const w = parseInt(sizeSuffix[1] ?? "0", 10);
+        const h = parseInt(sizeSuffix[2] ?? "0", 10);
+        if (Math.max(w, h) < 800) return false;
+      }
       return true;
     });
 
-    // Score: content-photo indicators bump higher
+    // Score: strongly prefer high-res / hero indicators
     const score = (u: string): number => {
       let s = 0;
-      if (/(hero|lead|main|featured|large|gallery|photo|image|IMG_|DSC_|_XL_|_LG_|_MAX|1920|1600|1200|2000|2560)/i.test(u)) s += 5;
-      if (/press|media/i.test(u)) s += 3;
+      // Big-width hints in URL (2560, 1920, 1600, 1200)
+      if (/\b2560\b|\b1920\b|\b1600\b|\b1200\b/i.test(u)) s += 10;
+      if (/\b(hero|lead|main|featured|large|xl|gallery)\b/i.test(u)) s += 6;
+      if (/\b(photo|image|IMG_|DSC_)\b/i.test(u)) s += 3;
+      if (/press|media/i.test(u)) s += 4;
       if (u.includes("/uploads/") || u.includes("/wp-content/")) s += 1;
-      // Penalize very long query-string variants that suggest tracked / resized
-      if (u.length > 400) s -= 1;
+      // Bonus if a size suffix like -1920x1080 shows big dimensions
+      const sizeSuffix = u.match(/-(\d+)x(\d+)\.(?:jpe?g|png|webp)/i);
+      if (sizeSuffix) {
+        const maxDim = Math.max(parseInt(sizeSuffix[1] ?? "0", 10), parseInt(sizeSuffix[2] ?? "0", 10));
+        if (maxDim >= 1600) s += 8;
+        else if (maxDim >= 1200) s += 5;
+        else if (maxDim >= 1000) s += 2;
+      }
+      // Penalize very long query-string variants that suggest resized
+      if (u.length > 400) s -= 2;
       return s;
     };
     candidates.sort((a, b) => score(b) - score(a));
