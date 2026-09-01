@@ -724,17 +724,53 @@ export async function generateTastingImageWithReference(
   subject: string,
   kind: "book" | "film" | "product" | "drink" | "unknown",
 ): Promise<{ bytes: Uint8Array; mimeType: string; usedReference: boolean; referenceUrl?: string }> {
-  // Drinks skip the Wikipedia reference lookup entirely. Bourbon/wine/
-  // beer article searches return distiller portraits, brand history
-  // photos, or generic distillery buildings — none of which are a
-  // bottle. Feeding those into a Gemini reference-preserve edit
-  // reliably produces "bottle-shaped-poster-of-a-guy" output.
-  // Gemini can render a specific bottle from text alone; brand shapes
-  // for popular spirits are well-represented in its training. Use a
-  // sharpened text-only prompt that names the bottle explicitly and
-  // asks for a still-life on a clean surface with genuine editorial
-  // context.
+  // Drinks: try the page-scrape pipeline first (same architecture as
+  // products/cars). Retailer / distillery / review pages, extracted
+  // <img>, Haiku-verified for exact bottle + full-bottle composition.
+  // If nothing verifies, fall back to a sharpened text-only prompt —
+  // Wikipedia is deliberately NOT tried for drinks because bourbon/
+  // wine/beer articles return distiller portraits or distillery
+  // buildings, and feeding those into a Gemini reference-preserve
+  // edit produces "bottle-shaped-poster-of-a-guy" output.
   if (kind === "drink") {
+    try {
+      const drinkRef = await fetchProductReferenceImage(subject);
+      if (drinkRef) {
+        const instruction = `${sectionTag}
+
+=== REFERENCE-IMAGE MODE for Tasting Menu (Drink) ===
+
+The image below is a real reference of "${subject}" pulled from a retailer / distillery / review page. This is the ACTUAL bottle. Preserve the bottle exactly as shown: silhouette, label artwork, label text, cap/closure, glass color, fill level. Do NOT reword or restyle the label. Do NOT invent alternative typography. The bottle output MUST match the reference bottle pixel-close.
+
+You may change the SURROUNDING SCENE (background, light, one optional companion object like an empty rocks glass or cork) per the editorial setting prompt below. You may NOT change any aspect of the reference bottle itself.
+
+The bottle sits upright at rest on a real surface (wooden bar top, marble counter, oak side table). NO food debris, NO random herbs, NO "flavor cue" props. Bottle-forward editorial still life.
+
+Warm directional side light from a window or bar lamp, natural falloff. NO glossy studio product-shot look. NO ring-light AI glow.
+
+The output must be a 1:1 SQUARE aspect ratio image.
+
+=== EDITORIAL SETTING ===
+
+${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
+
+REMINDER: the subject "${subject}" must appear per the reference image. Only the surrounding editorial scene may change.`;
+        const base64 = Buffer.from(drinkRef.bytes).toString("base64");
+        try {
+          const edited = await callGemini(apiKey, [
+            { text: instruction },
+            { inlineData: { mimeType: drinkRef.mimeType, data: base64 } },
+          ]);
+          return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
+        } catch (err) {
+          console.warn("latte.drink_edit_failed_using_reference_direct", err instanceof Error ? err.message : String(err));
+          return { bytes: drinkRef.bytes, mimeType: drinkRef.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
+        }
+      }
+    } catch (err) {
+      console.warn("latte.drink_scrape_failed", err instanceof Error ? err.message : String(err));
+    }
+    // Text-only fallback if no verified reference was found.
     const drinkPrompt = `${sectionTag}
 
 The subject "${subject}" is a bottle (bourbon / whisky / wine / beer / spirit / non-alcoholic drink). Render THE ACTUAL BOTTLE — brand-correct label, proportions, and cap. Do NOT render a poster, a portrait, a distillery building, or a person. Do NOT include any framed art in the frame.

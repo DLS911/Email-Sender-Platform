@@ -211,7 +211,6 @@ export async function fetchProductReferenceImage(
     console.info("product-image.images_extracted", { product: productName, count: imageUrls.length });
 
     const shuffledUrls = imageUrls.slice(0, 12).map((u) => ({ u, k: Math.random() })).sort((a, b) => a.k - b.k).map((x) => x.u);
-    let fallback: ProductReferenceImage | null = null;
     for (const url of shuffledUrls) {
       try {
         const dl = await downloadImage(url);
@@ -221,16 +220,11 @@ export async function fetchProductReferenceImage(
           return { bytes: dl.bytes, mimeType: dl.mimeType, sourceUrl: url };
         }
         console.info("product-image.candidate_rejected", { product: productName, url: url.slice(0, 80), reason: verdict.reason });
-        if (!fallback) fallback = { bytes: dl.bytes, mimeType: dl.mimeType, sourceUrl: url };
       } catch (err) {
-        // skip and continue
         void err;
       }
     }
-    if (fallback) {
-      console.warn("product-image.shipped_unverified_fallback", { product: productName, source: fallback.sourceUrl });
-      return fallback;
-    }
+    console.warn("product-image.no_verified_candidate", { product: productName });
     return null;
   } catch (err) {
     console.warn(

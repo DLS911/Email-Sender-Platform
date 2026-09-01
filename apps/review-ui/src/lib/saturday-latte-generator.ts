@@ -1338,6 +1338,89 @@ function findOffShelfBookOffenses(content: SaturdayLatteContent): RepeatOffense[
 }
 
 /**
+ * Cross-field consistency: imagePrompts.tastingMenu[i] must reference
+ * the same subject as tastingMenu[i].title. Guards against writer
+ * split-brain where the item.title, the image prompt, and the URL end
+ * up describing three different works — which then ships as a book
+ * whose image, text, and link all point at different titles.
+ *
+ * Match rule: at least one significant title token (>=4 chars,
+ * non-stopword) from the normalized title must appear in the
+ * normalized image prompt. If the title has no such token (very rare —
+ * a one-word title like "Orbital" would still normalize to "orbital"
+ * which is 7 chars), skip the check for that slot.
+ */
+function findTastingImagePromptMismatchOffenses(
+  content: SaturdayLatteContent,
+  imagePrompts: { tastingMenu?: string[] } | null | undefined,
+): RepeatOffense[] {
+  const offenses: RepeatOffense[] = [];
+  const promptList = imagePrompts?.tastingMenu ?? [];
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const promptRaw = promptList[i];
+    if (!promptRaw || promptRaw.trim() === "") continue;
+    const titleNorm = normalizeTitleForRepeat(item.title);
+    const titleTokens = tokensForRepeat(titleNorm);
+    if (titleTokens.length === 0) continue;
+    const promptNorm = normalizeTitleForRepeat(promptRaw);
+    const hit = titleTokens.some((t) => promptNorm.includes(t));
+    if (!hit) {
+      offenses.push({
+        slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+        picked: item.title,
+        matched: `IMAGE PROMPT MISMATCH. tastingMenu[${i}].title is "${item.title}" but imagePrompts.tastingMenu[${i}] does not name this subject at all. The image prompt must contain the exact title, verbatim. Rewrite the image prompt so it names "${item.title}" — the title, image, and URL must all describe the SAME work.`,
+      });
+    }
+  }
+  return offenses;
+}
+
+/**
+ * Cross-field consistency: tastingMenu[i].url must be a URL that
+ * plausibly points at the same subject as tastingMenu[i].title. Same
+ * writer split-brain guard as the image-prompt check. The rule is
+ * intentionally loose — many valid URLs (imdb tt-IDs, amazon dp-IDs,
+ * shortened links) won't contain the title in the path. We only flag
+ * when the URL path clearly names a DIFFERENT specific title that
+ * conflicts with the item title.
+ *
+ * Match rule: if the URL path contains any significant title token
+ * from the item title, pass. If the URL path contains only
+ * non-title alphabetic words AND none of the title tokens, flag. For
+ * paths that are just IDs (`/dp/B08XYZ`, `/title/tt1234567/`), the
+ * "no meaningful path words" branch skips the check.
+ */
+function findTastingUrlMismatchOffenses(content: SaturdayLatteContent): RepeatOffense[] {
+  const offenses: RepeatOffense[] = [];
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const url = (item.url ?? "").trim();
+    if (!url) continue;
+    let path = "";
+    try {
+      const parsed = new URL(url);
+      path = decodeURIComponent(parsed.pathname + " " + parsed.search);
+    } catch {
+      continue;
+    }
+    const pathNorm = normalizeTitleForRepeat(path);
+    const pathWords = pathNorm.split(" ").filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !REPEAT_STOPWORDS.has(w));
+    if (pathWords.length === 0) continue;
+    const titleNorm = normalizeTitleForRepeat(item.title);
+    const titleTokens = tokensForRepeat(titleNorm);
+    if (titleTokens.length === 0) continue;
+    const anyHit = titleTokens.some((t) => pathNorm.includes(t));
+    if (!anyHit) {
+      offenses.push({
+        slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+        picked: item.title,
+        matched: `URL MISMATCH. tastingMenu[${i}].title is "${item.title}" but tastingMenu[${i}].url path ("${path.trim().slice(0, 100)}") names a completely different subject. The link must go to the SAME work as the title. Rewrite the URL to a real page for "${item.title}".`,
+      });
+    }
+  }
+  return offenses;
+}
+
+/**
  * Off-shelf drink check. Same rule for Worth Drinking: pick from the
  * curated drink shelf. Prevents the writer defaulting to whatever
  * bourbon showed up in research today (Redwood Empire, etc.).
@@ -1913,12 +1996,16 @@ export async function generateSaturdayLatteIssue(opts: {
         ...findKindMismatchOffenses(writer.content),
         ...findOffShelfBookOffenses(writer.content),
         ...findOffShelfDrinkOffenses(writer.content),
+        ...findTastingImagePromptMismatchOffenses(writer.content, writer.imagePrompts),
+        ...findTastingUrlMismatchOffenses(writer.content),
         ...editorOffenses,
       ]
     : [
         ...kindOffenses,
         ...findOffShelfBookOffenses(writer.content),
         ...findOffShelfDrinkOffenses(writer.content),
+        ...findTastingImagePromptMismatchOffenses(writer.content, writer.imagePrompts),
+        ...findTastingUrlMismatchOffenses(writer.content),
         ...editorOffenses,
       ];
 
