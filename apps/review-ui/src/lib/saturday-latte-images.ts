@@ -357,33 +357,13 @@ export async function editDriveImageBackground(
   sectionTag: string,
   carName: string,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  // Restored from commit de71701 — the version Austin remembers working.
-  // My "simplification" removed structural preservation language and
-  // let re-angling in, which broke the guarantee.
-  const instruction = `${sectionTag}
-
-=== BACKGROUND-ONLY EDIT (car must not change) ===
-
-The image below is a reference photograph of "${carName}". This car — every pixel of the car body, wheels, headlights, tail lights, grille, badging, ride height, color, and factory-spec styling — must appear in the output image IDENTICAL to how it appears in the reference. Do not stylize the car. Do not remove details. Do not add details. Do not change the color. Do not change the wheel design. Do not modify the front fascia. Do not modify the fender width or flare geometry. Do not modify the exhaust arrangement. The car is a fixed subject that MUST be preserved.
-
-You may ONLY change the BACKGROUND and the LIGHT on the car (as would happen if the same car were photographed at a different location and time of day). Specifically:
-- Replace the current background scene entirely with the editorial setting described below.
-- Adjust the lighting on the car to match the direction and quality of light in the new scene (a car in golden-hour side light will have that light on its side; a car in overcast morning light will have flat diffuse light on its body). But do not change the car's color or add reflections that would obscure its bodywork detail.
-- Reframe the composition if needed — off-center, rule-of-thirds, negative space on one side — but ALWAYS with the same car intact.
-- Ground the car realistically in the new scene: the surface it sits on (asphalt, wet coastal road, gravel, cobblestone), a shadow beneath it consistent with the light source, and appropriate weather (dry, wet, fog, mist).
-
-You may NOT:
-- Change any aspect of the car itself (body, wheels, lights, grille, badges, ride height, color).
-- Add aftermarket-looking modifications (bigger wheels, lowered stance, wider fenders, aftermarket exhaust).
-- Add or remove performance styling elements from the car.
-- Reshape the car body from a different generation or trim.
-- Add close-up details of the car's badge that would require rendering the logo up close (keep the badge at the same distance as in the reference).
-
-=== EDITORIAL SETTING ===
-
-${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
-
-REMINDER: the CAR itself is fixed to the reference. Only the BACKGROUND and LIGHT may change. Preserve the car exactly.`;
+  // Austin's key insight: Nano Banana in the UI perfectly does this
+  // task when given ONE simple sentence ("make this car drive on a
+  // mountain road with a coastline"). My long preservation-heavy
+  // prompts kick Gemini into GENERATION mode instead of EDIT mode,
+  // and that's why the car drifts. Matching the UI-style prompt
+  // literally — one sentence, no preservation rules, no style suffix.
+  const instruction = `Take this exact ${carName} and place it in the following scene: ${slotPrompt}`;
 
   const base64 = Buffer.from(reference.bytes).toString("base64");
   return callGemini(apiKey, [
