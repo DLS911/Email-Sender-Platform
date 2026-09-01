@@ -58,7 +58,14 @@ async function verifyCarReferenceMatch(
   bytes: Uint8Array,
   mimeType: string,
   carName: string,
+  sceneIntent?: string,
 ): Promise<{ match: boolean; reason: string }> {
+  const wantsMotion = sceneIntent && /\b(driving|driv[ea]|cornering|mid-corner|highway|track|racing|apex|panning|action|motion)\b/i.test(sceneIntent);
+  const staticGate = wantsMotion
+    ? ""
+    : `
+
+3) STATIC POSE (required for this generation): the reference must show the car PARKED / STATIONARY. Photos with motion blur on the wheels, streaking road, rolling / driving pose, panning shots — all FAIL. We need a clean static / dealership / configurator / studio shot where the wheels are sharp and the car isn't moving. If the image shows any motion blur, FAIL.`;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { match: true, reason: "verifier disabled (no ANTHROPIC_API_KEY)" };
   try {
@@ -91,7 +98,7 @@ THREE checks must ALL pass for match=true:
    (b) The full body outline is in-frame from roofline down to the sills — no cropping of the roof, no cropping of the rocker panels, no cropping that cuts off the front OR rear of the car.
    Failing shots (all FAIL):
    - Rear-wing-only close-up, bumper-only, wheel/tire close-up, interior/dashboard, engine bay, headlight or badge detail, front-fender-only crop, side-mirror close-up, ANY tight crop that shows less than 60% of the car body.
-   Passing shots: 3/4 front, 3/4 rear, side profile, direct front, direct rear, low-angle hero — as long as the WHOLE car is in the frame with 3+ wheels visible.
+   Passing shots: 3/4 front, 3/4 rear, side profile, direct front, direct rear, low-angle hero — as long as the WHOLE car is in the frame with 3+ wheels visible.${staticGate}
 
 Return JSON only: {"match": true, "reason": "brief"} or {"match": false, "reason": "brief description of the failure — wrong year / wrong variant / detail shot only / etc"}. No preamble.`,
             },
@@ -770,7 +777,7 @@ export async function fetchCarReferenceImage(
     for (const url of imageUrls.slice(0, 12)) {
       try {
         const dl = await downloadImage(url, BROWSER_UA);
-        const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
+        const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName, sceneIntent);
         if (verdict.match) {
           console.info("car-image.scraped_hit_verified", { car: carName, url, reason: verdict.reason });
           return {
@@ -804,7 +811,7 @@ export async function fetchCarReferenceImage(
     for (const url of webCandidates) {
       try {
         const dl = await downloadImage(url);
-        const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
+        const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName, sceneIntent);
         if (verdict.match) {
           console.info("car-image.web_hit_verified", { car: carName, url, reason: verdict.reason });
           return {
@@ -834,7 +841,7 @@ export async function fetchCarReferenceImage(
   try {
     const wiki = await fetchFromWikipedia(carName);
     if (wiki) {
-      const verdict = await verifyCarReferenceMatch(wiki.bytes, wiki.mimeType, carName);
+      const verdict = await verifyCarReferenceMatch(wiki.bytes, wiki.mimeType, carName, sceneIntent);
       if (verdict.match) {
         console.info("car-image.wiki_secondary_hit_verified", { car: carName, source: wiki.sourceUrl, reason: verdict.reason });
         return wiki;
@@ -858,7 +865,7 @@ export async function fetchCarReferenceImage(
       for (const cand of commonsCands.slice(0, 5)) {
         try {
           const dl = await downloadImage(cand.url, WIKIPEDIA_UA);
-          const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName);
+          const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName, sceneIntent);
           if (verdict.match) {
             console.info("car-image.commons_hit_verified", { car: carName, picked: cand.url, reason: verdict.reason });
             return {
