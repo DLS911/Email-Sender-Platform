@@ -75,7 +75,7 @@ const RESEARCH_SYSTEM_PROMPT = `You are the research analyst for The Saturday Mo
 
 # WHAT THE NEWSLETTER NEEDS (split your search across these)
 
-1. **Destinations** (Cover Story material): Real US or international places — small towns, off-season destinations, regional gems. Not generic top-10 lists. Specific places with specific reasons to visit. Examples: Savannah in January, Door County WI, Boise after the gold rush, Pittsburgh, Galveston.
+1. **Destinations** (Cover Story material): Real US OR INTERNATIONAL places — small towns, off-season destinations, regional gems. Not generic top-10 lists. Specific places with specific reasons to visit. **ROTATION RULE — HARD.** International destinations are as important as US ones; do not deliver only US options. Include a MIX of both in every research batch — aim for 40-60% international across destinations (Portugal, Japan, Mexico, Iceland, UK/Scotland/Ireland, Italy, France, Greece, Croatia, Slovenia, Central & South America, SE Asia, New Zealand, etc). Examples: Savannah in January, Door County WI, Óbidos Portugal in November, Matsumoto Japan for cherry-blossom shoulder season, Oaxaca in July, Ronda Spain in October, San Sebastián in April.
 
 2. **Restaurants / food spots** (for Tasting Menu Worth Eating or Cover Story specifics): real restaurants with real names and real menus. Hole-in-the-wall finds, chef-driven spots, regional specialties.
 
@@ -458,6 +458,8 @@ You produce a complete Saturday Morning Latte issue as JSON. Use the research bu
 ### 1. Cover Story
 A 450-650 word piece on a destination, an experience, or a discovery. Reference real places, real restaurants (by name), real prices when relevant. Use the destinations + restaurant_food + activity items from research. Voice: Mark talking on Saturday morning, NOT travel-magazine prose.
 
+**US ↔ INTERNATIONAL ROTATION — HARD RULE.** Look at the RECENT COVER STORIES list. Count how many of the last 3 were US destinations. **If the last 3 were all US, this issue's Cover Story MUST be international.** Similarly, if the last 3 were all international, this issue MUST be US. Do not run more than 3 of the same region in a row. The reader signs up for a mix — Óbidos or Matsumoto or Ronda one week, Bisbee or Door County or Lanesboro the next. If the research bundle's destinations are US-heavy this week and the rotation says international, pick an international destination anyway — Mark can research a place from a book or a friend, he doesn't need a Perplexity link to write about San Sebastián or Porto in shoulder season.
+
 ### 2. Tasting Menu (3 items)
 Worth Watching, Worth Drinking, Worth Reading, Worth Listening, Worth Trying — pick three labels. Each item:
 - label: e.g. "Worth Watching" or "Worth Drinking"
@@ -616,6 +618,7 @@ The 5 image fields (one prompt per field, tastingMenu has 3 sub-prompts):
 - **hero**: MUST name the cover story's primary place AND a SPECIFIC LANDMARK, iconic view, or unique feature of that place. Not a generic "downtown street" or "historic buildings" or "main street." Name the actual thing: "the Copper Queen Hotel neon sign in Bisbee at dusk," "the 1000-step Bisbee Stairs curving up Chihuahua Hill," "the Queen Mine headframe against Mule Mountains," "the Root River Trail bridge at Lanesboro with limestone bluffs behind," "Traverse City's Old Mission Peninsula lighthouse from the water at 6am." The hero should immediately show something unique to THIS place that a subscriber who's been there would recognize. If the writer can't name a specific landmark, the piece isn't researched enough - go do research. NEVER default to "downtown main street" or "historic buildings" or "person walking down a street" - those are boring AI defaults. Every hero prompt must specify a proper-noun landmark or iconic feature of the actual destination. **PEOPLE RULE: rely on nature / architecture / geography for the beauty, NOT on people. Zero people in the frame is preferred; a single distant figure or a pair of two figures is the maximum. NEVER prompt for "a crowd," "tourists," "a busy plaza," "people milling," "people posing," or "a group of friends." Crowded frames look AI-ish. The scene is a landscape / architecture beauty shot; if people are present at all, they are incidental scale references, not the subject.**
 - **coverDetail**: MUST reference a specific ONE-thing detail from THIS cover story's location. Not a generic version of that kind of detail. Example: "The interior of the Commonweal Theatre lobby in Lanesboro at 6pm — brass wall sconces, playbill stack on a walnut table, one folded program left on a leather bench." Not "a small-town theater lobby." **BANNED coverDetail defaults (all read as generic AI output):** "a street food stand," "a food stall," "a morning market scene," "a market crowd," "a downtown crowd," "a night market," "a busy street," "a bustling plaza." Cover Detail is a TIGHT editorial still-life OR a single named architectural / interior / object detail — never a busy generic scene. If you're tempted to write "a street food stand at [destination]'s morning market," STOP and pick instead a single named element: a specific storefront the writer knows exists ("Nakabashi Bridge's red arch in the snow"), a single interior element of a named place ("the copper hood over the tempura counter at Kajibashi Honten"), or a specific still-life ("a rack of drying hoba leaves at a specific miso maker"). Detail = ONE object OR one architectural piece OR one interior at one named spot — never a scene with people milling around a generic food-vendor cliché.
 - **tastingMenu**: array of 3 prompts, one per tasting menu item. **Each prompt MUST include the exact title of its tasting menu item, verbatim from tastingMenu[i].title.** This is non-negotiable — it is the only reliable defense against two similar-category items (two coffee items, two books, two films) rendering as interchangeable images. Example for a "Worth Trying: Fellow Ode Brew Grinder Gen 2" item: "The Fellow Ode Brew Grinder Gen 2 sitting cleanly on a butcher-block counter, morning window light from the left." NOT: "a coffee grinder on a kitchen counter." The item's exact product/book/film name must appear inside the prompt. **DO NOT include category-adjacent debris in the prompt** — no coffee beans next to a grinder, no tea leaves next to a teapot, no herb sprigs next to a knife. Products live cleanly on their surface. **DO NOT describe the product as pouring itself, floating, mid-action, or performing its function without a person** — a grinder is a still object sitting on the counter, not actively grinding; a kettle is sitting on a stove or trivet, not tilted and self-pouring into a filter. Products at rest, no invisible-hand operations.
+  - **Worth Listening prompt specifics.** For podcast or album picks, do NOT ask for wired earbuds, wired headphones, or any coiled-cable ear device (Gemini renders these with impossible cable geometry every time). Instead describe a plausible listening context: a kitchen with a Bluetooth speaker on a shelf and the album/podcast art visible on a phone, a car dashboard at dawn with the phone in the cradle showing the podcast title, a runner's smartwatch on a wrist, an open journal + coffee cup + phone showing the album art. If a personal audio device belongs in the frame, it must be a phone or a smartwatch — earbuds are banned.
 - **hostsCorner**: MUST reference the specific technique from hostsCorner.moveTitle by name. Example for "The Cold-Start Cast Iron Steak": "A room-temperature ribeye in a cold cast iron skillet on a gas burner, first ninety seconds of the cold-start method, small pool of rendered fat around the meat, kitchen window light at 5pm." Not "a steak searing on cast iron."
 - theDrive: the specific car in a specific real-world setting with specific light. **CAR ACCURACY IS CRITICAL AND HAS BEEN A REPEATED FAILURE MODE** — image models WILL default to the previous generation of a nameplate unless the prompt spells out (a) the current generation, (b) 4-5 distinguishing visual features, (c) an explicit "NOT the [previous generation]" negative, and (d) a period-correct color. Readers who know cars notice immediately when a 2024 M2 renders as a 2020 M2. Every theDrive prompt MUST use the structure below.
 
@@ -1393,6 +1396,8 @@ function findTastingImagePromptMismatchOffenses(
 function findTastingUrlMismatchOffenses(content: SaturdayLatteContent): RepeatOffense[] {
   const offenses: RepeatOffense[] = [];
   for (const [i, item] of content.tastingMenu.entries()) {
+    const label = (item.label ?? "").toLowerCase();
+    if (label.includes("reading")) continue;
     const url = (item.url ?? "").trim();
     if (!url) continue;
     let path = "";
@@ -1445,6 +1450,35 @@ function findOffShelfDrinkOffenses(content: SaturdayLatteContent): RepeatOffense
     }
   }
   return offenses;
+}
+
+/**
+ * Force every Worth Reading URL to a guaranteed-live Google Books search
+ * URL for that book's title (and author if we can extract it). The writer
+ * has repeatedly emitted plausible-looking but 404-ing publisher/Amazon
+ * URLs for book picks. Google Books search always resolves and always
+ * shows the correct book at the top. Idempotent — leaves non-reading
+ * items alone.
+ */
+function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
+  const newTasting = content.tastingMenu.map((item) => {
+    const label = (item.label ?? "").toLowerCase();
+    if (!label.includes("reading")) return item;
+    const rawTitle = item.title.trim();
+    if (!rawTitle) return item;
+    const cleanTitle = rawTitle.replace(/\s+by\s+.+$/i, "").trim();
+    const author = extractCreatorHelperForTitle(rawTitle) ?? "";
+    const shelfMatch = LATTE_BOOK_SHELF.find((b) => {
+      const bn = normalizeTitleForRepeat(b.title);
+      const tn = normalizeTitleForRepeat(cleanTitle);
+      return bn === tn || bn.includes(tn) || tn.includes(bn);
+    });
+    const searchTitle = shelfMatch?.title ?? cleanTitle;
+    const searchAuthor = shelfMatch?.author ?? author;
+    const q = encodeURIComponent(`${searchTitle} ${searchAuthor}`.trim());
+    return { ...item, url: `https://www.google.com/search?tbm=bks&q=${q}` };
+  });
+  return { ...content, tastingMenu: newTasting };
 }
 
 // Duplicate of the parser in saturday-latte-cron.ts, kept local so the
@@ -2040,7 +2074,7 @@ export async function generateSaturdayLatteIssue(opts: {
   // outside Mark's authentic scope as attributed statements. Best-effort;
   // if the guard fails, keep the writer's original content.
   const scope = await enforceAuthorScope(client, writer.content);
-  const scopedContent = scope.content;
+  const scopedContent = enforceBookUrls(scope.content);
 
   // Image generation phase: fire 7 DALL-E 3 calls in parallel, upload to
   // Supabase Storage. Best-effort — if any fail, the email still renders
