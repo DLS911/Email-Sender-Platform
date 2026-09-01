@@ -58,14 +58,15 @@ async function verifyCarReferenceMatch(
   bytes: Uint8Array,
   mimeType: string,
   carName: string,
-  sceneIntent?: string,
+  _sceneIntent?: string,
 ): Promise<{ match: boolean; reason: string }> {
-  const wantsMotion = sceneIntent && /\b(driving|driv[ea]|cornering|mid-corner|highway|track|racing|apex|panning|action|motion)\b/i.test(sceneIntent);
-  const staticGate = wantsMotion
-    ? ""
-    : `
+  // Reference is ALWAYS a parked / stationary shot. One good parked
+  // reference gets reused for any edit — Gemini handles the "make it
+  // drive" transformation from a parked reference just fine, and this
+  // way we never waste time / API cost fetching multiple references.
+  const staticGate = `
 
-3) STATIC POSE (required for this generation): the reference must show the car PARKED / STATIONARY. Photos with motion blur on the wheels, streaking road, rolling / driving pose, panning shots — all FAIL. We need a clean static / dealership / configurator / studio shot where the wheels are sharp and the car isn't moving. If the image shows any motion blur, FAIL.`;
+3) STATIC POSE — REQUIRED. The reference must show the car PARKED / STATIONARY. Photos with motion blur on the wheels, streaking road, rolling / driving pose, panning shots — all FAIL. We need a clean static / dealership / configurator / studio shot where the wheels are sharp and the car isn't moving. If the image shows any motion blur, FAIL.`;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { match: true, reason: "verifier disabled (no ANTHROPIC_API_KEY)" };
   try {
@@ -263,25 +264,21 @@ async function fetchFromWikipedia(carName: string): Promise<CarReferenceImage | 
  */
 async function findWebPagesForCar(
   carName: string,
-  sceneIntent?: string,
+  _sceneIntent?: string,
 ): Promise<string[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return [];
   const client = new Anthropic({ apiKey });
-  const wantsDriving = sceneIntent && /\b(driving|driv[ea]|mid-corner|action|pan|track|highway|racing|apex|cornering|motion)\b/i.test(sceneIntent);
-  const viewList = wantsDriving
-    ? [
-        `${carName} driving action review`,
-        `${carName} first drive review with photos`,
-        `${carName} track test gallery`,
-        `${carName} press photo gallery`,
-      ]
-    : [
-        `${carName} review photo gallery`,
-        `${carName} press release photos`,
-        `${carName} hero shot review`,
-        `${carName} media gallery`,
-      ];
+  // Always search for parked / static / studio / configurator shots.
+  // One good parked reference works for any edit — Gemini transforms
+  // it into a driving scene when needed. No point spending API cost
+  // searching for action refs.
+  const viewList = [
+    `${carName} studio shot press photo`,
+    `${carName} configurator side profile`,
+    `${carName} static parked hero shot`,
+    `${carName} press release photo gallery`,
+  ];
 
   try {
     const response = await client.messages.create({
@@ -443,7 +440,7 @@ async function extractImageUrlsFromPage(pageUrl: string, limit = 8): Promise<str
 
 async function findCandidateImageUrlsViaHaiku(
   carName: string,
-  sceneIntent?: string,
+  _sceneIntent?: string,
 ): Promise<string[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("car-image: ANTHROPIC_API_KEY missing");
@@ -453,20 +450,14 @@ async function findCandidateImageUrlsViaHaiku(
   // 3/4 front pan references; static scenes want a hero 3/4 front or side
   // profile. Reference pose should match the target so Gemini doesn't
   // have to invent a new pose (which is when it regenerates and drifts).
-  const wantsDriving = sceneIntent && /\b(driving|driv[ea]|mid-corner|action|pan|track|highway|racing|apex|cornering|motion)\b/i.test(sceneIntent);
-  const viewList = wantsDriving
-    ? [
-        `${carName} action driving shot 3/4 front`,
-        `${carName} press photo cornering full car`,
-        `${carName} panning shot full profile`,
-        `${carName} 3/4 front hero press photo`,
-      ]
-    : [
-        `${carName} 3/4 front hero press photo full car`,
-        `${carName} side profile press photo full car`,
-        `${carName} 3/4 rear press photo full car`,
-        `${carName} static beauty shot factory press`,
-      ];
+  // Always parked/static queries — Gemini transforms to a driving
+  // scene at edit time from a good parked reference.
+  const viewList = [
+    `${carName} 3/4 front hero press photo full car parked`,
+    `${carName} side profile press photo full car static`,
+    `${carName} 3/4 rear press photo full car parked`,
+    `${carName} studio configurator shot`,
+  ];
 
   const system = `You find direct image URLs for a very specific year+generation+trim of a car. Use the web_search tool.
 
