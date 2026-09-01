@@ -907,18 +907,21 @@ export async function fetchCarReferenceImage(
     }
   }
 
-  // Final fallback: nothing verified clean. Ship the best-effort
-  // candidate so the pipeline doesn't throw.
+  // Nothing verified clean across web-scrape / Wikipedia / Commons.
+  // Do NOT ship an unverified candidate — a suspension-detail-shot
+  // gets edited into "a car in Big Sur" and looks worse than a
+  // text-only Gemini fallback. Throw so the caller falls through to
+  // text-only generation with no reference (still not great for cars
+  // but at least the whole car will be visible).
   if (fallbackCandidate) {
-    console.warn("car-image.shipped_unverified_fallback", {
+    console.warn("car-image.rejected_all_candidates_no_fallback", {
       car: carName,
-      source: fallbackCandidate.sourceUrl,
-      searchQuery: fallbackCandidate.searchQuery,
+      last_seen: fallbackCandidate.sourceUrl,
+      last_search: fallbackCandidate.searchQuery,
     });
-    return fallbackCandidate;
   }
   throw new Error(
-    `car-image: Web + Wikipedia + Commons all returned zero candidates for "${carName}"; errors: ${errors.slice(0, 3).join(" | ")}`,
+    `car-image: Web + Wikipedia + Commons found candidates but NONE verified as a real full-car photo of "${carName}"; errors: ${errors.slice(0, 3).join(" | ")}`,
   );
 }
 
