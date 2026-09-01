@@ -269,16 +269,25 @@ async function findWebPagesForCar(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return [];
   const client = new Anthropic({ apiKey });
-  // Always search for parked / static / studio / configurator shots.
-  // One good parked reference works for any edit — Gemini transforms
-  // it into a driving scene when needed. No point spending API cost
-  // searching for action refs.
-  const viewList = [
-    `${carName} studio shot press photo`,
-    `${carName} configurator side profile`,
-    `${carName} static parked hero shot`,
-    `${carName} press release photo gallery`,
+  // Always parked / static / studio / configurator shots. Emphasize
+  // 3/4 angles over pure profile or pure frontal — 3/4 is the hero
+  // angle for editorial car photography. Vary the queries per call
+  // via random selection so we don't always land on the same top
+  // result.
+  const allViews = [
+    `${carName} 3/4 front press photo full car`,
+    `${carName} 3/4 rear press photo full car`,
+    `${carName} 3/4 hero press photo`,
+    `${carName} 3/4 angle beauty shot`,
+    `${carName} 3/4 front dealer photo`,
+    `${carName} 3/4 rear studio press photo`,
+    `${carName} configurator angled hero shot`,
+    `${carName} press photo three quarter view`,
   ];
+  // Shuffle and take 4 — different query set per generation so we
+  // reach different photos across runs.
+  const shuffled = allViews.map((v) => ({ v, k: Math.random() })).sort((a, b) => a.k - b.k).map((x) => x.v);
+  const viewList = shuffled.slice(0, 4);
 
   try {
     const response = await client.messages.create({
@@ -450,14 +459,17 @@ async function findCandidateImageUrlsViaHaiku(
   // 3/4 front pan references; static scenes want a hero 3/4 front or side
   // profile. Reference pose should match the target so Gemini doesn't
   // have to invent a new pose (which is when it regenerates and drifts).
-  // Always parked/static queries — Gemini transforms to a driving
-  // scene at edit time from a good parked reference.
-  const viewList = [
-    `${carName} 3/4 front hero press photo full car parked`,
-    `${carName} side profile press photo full car static`,
-    `${carName} 3/4 rear press photo full car parked`,
-    `${carName} studio configurator shot`,
+  // 3/4-emphasized queries with shuffled selection for variety.
+  const allViews = [
+    `${carName} 3/4 front hero press photo`,
+    `${carName} 3/4 rear press photo`,
+    `${carName} 3/4 angle studio`,
+    `${carName} press photo three quarter front`,
+    `${carName} press photo three quarter rear`,
+    `${carName} configurator angled hero shot`,
   ];
+  const shuffled = allViews.map((v) => ({ v, k: Math.random() })).sort((a, b) => a.k - b.k).map((x) => x.v);
+  const viewList = shuffled.slice(0, 4);
 
   const system = `You find direct image URLs for a very specific year+generation+trim of a car. Use the web_search tool.
 
@@ -765,7 +777,11 @@ export async function fetchCarReferenceImage(
       if (imageUrls.length >= 20) break;
     }
     console.info("car-image.images_extracted_from_pages", { car: carName, count: imageUrls.length });
-    for (const url of imageUrls.slice(0, 12)) {
+    // Shuffle the top ~12 candidates before verifying so we don't
+    // always test (and settle on) the same top-scored URL every call.
+    // Adds view variety across runs of the same car.
+    const shuffledUrls = imageUrls.slice(0, 12).map((u) => ({ u, k: Math.random() })).sort((a, b) => a.k - b.k).map((x) => x.u);
+    for (const url of shuffledUrls) {
       try {
         const dl = await downloadImage(url, BROWSER_UA);
         const verdict = await verifyCarReferenceMatch(dl.bytes, dl.mimeType, carName, sceneIntent);
