@@ -1397,35 +1397,11 @@ function findTastingImagePromptMismatchOffenses(
  * "no meaningful path words" branch skips the check.
  */
 function findTastingUrlMismatchOffenses(content: SaturdayLatteContent): RepeatOffense[] {
-  const offenses: RepeatOffense[] = [];
-  for (const [i, item] of content.tastingMenu.entries()) {
-    const label = (item.label ?? "").toLowerCase();
-    if (label.includes("reading") || label.includes("trying")) continue;
-    const url = (item.url ?? "").trim();
-    if (!url) continue;
-    let path = "";
-    try {
-      const parsed = new URL(url);
-      path = decodeURIComponent(parsed.pathname + " " + parsed.search);
-    } catch {
-      continue;
-    }
-    const pathNorm = normalizeTitleForRepeat(path);
-    const pathWords = pathNorm.split(" ").filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !REPEAT_STOPWORDS.has(w));
-    if (pathWords.length === 0) continue;
-    const titleNorm = normalizeTitleForRepeat(item.title);
-    const titleTokens = tokensForRepeat(titleNorm);
-    if (titleTokens.length === 0) continue;
-    const anyHit = titleTokens.some((t) => pathNorm.includes(t));
-    if (!anyHit) {
-      offenses.push({
-        slot: `tasting-${i + 1}` as RepeatOffense["slot"],
-        picked: item.title,
-        matched: `URL MISMATCH. tastingMenu[${i}].title is "${item.title}" but tastingMenu[${i}].url path ("${path.trim().slice(0, 100)}") names a completely different subject. The link must go to the SAME work as the title. Rewrite the URL to a real page for "${item.title}".`,
-      });
-    }
-  }
-  return offenses;
+  // enforceBookUrls now rewrites every tasting URL to an Amazon search
+  // constructed from item.title, so mismatches between title and URL
+  // are structurally impossible. Skip the check entirely.
+  void content;
+  return [];
 }
 
 /**
@@ -1620,9 +1596,12 @@ function labelKindFor(label: string): string {
 function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
   const newTasting = content.tastingMenu.map((item) => {
     const label = (item.label ?? "").toLowerCase();
+    const rawTitle = item.title.trim();
+    if (!rawTitle) return item;
+    // Worth Reading → Amazon books search with shelf-canonical title +
+    // author when we can match, plain title otherwise. Books department
+    // filter (i=stripbooks) drops irrelevant hardware hits.
     if (label.includes("reading")) {
-      const rawTitle = item.title.trim();
-      if (!rawTitle) return item;
       const cleanTitle = rawTitle.replace(/\s+by\s+.+$/i, "").trim();
       const author = extractCreatorHelperForTitle(rawTitle) ?? "";
       const shelfMatch = LATTE_BOOK_SHELF.find((b) => {
@@ -1635,12 +1614,30 @@ function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
       const q = encodeURIComponent(`${searchTitle} ${searchAuthor} book`.trim());
       return { ...item, url: `https://www.amazon.com/s?k=${q}&i=stripbooks` };
     }
-    // Worth Trying → Amazon search. Same idea as books: writer-emitted
-    // product URLs are often 404 or point to the wrong SKU; an Amazon
-    // search URL always resolves and puts the correct product at the top.
+    // Worth Watching → Amazon Prime Video search (i=instant-video).
+    // Even if the film isn't on Prime, Amazon shows a rent/buy page or
+    // a comparable-title listing — always resolves.
+    if (label.includes("watching")) {
+      const q = encodeURIComponent(rawTitle);
+      return { ...item, url: `https://www.amazon.com/s?k=${q}&i=instant-video` };
+    }
+    // Worth Listening → Amazon Music search (i=digital-music). Works
+    // for both albums and podcasts (Amazon Music hosts podcasts too).
+    if (label.includes("listening")) {
+      const q = encodeURIComponent(rawTitle);
+      return { ...item, url: `https://www.amazon.com/s?k=${q}&i=digital-music` };
+    }
+    // Worth Drinking → Amazon grocery / wine department. Some alcohol
+    // isn't sold on Amazon depending on state, but the search page
+    // still shows the product and comparable options.
+    if (label.includes("drinking")) {
+      const q = encodeURIComponent(rawTitle);
+      return { ...item, url: `https://www.amazon.com/s?k=${q}&i=grocery` };
+    }
+    // Worth Trying → Amazon all-departments search. Products span too
+    // many categories to pin to one department; the general search is
+    // the safest resolver.
     if (label.includes("trying")) {
-      const rawTitle = item.title.trim();
-      if (!rawTitle) return item;
       const q = encodeURIComponent(rawTitle);
       return { ...item, url: `https://www.amazon.com/s?k=${q}` };
     }
