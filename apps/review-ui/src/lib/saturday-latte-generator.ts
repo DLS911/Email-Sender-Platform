@@ -1627,15 +1627,14 @@ function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
       const q = encodeURIComponent(rawTitle);
       return { ...item, url: `https://www.amazon.com/s?k=${q}&i=digital-music` };
     }
-    // Worth Drinking → Google search. Amazon doesn't ship most spirits
-    // (state alcohol laws), so drinks like Smith & Cross return an
-    // empty Amazon search page. Google always resolves — it surfaces
-    // the distiller's own site, Total Wine, K&L, Drizly, Reserve Bar,
-    // or whatever retailer actually carries the bottle in the reader's
-    // region.
+    // Worth Drinking → Total Wine search. Direct retailer with real
+    // inventory across bourbon / rye / scotch / tequila / mezcal /
+    // wine / beer. Amazon doesn't ship spirits and a Google search
+    // is a step of indirection; Total Wine lands the reader on the
+    // right product page.
     if (label.includes("drinking")) {
-      const q = encodeURIComponent(`${rawTitle} buy`.trim());
-      return { ...item, url: `https://www.google.com/search?q=${q}` };
+      const q = encodeURIComponent(rawTitle);
+      return { ...item, url: `https://www.totalwine.com/search/all?text=${q}` };
     }
     // Worth Trying → Amazon all-departments search. Products span too
     // many categories to pin to one department; the general search is

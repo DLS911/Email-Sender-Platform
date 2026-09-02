@@ -63,6 +63,8 @@ const TRUSTED_HOSTS = new Set([
   "amazon.com",
   "www.google.com",
   "google.com",
+  "www.totalwine.com",
+  "totalwine.com",
 ]);
 
 function urlHostIsTrusted(url: string): boolean {
