@@ -1627,12 +1627,15 @@ function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
       const q = encodeURIComponent(rawTitle);
       return { ...item, url: `https://www.amazon.com/s?k=${q}&i=digital-music` };
     }
-    // Worth Drinking → Amazon grocery / wine department. Some alcohol
-    // isn't sold on Amazon depending on state, but the search page
-    // still shows the product and comparable options.
+    // Worth Drinking → Google search. Amazon doesn't ship most spirits
+    // (state alcohol laws), so drinks like Smith & Cross return an
+    // empty Amazon search page. Google always resolves — it surfaces
+    // the distiller's own site, Total Wine, K&L, Drizly, Reserve Bar,
+    // or whatever retailer actually carries the bottle in the reader's
+    // region.
     if (label.includes("drinking")) {
-      const q = encodeURIComponent(rawTitle);
-      return { ...item, url: `https://www.amazon.com/s?k=${q}&i=grocery` };
+      const q = encodeURIComponent(`${rawTitle} buy`.trim());
+      return { ...item, url: `https://www.google.com/search?q=${q}` };
     }
     // Worth Trying → Amazon all-departments search. Products span too
     // many categories to pin to one department; the general search is

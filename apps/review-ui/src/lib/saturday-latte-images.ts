@@ -730,39 +730,18 @@ export async function generateTastingImageWithReference(
   // buildings, and feeding those into a Gemini reference-preserve
   // edit produces "bottle-shaped-poster-of-a-guy" output.
   if (kind === "drink") {
+    // Ship the verified retailer/distillery bottle photo directly, same
+    // as products. Gemini's reference-preserve edit consistently rewords
+    // the label or restyles the bottle silhouette — a real bottle photo
+    // beats a plausible-looking wrong one.
     try {
       const drinkRef = await fetchProductReferenceImage(subject);
       if (drinkRef) {
-        const instruction = `${sectionTag}
-
-=== REFERENCE-IMAGE MODE for Tasting Menu (Drink) ===
-
-The image below is a real reference of "${subject}" pulled from a retailer / distillery / review page. This is the ACTUAL bottle. Preserve the bottle exactly as shown: silhouette, label artwork, label text, cap/closure, glass color, fill level. Do NOT reword or restyle the label. Do NOT invent alternative typography. The bottle output MUST match the reference bottle pixel-close.
-
-You may change the SURROUNDING SCENE (background, light, one optional companion object like an empty rocks glass or cork) per the editorial setting prompt below. You may NOT change any aspect of the reference bottle itself.
-
-The bottle sits upright at rest on a real surface (wooden bar top, marble counter, oak side table). NO food debris, NO random herbs, NO "flavor cue" props. Bottle-forward editorial still life.
-
-Warm directional side light from a window or bar lamp, natural falloff. NO glossy studio product-shot look. NO ring-light AI glow.
-
-The output must be a 1:1 SQUARE aspect ratio image.
-
-=== EDITORIAL SETTING ===
-
-${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
-
-REMINDER: the subject "${subject}" must appear per the reference image. Only the surrounding editorial scene may change.`;
-        const base64 = Buffer.from(drinkRef.bytes).toString("base64");
-        try {
-          const edited = await callGemini(apiKey, [
-            { text: instruction },
-            { inlineData: { mimeType: drinkRef.mimeType, data: base64 } },
-          ]);
-          return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
-        } catch (err) {
-          console.warn("latte.drink_edit_failed_using_reference_direct", err instanceof Error ? err.message : String(err));
-          return { bytes: drinkRef.bytes, mimeType: drinkRef.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
-        }
+        console.info("latte.drink_shipped_raw_reference", {
+          subject,
+          sourceUrl: drinkRef.sourceUrl,
+        });
+        return { bytes: drinkRef.bytes, mimeType: drinkRef.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
       }
     } catch (err) {
       console.warn("latte.drink_scrape_failed", err instanceof Error ? err.message : String(err));
@@ -796,15 +775,26 @@ REMINDER: the subject "${subject}" must be recognizable as this specific bottle 
   // Products: try the page-scrape pipeline first (same architecture as
   // cars). Real retailer / manufacturer / review pages, extracted
   // <img>, Haiku-verified for exact product + full-product composition.
+  //
+  // For products, if we get a verified reference we SHIP IT DIRECTLY —
+  // Gemini's reference-preserve edit consistently deviates from the
+  // real product (Austin: "cast iron pan isnt the same look as the
+  // real one", "roasting pan isnt like the real thing"). The raw
+  // retailer/manufacturer photo is the real thing. Better an accurate
+  // catalog-style photo than an inaccurate "editorial" render.
   if (kind === "product") {
     try {
       const productRef = await fetchProductReferenceImage(subject);
       if (productRef) {
-        reference = {
+        console.info("latte.product_shipped_raw_reference", {
+          subject,
+          sourceUrl: productRef.sourceUrl,
+        });
+        return {
           bytes: productRef.bytes,
           mimeType: productRef.mimeType,
-          sourceUrl: productRef.sourceUrl,
-          articleTitle: `scraped:${subject}`,
+          usedReference: true,
+          referenceUrl: productRef.sourceUrl,
         };
       }
     } catch (err) {
