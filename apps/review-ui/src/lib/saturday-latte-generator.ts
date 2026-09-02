@@ -2398,6 +2398,7 @@ export async function generateSaturdayLatteIssue(opts: {
           scopedContent.tastingMenu[2]?.label ?? "",
         ],
         hostsCornerMove: scopedContent.hostsCorner.moveTitle,
+        hostsCornerBody: `${scopedContent.hostsCorner.leadIn ?? ""} ${scopedContent.hostsCorner.moveBody ?? ""}`.trim(),
         theDriveCar: scopedContent.theDrive.car,
       };
       const imageResult = await generateLatteImages({

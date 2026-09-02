@@ -54,6 +54,7 @@ export type LatteImageSubjects = {
   tastingMenuTitles: string[]; // 3 titles, one per tasting menu slot
   tastingMenuLabels?: string[]; // 3 labels (e.g., "Worth Watching") - used to derive validator kind
   hostsCornerMove: string; // e.g., "The Cold-Start Cast Iron Steak"
+  hostsCornerBody?: string; // full body text so cross-slot cookware continuity check can look for a "Worth Trying" product name
   theDriveCar: string; // e.g., "2024 Porsche 911 Carrera T (992)"
 };
 
@@ -1035,13 +1036,62 @@ Render the landmark faithfully to these specific visual characteristics. Do NOT 
   // grounding instead of defaulting to a generic kitchen scene.
   if (slot === "hosts-corner" && subjects.hostsCornerMove.trim() !== "") {
     const dishDetail = await researchHostsCornerVisualDetail(subjects.hostsCornerMove);
-    if (dishDetail) {
-      const enrichedPrompt = `${prompt}
+    // Cross-slot cookware continuity. If a "Worth Trying" product from
+    // the tasting menu also appears in the Host's Corner move body,
+    // pull its verified retailer/manufacturer reference photo and pass
+    // it to Gemini so the Host's Corner cookware IS the recommended
+    // product — not a generic pan of the same type. Austin: "the pan
+    // was the right type but not the actual one we recced."
+    let cookwareRef: { bytes: Uint8Array; mimeType: string; sourceUrl: string; productName: string } | null = null;
+    const bodyText = (subjects.hostsCornerBody ?? "").toLowerCase();
+    if (bodyText) {
+      for (let i = 0; i < subjects.tastingMenuTitles.length; i++) {
+        const label = (subjects.tastingMenuLabels?.[i] ?? "").toLowerCase();
+        if (!label.includes("trying")) continue;
+        const productTitle = subjects.tastingMenuTitles[i]?.trim();
+        if (!productTitle) continue;
+        const productLower = productTitle.toLowerCase();
+        // Match on the full product name OR on the brand token (first word) —
+        // "Great Jones King Sear" the writer might refer to as "the King Sear"
+        // or "the Great Jones roasting pan." A 4+ char first-word brand match
+        // is a strong signal.
+        const brandToken = productTitle.split(/\s+/)[0]?.toLowerCase() ?? "";
+        const brandMatch = brandToken.length >= 4 && bodyText.includes(brandToken);
+        const fullMatch = bodyText.includes(productLower);
+        if (fullMatch || brandMatch) {
+          try {
+            const ref = await fetchProductReferenceImage(productTitle);
+            if (ref) {
+              cookwareRef = {
+                bytes: ref.bytes,
+                mimeType: ref.mimeType,
+                sourceUrl: ref.sourceUrl,
+                productName: productTitle,
+              };
+              console.info("latte.hosts_corner_cookware_continuity_hit", {
+                product: productTitle,
+                sourceUrl: ref.sourceUrl,
+                matchType: fullMatch ? "full-title" : "brand-token",
+              });
+            }
+          } catch (err) {
+            console.warn("latte.hosts_corner_cookware_ref_failed", err instanceof Error ? err.message : String(err));
+          }
+          break;
+        }
+      }
+    }
+    const cookwareContinuityBlock = cookwareRef
+      ? `
+
+**COOKWARE CONTINUITY REQUIREMENT (this issue's tasting menu recommends this product).** The frame's cookware MUST be "${cookwareRef.productName}" specifically — the exact same pan pictured in the attached reference image. Preserve the pan's silhouette, color, handle shape, and any visible branding EXACTLY as the reference shows. Do NOT render a generic same-category pan. The reader just read the Tasting Menu blurb about this product; seeing a different pan in the Host's Corner breaks continuity immediately.`
+      : "";
+    const enrichedPrompt = `${prompt}${dishDetail ? `
 
 **DISH / TECHNIQUE ACCURACY REQUIREMENT (research summary for what THIS specific dish/technique looks like):**
 ${dishDetail}
 
-Render the food and its immediate context to match those specific characteristics. Do NOT generate a generic pan-on-stove or generic-plated-dish approximation — render the actual dish state, cookware, and surface described above.
+Render the food and its immediate context to match those specific characteristics. Do NOT generate a generic pan-on-stove or generic-plated-dish approximation — render the actual dish state, cookware, and surface described above.` : ""}${cookwareContinuityBlock}
 
 **FOOD SITS ON A REAL SURFACE. NEVER FLOATING. HARD RULE.** Every piece of food in the frame is physically supported — sitting in a pan, on a plate, on a cutting board, on a wire rack. A pork chop is IN the pan or ON the plate — not levitating above the counter. A rolled dough is on the wooden board. A roasted chicken is on the trivet or the platter. Every food item must have a visible surface directly under it with a plausible shadow. If the composition would require the food to hover, RE-STAGE it flat on a real surface. Floating food is an AI tell that reads as instantly fake.
 
@@ -1052,6 +1102,19 @@ Render the food and its immediate context to match those specific characteristic
 - Stray herbs / crumbs / seeds / grains scattered "for garnish" outside the plate.
 - A "moody" wet look on wood — wood in these frames is DRY and clean.
 Do not think of these as optional atmosphere; they are AI tells that immediately make the frame read as fake. Real kitchens have clean counters between actions.`;
+    if (cookwareRef) {
+      const base64 = Buffer.from(cookwareRef.bytes).toString("base64");
+      try {
+        const edited = await callGemini(apiKey, [
+          { text: enrichedPrompt },
+          { inlineData: { mimeType: cookwareRef.mimeType, data: base64 } },
+        ]);
+        return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: cookwareRef.sourceUrl };
+      } catch (err) {
+        console.warn("latte.hosts_corner_reference_edit_failed", err instanceof Error ? err.message : String(err));
+      }
+    }
+    if (dishDetail || cookwareRef) {
       return generateOneImage(apiKey, enrichedPrompt, sectionTag);
     }
   }
