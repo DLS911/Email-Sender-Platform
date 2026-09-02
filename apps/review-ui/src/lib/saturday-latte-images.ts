@@ -675,6 +675,42 @@ Return ~150 words of dense, useful visual description. If you don't know the fil
   }
 }
 
+/**
+ * Prompt builder for the background-only edit path used by product and
+ * drink tasting slots. The reference image is a real retailer /
+ * manufacturer / distillery photograph of the exact item. Goal: keep
+ * the ITEM pixel-identical to the reference (product accuracy has been
+ * a persistent complaint) while adding editorial surrounding context
+ * (defeats the "white catalog background isn't ok" complaint).
+ */
+function buildBackgroundOnlyPrompt(opts: {
+  subject: string;
+  kindLabel: "product" | "bottle";
+  slotPrompt: string;
+  sectionTag: string;
+}): string {
+  const { subject, kindLabel, slotPrompt, sectionTag } = opts;
+  return `${sectionTag}
+
+=== BACKGROUND-ONLY EDIT for Tasting Menu (${kindLabel}) ===
+
+The image below is a real reference photograph of "${subject}". This is the ACTUAL ${kindLabel} — silhouette, label, color, handle, cap, branding — every detail is authoritative.
+
+**PRESERVE THE ${kindLabel.toUpperCase()} EXACTLY PIXEL-FOR-PIXEL.** The ${kindLabel} in your output MUST be visually indistinguishable from the reference: same silhouette, same label artwork, same label text and typography (do NOT reword, restyle, or invent alternative typography), same color, same cap/closure/handle, same proportions. Do NOT redraw the ${kindLabel}. Do NOT restyle its material. Do NOT rotate it. Do NOT change its scale relative to the frame.
+
+**CHANGE THE BACKGROUND / SURROUNDING SCENE ONLY.** The reference is likely a catalog-style white or plain background — REPLACE that background with an editorial scene appropriate to the ${kindLabel} (wooden counter, marble slab, oak bar top, weathered kitchen shelf, natural window light, subtle depth of field). At most one small companion object is allowed if it makes sense (an empty rocks glass for a spirit, a small linen towel for a kitchen tool). NO food debris, NO random herbs, NO "flavor cue" props.
+
+**LIGHTING.** Warm directional side light from a window or bar lamp with natural falloff. NO glossy studio product-shot look. NO ring-light AI glow.
+
+The output must be a 1:1 SQUARE aspect ratio image.
+
+=== EDITORIAL SETTING ===
+
+${slotPrompt}${LATTE_IMAGE_STYLE_SUFFIX}
+
+REMINDER: the ${kindLabel} "${subject}" must appear per the reference image pixel-for-pixel. ONLY the surrounding editorial scene may change.`;
+}
+
 function tastingKindFor(label?: string): "book" | "film" | "product" | "drink" | "unknown" {
   if (!label) return "unknown";
   const l = label.toLowerCase();
@@ -741,18 +777,37 @@ export async function generateTastingImageWithReference(
   // buildings, and feeding those into a Gemini reference-preserve
   // edit produces "bottle-shaped-poster-of-a-guy" output.
   if (kind === "drink") {
-    // Ship the verified retailer/distillery bottle photo directly, same
-    // as products. Gemini's reference-preserve edit consistently rewords
-    // the label or restyles the bottle silhouette — a real bottle photo
-    // beats a plausible-looking wrong one.
+    // Try Gemini background-only edit around the retailer bottle photo
+    // (adds editorial context without rewriting the bottle). If Gemini
+    // fails or the reference lookup fails, ship raw as fallback. If
+    // BOTH fail, drop through to text-only Gemini as a last resort.
     try {
       const drinkRef = await fetchProductReferenceImage(subject);
       if (drinkRef) {
-        console.info("latte.drink_shipped_raw_reference", {
+        const geminiPrompt = buildBackgroundOnlyPrompt({
           subject,
-          sourceUrl: drinkRef.sourceUrl,
+          kindLabel: "bottle",
+          slotPrompt,
+          sectionTag,
         });
-        return { bytes: drinkRef.bytes, mimeType: drinkRef.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
+        try {
+          const base64 = Buffer.from(drinkRef.bytes).toString("base64");
+          const edited = await callGemini(apiKey, [
+            { text: geminiPrompt },
+            { inlineData: { mimeType: drinkRef.mimeType, data: base64 } },
+          ]);
+          console.info("latte.drink_shipped_gemini_edited", {
+            subject,
+            sourceUrl: drinkRef.sourceUrl,
+          });
+          return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
+        } catch (err) {
+          console.warn("latte.drink_gemini_edit_failed_shipping_raw", {
+            subject,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return { bytes: drinkRef.bytes, mimeType: drinkRef.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
+        }
       }
     } catch (err) {
       console.warn("latte.drink_scrape_failed", err instanceof Error ? err.message : String(err));
@@ -797,16 +852,30 @@ REMINDER: the subject "${subject}" must be recognizable as this specific bottle 
     try {
       const productRef = await fetchProductReferenceImage(subject);
       if (productRef) {
-        console.info("latte.product_shipped_raw_reference", {
+        const geminiPrompt = buildBackgroundOnlyPrompt({
           subject,
-          sourceUrl: productRef.sourceUrl,
+          kindLabel: "product",
+          slotPrompt,
+          sectionTag,
         });
-        return {
-          bytes: productRef.bytes,
-          mimeType: productRef.mimeType,
-          usedReference: true,
-          referenceUrl: productRef.sourceUrl,
-        };
+        try {
+          const base64 = Buffer.from(productRef.bytes).toString("base64");
+          const edited = await callGemini(apiKey, [
+            { text: geminiPrompt },
+            { inlineData: { mimeType: productRef.mimeType, data: base64 } },
+          ]);
+          console.info("latte.product_shipped_gemini_edited", {
+            subject,
+            sourceUrl: productRef.sourceUrl,
+          });
+          return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: productRef.sourceUrl };
+        } catch (err) {
+          console.warn("latte.product_gemini_edit_failed_shipping_raw", {
+            subject,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return { bytes: productRef.bytes, mimeType: productRef.mimeType, usedReference: true, referenceUrl: productRef.sourceUrl };
+        }
       }
     } catch (err) {
       console.warn(
