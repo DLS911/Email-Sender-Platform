@@ -550,7 +550,9 @@ If unsure whether a specific SUV qualifies, DEFAULT TO NOT PICKING AN SUV. The D
 - American V8s: Mustang GT / Shelby GT350, C7/C8 Corvette, CT4-V Blackwing, Cadillac Escalade-V
 - Restomods: ICON Broncos, Land Cruiser FJ40/FJ60/FJ80 restos, LS-swap builds, Coyote-swap Fox Body
 
-Pull from research: cars. If no cars in research, pick from any of the six categories in the voice module (excluding the hard-banned list above). Rotate across categories — don't pick another SUV if last issue was an SUV, don't pick another new car if last issue was new. Mix used/vintage and new to keep the section from becoming a "new car of the week" bulletin.
+Pull from research: cars. If no cars in research, pick from any of the six categories in the voice module (excluding the hard-banned list above). Rotate across categories — don't pick another SUV if last issue was an SUV.
+
+**MODERN ↔ CLASSIC ROTATION — HARD RULE (mirrors the destination rule).** Look at the RECENT DRIVE PICKS list. For this rule "modern" = model year 2015+ and "classic" = anything older (including restomods based on pre-2015 platforms — a Coyote-swap Fox Body is CLASSIC, not modern). Count how many of the last 3 picks were modern. **If the last 3 were all modern, this issue's Drive MUST be a classic (pre-2015).** Similarly, if the last 3 were all classic, this issue MUST be modern. Across a rolling window of ~10 recent picks, aim for 40-60% classic. The section is called The Drive, not The New Car of the Week — an air-cooled 911, an NSX, a Miata NA, an E30 M3, a Fox Body Coyote-swap, a Land Cruiser FJ60, or an LS-swapped 240Z belongs here as often as a new M2 does. If the research bundle is modern-heavy this week and the rotation says classic, pick a classic anyway — Mark's car knowledge doesn't depend on a Perplexity link.
 
 ### 5. Sunday Prep
 50-100 words on ONE concrete action for the week ahead. Practical, friend-texting tone.
@@ -908,26 +910,30 @@ async function runWriterPhase(
     const ctx = recentContext;
     const exclusions: string[] = [];
     if (ctx.cars.length > 0) {
-      // Era-rotation. Writer's default is a strong bias toward modern cars
-      // (2024/2025 press-photo era), which reads as generic dealership
-      // content over time. Two triggers force a classic/older pick:
-      //   (a) MAJORITY modern in the last 3 picks: >= 2/3 modern → force older
-      //   (b) LAST 2 PICKS both modern → force older
-      // "Modern" = model year within the last 6 years. "Older" = model year
-      // 2010 or earlier (a real classic), OR a restomod based on such a car.
+      // Era-rotation. Alternation-first: the immediately previous pick
+      // determines this pick's era. If last was modern, this MUST be
+      // classic; if last was classic, this MUST be modern. "Modern" =
+      // model year within the last 6 years. "Classic" = model year 2010
+      // or earlier (real classic), OR a restomod based on such a car.
+      // A modern-restomod (a 2024 build of a '69 Bronco) STILL COUNTS AS
+      // CLASSIC because visually it reads as vintage. Austin's feedback:
+      // "it's been a lot of newer cars, use the percentage system like
+      // the locations" → 50/50 alternation.
       const currentYear = new Date().getUTCFullYear();
       const isModern = (car: string): boolean => {
-        const yr = car.match(/\b(19|20)\d{2}\b/);
-        if (!yr) return false;
-        const y = parseInt(yr[0], 10);
-        return y >= currentYear - 6;
+        const restomodHit = /restomod|restoration|resto[- ]mod|coyote[- ]swap|ls[- ]swap|k[- ]swap/i.test(car);
+        if (restomodHit) return false;
+        const years = Array.from(car.matchAll(/\b(19|20)\d{2}\b/g)).map((m) => parseInt(m[0], 10));
+        if (years.length === 0) return false;
+        const oldestYear = Math.min(...years);
+        return oldestYear >= currentYear - 6;
       };
-      const recent3 = ctx.cars.slice(0, 3);
-      const modernInRecent3 = recent3.filter(isModern).length;
-      const last2AllModern = ctx.cars.slice(0, 2).length === 2 && ctx.cars.slice(0, 2).every(isModern);
-      const forceOlder = (recent3.length >= 3 && modernInRecent3 >= 2) || last2AllModern;
-      const eraRule = forceOlder
-        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** The recent Drive picks skew modern (${modernInRecent3}/${recent3.length} of the last ${recent3.length} picks are ${currentYear - 6}+ model years). This issue MUST pick a CLASSIC or restomod — Category 6 of the WEEKEND_CAR_SPECTRUM voice module. **Model year must be 2010 or earlier**, OR a restomod BASED on such a car. Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth / 500E / SL R107, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise/Esprit, Jaguar E-Type/XJ6, any '80s-'90s JDM hero, Saab 900 Turbo, Peugeot 205 GTI, VW GTI Mk1/Mk2, Ferrari 308/348/Testarossa, first-gen NSX. Under $120k. Do NOT pick another 2020s car this issue — a 2024/2025 model year is an automatic fail on this rule.`
+      const last = ctx.cars[0];
+      const lastWasModern = last ? isModern(last) : false;
+      const eraRule = lastWasModern
+        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** Last issue's Drive was a MODERN pick ("${last}"). This issue MUST pick a CLASSIC or restomod — Category 6 of the WEEKEND_CAR_SPECTRUM voice module. **Model year must be 2010 or earlier**, OR a restomod BASED on such a car (a modern build of a '69 Bronco counts as classic). Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth / 500E / SL R107, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise/Esprit, Jaguar E-Type/XJ6, any '80s-'90s JDM hero, Saab 900 Turbo, Peugeot 205 GTI, VW GTI Mk1/Mk2, Ferrari 308/348/Testarossa, first-gen NSX. Under $120k. Do NOT pick another 2020s car this issue — a 2024/2025 model year is an automatic fail on this rule.`
+        : ctx.cars.length > 0
+        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** Last issue's Drive was a CLASSIC / older pick ("${last}"). This issue MUST pick a MODERN car — model year 2018 or later. Rotate the era every issue; don't stack two classics or two moderns in a row.`
         : "";
       exclusions.push(
         `## RECENT THE DRIVE PICKS — HARD RULE, DO NOT REPEAT ANY OF THESE:\n${ctx.cars.map((c) => `- ${c}`).join("\n")}\n\nThe car you pick for The Drive this issue MUST NOT be any car on the list above. Not the same year+model, not a different year of the same model, not a different trim of the same model. Pick from a completely different nameplate or generation. If you can only think of cars on the list, keep thinking — there are hundreds of cool cars under $120k across the spectrum.${eraRule}`,

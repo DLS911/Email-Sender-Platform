@@ -159,12 +159,12 @@ function renderHostsCorner(
     <td style="padding: 28px;">
       ${imgHtml}
       <p style="color: #2d2926; font-size: 16px; margin: 0 0 16px 0;">${escapeHtml(hc.leadIn)}</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #2d2926; border-radius: 8px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="hc-move" style="background-color: #2d2926; border-radius: 8px;">
         <tr>
           <td style="padding: 20px;">
             <p style="font-size: 11px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 8px 0;">This Week's Move</p>
-            <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 700; color: #ffffff; margin: 0 0 14px 0; line-height: 1.3;">${escapeHtml(hc.moveTitle)}</p>
-            <p style="color: #e8e4df; font-size: 15px; margin: 0;">${escapeHtml(hc.moveBody)}${learnMore}</p>
+            <p class="hc-move-title" style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 700; color: #ffffff; margin: 0 0 14px 0; line-height: 1.3;">${escapeHtml(hc.moveTitle)}</p>
+            <p class="hc-move-body" style="color: #e8e4df; font-size: 15px; margin: 0;">${escapeHtml(hc.moveBody)}${learnMore}</p>
           </td>
         </tr>
       </table>
@@ -225,6 +225,13 @@ export function renderSaturdayLatteHtml(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Saturday Morning Latte</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      .hc-move { background-color: #faf8f5 !important; }
+      .hc-move-title { color: #2d2926 !important; }
+      .hc-move-body { color: #4a4540 !important; }
+    }
+  </style>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #faf9f7; color: #2d2926; line-height: 1.8; font-size: 17px;">
   <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">${escapeHtml(content.preheader)}</div>
@@ -235,7 +242,7 @@ export function renderSaturdayLatteHtml(
 
           <!-- HEADER -->
           <tr>
-            <td style="background-color: #2d2926; padding: 36px 48px; border-radius: 0 0 12px 12px;">
+            <td style="background-color: #2d2926; padding: 36px 48px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
                   <td align="center">
