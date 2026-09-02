@@ -48,13 +48,11 @@ async function verifyProductReferenceMatch(
           content: [
             {
               type: "text",
-              text: `You are verifying a product reference photograph. It will be used as the base image for a background/lighting edit, so it needs to show the WHOLE product clearly AND have no visible watermark that would get baked into the output.
+              text: `You are verifying a product reference photograph. It will be used as the base image for a background/lighting edit, so it needs to show the WHOLE product clearly. Watermarks are OK — the downstream edit prompt handles them.
 
-FOUR checks must ALL pass for match=true:
+THREE checks must ALL pass for match=true:
 
 0) IT IS AN ACTUAL PHOTOGRAPH OF THE PRODUCT. If the image is a company/brand logo (e.g. a wordmark on white), a chart/infographic, a magazine cover with mostly text, a category thumbnail (a generic pan icon rather than the specific product), or ANY image where the specific product is not the primary photographic subject — FAIL immediately.
-
-0b) **NO WATERMARK. NO STAMPED TEXT OR LOGO OVERLAY.** If the image has ANY visible watermark — a semi-transparent "Getty Images" mark across the middle, a corner stamp with a retailer or photographer's name/URL, an "Alamy" tile pattern across the whole frame, an "iStock" strip, a "Shutterstock" mark, an auction house name burned into the corner, a website URL overlaid at the bottom, ANY text or logo that is clearly added post-capture rather than being on the physical product itself — FAIL immediately. Gemini renders whatever is in the reference; a watermark on the ref becomes a watermark in the output.
 
 1) EXACT MATCH TO REQUESTED PRODUCT: is this photo specifically a ${productName}?
    - Correct brand (a "Lodge 12-inch Cast Iron Skillet" is NOT a Le Creuset skillet)

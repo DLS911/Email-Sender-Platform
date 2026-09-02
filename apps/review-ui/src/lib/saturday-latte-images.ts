@@ -404,7 +404,7 @@ export async function editDriveImageBackground(
   const motionClause = isMotionScene
     ? " Motion blur on the wheels and streaking road is appropriate for this scene."
     : " The car is stationary — wheels sharp and static, no motion blur.";
-  const instruction = `Take this exact ${carName} and place it in the following scene: ${slotPrompt}. Keep the car at the same viewing angle as it appears in the reference image — do not rotate the car or invent parts of it that aren't visible in the reference.${motionClause}`;
+  const instruction = `Take this exact ${carName} and place it in the following scene: ${slotPrompt}. Keep the car at the same viewing angle as it appears in the reference image — do not rotate the car or invent parts of it that aren't visible in the reference.${motionClause} Remove any watermarks, publication stamps, URL overlays, or corner logos that appear on the reference (Getty, Alamy, iStock, Shutterstock, auction house name, website URL) — these are post-capture overlays, not part of the actual scene.`;
 
   const base64 = Buffer.from(reference.bytes).toString("base64");
   return callGemini(apiKey, [
@@ -714,6 +714,8 @@ The image below is a real reference photograph of "${subject}". This is the ACTU
 **PRESERVE THE ${kindLabel.toUpperCase()} EXACTLY PIXEL-FOR-PIXEL.** The ${kindLabel} in your output MUST be visually indistinguishable from the reference: same silhouette, same label artwork, same label text and typography (do NOT reword, restyle, or invent alternative typography), same color, same cap/closure/handle, same proportions. Do NOT redraw the ${kindLabel}. Do NOT restyle its material. Do NOT rotate it. Do NOT change its scale relative to the frame.
 
 **CHANGE THE BACKGROUND / SURROUNDING SCENE ONLY.** The reference is likely a catalog-style white or plain background — REPLACE that background with an editorial scene appropriate to the ${kindLabel} (wooden counter, marble slab, oak bar top, weathered kitchen shelf, natural window light, subtle depth of field). At most one small companion object is allowed if it makes sense (an empty rocks glass for a spirit, a small linen towel for a kitchen tool). NO food debris, NO random herbs, NO "flavor cue" props.
+
+**REMOVE ANY WATERMARK / STAMPED TEXT / URL OVERLAY / CORNER LOGO** that appears on the reference image (Getty, Alamy, iStock, Shutterstock, retailer name in a corner, auction-house stamp, URL burned into the bottom edge, tiled semi-transparent text pattern). The reference is a real product photograph but was published on a site that added a watermark; do NOT reproduce the watermark in the output. The clean product body itself is preserved; only the added post-capture overlay text/marks are removed. Label text ON the physical product (the actual bottle label, the actual product branding molded/printed on the object) is preserved as always.
 
 **LIGHTING.** Warm directional side light from a window or bar lamp with natural falloff. NO glossy studio product-shot look. NO ring-light AI glow.
 
