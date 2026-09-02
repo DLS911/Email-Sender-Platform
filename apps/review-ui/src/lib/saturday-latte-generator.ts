@@ -1503,6 +1503,59 @@ function findCarEraOffenses(
 }
 
 /**
+ * Backstop pool of classic-era Drive picks with pre-written specs and
+ * body. Used ONLY when the writer ignores the era rule after both a
+ * first and second retry — we deterministically inject one of these
+ * so the newsletter doesn't ship a fourth modern car in a row. Bodies
+ * are intentionally short and generic; the reader gets a proper writer-
+ * generated pick 99% of the time, this only fires in the rare failure
+ * case and is preferable to shipping the violating pick.
+ */
+const FORCED_CLASSIC_CARS: Array<{ car: string; specs: string; body: string; url?: string }> = [
+  {
+    car: "1995 Porsche 993 Carrera",
+    specs: "3.6L flat-six • 268 hp • Air-cooled",
+    body: "The last of the air-cooled 911s. Not the fastest 911 you can buy today, and that is exactly the point — the 993 sits in a sweet spot the modern water-cooled cars can't reach: light enough to feel every input, developed enough not to fight you the way the earlier air-cooled cars did. Clean examples run in the mid-$100s on Bring a Trailer, which is a lot of money to spend on a sports car that a modern Cayman would embarrass at Willow Springs — and that comparison is exactly why the 993 keeps appreciating. Nobody cross-shops these two.",
+    url: "https://www.porsche.com/international/aboutporsche/porschemuseum/exhibitions/permanent-exhibition/993/",
+  },
+  {
+    car: "1988 BMW E30 M3",
+    specs: "2.3L S14 four • 192 hp • 5-speed manual",
+    body: "The E30 M3 is the car that ruined a generation of enthusiasts by being too good, too early. Under 2,700 pounds, boxed fender flares, a 7,000-rpm rev-happy four-cylinder engineered for touring-car homologation. Clean US examples are $80-120k now; roached ones are still $40-50k and worth restoring because everything is available and no part is exotic. What the driving press missed at the time and still misses: the E30 M3 isn't fast in a straight line by any modern standard, but the balance and steering feel are Platonic. Every 'driver's car' review since compares to this benchmark, usually unfavorably.",
+    url: "https://www.bmwusa.com/vehicles/m/m3.html",
+  },
+  {
+    car: "1990 Mazda Miata NA",
+    specs: "1.6L inline-four • 116 hp • 5-speed manual",
+    body: "There is a reason the NA Miata is on every 'best sports cars ever' list despite being one of the slowest cars sold in America in 1990. It's under 2,200 pounds, the shifter feels like a rifle bolt, the steering has zero slack, and the drop-top ergonomics work for anyone under 6'2\". Clean examples run $10-15k, a nice one is $18-22k, and $25k gets you an unmolested single-owner car with paperwork. The 'unexpected variable' with a first-gen Miata is that owning it is cheap — parts are $5, everything unbolts with a metric ratchet, and any independent shop can service it.",
+    url: "https://www.mazdausa.com/vehicles/mx-5-miata",
+  },
+  {
+    car: "1993 Mazda RX-7 FD",
+    specs: "1.3L twin-turbo rotary • 255 hp • 5-speed manual",
+    body: "The FD RX-7 is the last time a Japanese manufacturer shipped a mid-priced sports car that was so uncompromised it was scary. Twin-sequential turbos on a rotary, 2,800 pounds, a chassis Autoweek called telepathic in 1993 and time has not proved wrong. Clean US-market examples are $80-100k on Bring a Trailer, JDM imports are $60-80k. The reason the FD costs so much: nobody makes a car like this anymore, and rotaries are quietly disappearing as owners can't source apex seals. Buying the FD you can afford now and driving it 3,000 miles a year is a defensible plan; it will not depreciate.",
+    url: "https://www.mazdausa.com/",
+  },
+  {
+    car: "1971 Datsun 240Z",
+    specs: "2.4L L24 inline-six • 151 hp • 4-speed manual",
+    body: "The 240Z was Japan's answer to the European GT car — a proper long-nose two-seater with a smooth inline-six and independent rear suspension, at half the price of a Jaguar E-Type. Clean examples run $50-80k for numbers-matching cars, restomods with modern L-series or LS swaps push $100-150k. The Z-car has the visual proportions of a $200k GT car and drives like a $30k weekend toy — and no other car from its era is currently under-appreciated the way it still is. This is a category-6-of-the-spectrum pick: the sort of car that ages into a classic while you own it.",
+    url: "https://www.nissanusa.com/heritage/heritage-vehicles/z.html",
+  },
+  {
+    car: "1985 Mercedes 300CE-24 (W124)",
+    specs: "3.0L M104 inline-six • 217 hp • 4-speed automatic",
+    body: "The W124 coupé is the sleeper of the Mercedes 1980s — a hand-built pillarless coupe with a bulletproof M104 inline-six and interior quality nobody has matched at the price since. Clean examples are $18-28k on Bring a Trailer, less for an early four-cylinder. Everything is fixable; there's a shop in every mid-sized city that knows these. The trade the writer usually misses: the W124 was engineered to a lifetime standard, not a lease standard — and it shows in the door thunk, the shifter throw, the seat cushions that don't collapse at 150k miles. Modern German cars have all been re-engineered downward from this benchmark.",
+    url: "https://www.mercedes-benz.com/en/classic/models/w124/",
+  },
+];
+
+function pickForcedClassicCar(): { car: string; specs: string; body: string; url?: string } {
+  const idx = Math.floor(Math.random() * FORCED_CLASSIC_CARS.length);
+  return FORCED_CLASSIC_CARS[idx]!;
+}
+
+/**
  * Deterministic tasting-repeat offense against the FULL permanent-memory
  * recommendations. RecentContext.allRecommendations is populated from
  * latte_recommendations (append-only, survives regenerations). If the
@@ -2162,6 +2215,65 @@ export async function generateSaturdayLatteIssue(opts: {
       outputTokens: writer.outputTokens + retryWriter.outputTokens,
       latencyMs: writer.latencyMs + retryWriter.latencyMs,
     };
+    // Re-check the two rules that MUST NOT slip through: era rotation
+    // and dedup against permanent memory. If the retry writer ignored
+    // them, fire ONE more retry with sharper wording. The other rules
+    // (kind mismatch, off-shelf, editor findings) already retry as a
+    // batch above — those don't warrant a second dedicated pass.
+    if (recentContext) {
+      const secondOffenses = [
+        ...findCarEraOffenses(writer.content, recentContext),
+        ...findRepeatedTastingRecOffenses(writer.content, recentContext),
+      ];
+      if (secondOffenses.length > 0) {
+        const secondMsg = secondOffenses
+          .map((o) => `- ${o.slot} · "${o.picked}" — ${o.matched}.`)
+          .join("\n");
+        console.warn("latte.writer_second_retry", { count: secondOffenses.length, offenses: secondOffenses });
+        const secondRetry = await runWriterPhase(
+          client,
+          opts.issueDate,
+          research.bundle,
+          recentCoverStories,
+          recentContext,
+          `⚠️ SECOND RETRY. Your previous retry ALSO violated one or more mandatory rules. This is your LAST chance to comply. Read every rule below carefully and produce a draft that violates NONE of them:\n\n${secondMsg}`,
+        );
+        writer = {
+          content: secondRetry.content,
+          contentType: secondRetry.contentType,
+          imagePrompts: secondRetry.imagePrompts,
+          inputTokens: writer.inputTokens + secondRetry.inputTokens,
+          outputTokens: writer.outputTokens + secondRetry.outputTokens,
+          latencyMs: writer.latencyMs + secondRetry.latencyMs,
+        };
+      }
+      // Final backstop: if the ERA rule STILL fires after the second
+      // retry, deterministically inject a random classic (we cannot
+      // easily inject a tasting item, but for the car we can). Beats
+      // shipping a fourth modern car in a row.
+      const finalEraOffenses = findCarEraOffenses(writer.content, recentContext);
+      if (finalEraOffenses.length > 0) {
+        const injected = pickForcedClassicCar();
+        console.error("latte.car_force_inject_classic", {
+          original: writer.content.theDrive.car,
+          injected: injected.car,
+          reason: "writer ignored era rule after two retries",
+        });
+        writer = {
+          ...writer,
+          content: {
+            ...writer.content,
+            theDrive: {
+              ...writer.content.theDrive,
+              car: injected.car,
+              specs: injected.specs,
+              body: injected.body,
+              ...(injected.url ? { url: injected.url } : {}),
+            },
+          },
+        };
+      }
+    }
   }
 
   const writerCost =

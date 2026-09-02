@@ -29,7 +29,7 @@ import {
   validateImage,
 } from "./saturday-latte-image-validator";
 import { fetchProductReferenceImage } from "./saturday-latte-product-image";
-import { downloadRawReference, fetchSubjectReferenceImage } from "./saturday-latte-subject-reference";
+import { fetchSubjectReferenceImage } from "./saturday-latte-subject-reference";
 
 const STORAGE_BUCKET = "Latte Images";
 const GEMINI_MODEL = "gemini-2.5-flash-image";
@@ -430,37 +430,6 @@ function extForMime(mimeType: string): string {
  * pulling in a heavy image library. Returns 0 on unrecognized format
  * so callers can fail closed (don't ship an unknown image).
  */
-async function measureImageShortSide(bytes: Uint8Array): Promise<number> {
-  try {
-    if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
-      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-      const width = view.getUint32(16);
-      const height = view.getUint32(20);
-      return Math.min(width, height);
-    }
-    if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
-      let i = 2;
-      while (i < bytes.length - 9) {
-        if (bytes[i] !== 0xff) return 0;
-        const marker = bytes[i + 1];
-        if (marker === undefined) return 0;
-        if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-          const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-          const height = view.getUint16(i + 5);
-          const width = view.getUint16(i + 7);
-          return Math.min(width, height);
-        }
-        const segLen = (bytes[i + 2] ?? 0) * 256 + (bytes[i + 3] ?? 0);
-        if (segLen < 2) return 0;
-        i += 2 + segLen;
-      }
-    }
-  } catch {
-    return 0;
-  }
-  return 0;
-}
-
 /**
  * Ask Haiku to describe the specific visual signature of a film. Fed
  * into the keyframe generation prompt so Gemini can produce a still
@@ -1163,21 +1132,20 @@ The point of this frame is to reproduce the cover cleanly at a natural angle, no
         verdict = retryVerdict;
         attempts += 1;
       } else {
-        // Stage 2: check raw Wikipedia size and use it if it's big enough.
-        const raw = await downloadRawReference(img.referenceUrl);
-        if (raw) {
-          const dims = await measureImageShortSide(raw.bytes);
-          if (dims >= 500) {
-            img = { bytes: raw.bytes, mimeType: raw.mimeType, usedReference: true, referenceUrl: img.referenceUrl };
-            usedFallbackToReference = true;
-            verdict = { ok: true, reason: "shipped raw Wikipedia cover after Gemini garbled and flat-retry also failed" };
-            console.warn("latte.book_shipped_raw_cover", { slot, referenceUrl: img.referenceUrl, shortSide: dims });
-          } else {
-            console.warn("latte.book_raw_cover_too_small_keeping_retry", { slot, shortSide: dims });
-            img = retryImg;
-            verdict = retryVerdict;
-          }
-        }
+        // Ship the flat-frame Gemini retry regardless of validation. It's
+        // a book lying flat on warm wood with side light — a real scene
+        // with proper editorial context, even if the title glyphs
+        // aren't pixel-perfect. Beats shipping the raw Wikipedia
+        // thumbnail on a white background (Austin's feedback: "its
+        // nothing but the cover of the book. no bg"). We used to fall
+        // back to raw Wikipedia here; that path is deleted.
+        console.warn("latte.book_shipped_flat_retry_unvalidated", {
+          slot,
+          reason: retryVerdict.reason ?? "unknown",
+        });
+        img = retryImg;
+        verdict = { ok: true, reason: `shipped flat-frame retry after two validation fails (${retryVerdict.reason ?? ""})` };
+        attempts += 1;
       }
     } catch (err) {
       console.error(
