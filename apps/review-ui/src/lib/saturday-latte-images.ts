@@ -817,9 +817,21 @@ REMINDER: the subject "${subject}" must be recognizable as this specific bottle 
   // Everything else (books, films, drinks) still uses the Wikipedia
   // reference lookup — those categories work fine with Wikipedia's
   // canonical infobox images (book covers, movie posters).
+  //
+  // Strip "by [author]" tail before Wikipedia search. "The Fire Next
+  // Time by James Baldwin" as a Wikipedia query returns wrong articles
+  // (author pages, unrelated matches); "The Fire Next Time" hits the
+  // book article directly.
+  const lookupSubject = subject.replace(/\s+by\s+.+$/i, "").trim() || subject;
+  if (lookupSubject !== subject) {
+    console.info("latte.tasting_reference_subject_sanitized", {
+      original: subject,
+      sanitized: lookupSubject,
+    });
+  }
   if (!reference) {
     try {
-      reference = await fetchSubjectReferenceImage(subject, kindHint);
+      reference = await fetchSubjectReferenceImage(lookupSubject, kindHint);
     } catch (err) {
       console.warn(
         "latte.tasting_reference_lookup_failed",

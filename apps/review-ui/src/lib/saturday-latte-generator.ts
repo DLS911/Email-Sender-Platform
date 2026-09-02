@@ -1601,6 +1601,22 @@ function findRepeatedTastingRecOffenses(
  * shows the correct book at the top. Idempotent — leaves non-reading
  * items alone.
  */
+/**
+ * Map a tasting-menu label to a short subject-kind noun for use in
+ * boilerplate image prompts. Keeps the deterministic prompt override
+ * grammatically clean ("Render this exact book — 'Title'..." rather
+ * than "Render this exact item — 'Title'...").
+ */
+function labelKindFor(label: string): string {
+  const l = label.toLowerCase();
+  if (l.includes("reading")) return "book";
+  if (l.includes("watching")) return "film";
+  if (l.includes("listening")) return "album or podcast";
+  if (l.includes("drinking")) return "bottle";
+  if (l.includes("trying")) return "product";
+  return "item";
+}
+
 function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
   const newTasting = content.tastingMenu.map((item) => {
     const label = (item.label ?? "").toLowerCase();
@@ -1616,8 +1632,8 @@ function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
       });
       const searchTitle = shelfMatch?.title ?? cleanTitle;
       const searchAuthor = shelfMatch?.author ?? author;
-      const q = encodeURIComponent(`${searchTitle} ${searchAuthor}`.trim());
-      return { ...item, url: `https://www.google.com/search?tbm=bks&q=${q}` };
+      const q = encodeURIComponent(`${searchTitle} ${searchAuthor} book`.trim());
+      return { ...item, url: `https://www.amazon.com/s?k=${q}&i=stripbooks` };
     }
     // Worth Trying → Amazon search. Same idea as books: writer-emitted
     // product URLs are often 404 or point to the wrong SKU; an Amazon
@@ -2321,6 +2337,38 @@ export async function generateSaturdayLatteIssue(opts: {
       imagePromptsError = err instanceof Error ? err.message : String(err);
       console.error("latte.image_prompts_haiku_failed", imagePromptsError);
     }
+  }
+
+  // Deterministic tasting-image-prompt sanitizer. If a tasting item's
+  // title tokens don't appear in its image prompt, overwrite the prompt
+  // with a title-forward boilerplate. Prevents the "image is a
+  // different book than the title" bug (Austin: "image is the jester
+  // but it talks about the fire next time"). Runs AFTER the writer
+  // retry loop, so this is the last-resort safety net.
+  if (imagePrompts && imagePrompts.tastingMenu) {
+    const newPrompts = [...imagePrompts.tastingMenu];
+    for (let i = 0; i < scopedContent.tastingMenu.length; i++) {
+      const item = scopedContent.tastingMenu[i];
+      if (!item) continue;
+      const rawTitle = item.title.trim();
+      if (!rawTitle) continue;
+      const titleNorm = normalizeTitleForRepeat(rawTitle);
+      const titleTokens = tokensForRepeat(titleNorm);
+      if (titleTokens.length === 0) continue;
+      const promptRaw = newPrompts[i] ?? "";
+      const promptNorm = normalizeTitleForRepeat(promptRaw);
+      const hasHit = titleTokens.some((t) => promptNorm.includes(t));
+      if (!hasHit) {
+        const cleanTitle = rawTitle.replace(/\s+by\s+.+$/i, "").trim();
+        newPrompts[i] = `"${rawTitle}". Render this exact ${labelKindFor(item.label ?? "")} — "${cleanTitle}" — cleanly on a real surface with warm side-window light. The subject in the image MUST match the title verbatim.`;
+        console.warn("latte.tasting_image_prompt_overwritten", {
+          slot: `tasting-${i + 1}`,
+          title: rawTitle,
+          originalPrompt: promptRaw.slice(0, 120),
+        });
+      }
+    }
+    imagePrompts = { ...imagePrompts, tastingMenu: newPrompts };
   }
 
   // URL validation: drop any URLs that aren't research-cited and don't pass
