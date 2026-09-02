@@ -1233,6 +1233,38 @@ function findRepeatOffenses(
     if (carHit) {
       offenses.push({ slot: "theDrive", picked: content.theDrive.car, matched: carHit });
     }
+    // Same-brand-as-last-issue check. Even if the model is different,
+    // two BMWs (or two Porsches, two Audis, etc.) back-to-back reads
+    // as monotonous. Extract brand token from the immediately previous
+    // pick and flag if this pick shares it. Austin: "bmw is repeated."
+    const CAR_BRANDS = new Set([
+      "porsche", "bmw", "mercedes", "audi", "volkswagen", "vw", "ford", "chevrolet",
+      "chevy", "cadillac", "lincoln", "ram", "dodge", "jeep", "gmc", "toyota",
+      "lexus", "honda", "acura", "nissan", "infiniti", "mazda", "subaru",
+      "mitsubishi", "hyundai", "kia", "genesis", "ferrari", "lamborghini",
+      "maserati", "alfa", "fiat", "lancia", "aston", "bentley", "rolls",
+      "jaguar", "land", "range", "mini", "lotus", "morgan", "mclaren",
+      "koenigsegg", "pagani", "peugeot", "renault", "citroen", "saab",
+      "volvo", "polestar", "opel", "seat", "skoda", "datsun",
+    ]);
+    const extractBrand = (car: string): string | null => {
+      for (const tok of normalizeTitleForRepeat(car).split(" ")) {
+        if (CAR_BRANDS.has(tok)) return tok;
+      }
+      return null;
+    };
+    const lastCar = ctx.cars[0];
+    if (!carHit && lastCar) {
+      const lastBrand = extractBrand(lastCar);
+      const pickedBrand = extractBrand(content.theDrive.car);
+      if (lastBrand && pickedBrand && lastBrand === pickedBrand) {
+        offenses.push({
+          slot: "theDrive",
+          picked: content.theDrive.car,
+          matched: `SAME BRAND AS LAST ISSUE. Last issue's Drive was "${lastCar}" — a ${lastBrand.toUpperCase()}. Your pick "${content.theDrive.car}" is another ${lastBrand.toUpperCase()}. Do not stack two picks from the same brand back-to-back. Pick a completely different marque this issue.`,
+        });
+      }
+    }
   }
   // Author/creator overlap check. If the picked tasting title contains
   // a creator we've featured before (parsed from the title's "by X"

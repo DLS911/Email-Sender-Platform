@@ -242,36 +242,51 @@ async function callGemini(
   apiKey: string,
   parts: Array<Record<string, unknown>>,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const response = await fetch(GEMINI_ENDPOINT(GEMINI_MODEL, apiKey), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        responseModalities: ["IMAGE"],
-        imageConfig: { aspectRatio: "1:1" },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`gemini image: HTTP ${response.status} — ${body.slice(0, 400)}`);
-  }
-
-  const data = (await response.json()) as GeminiResponse;
-  if (data.promptFeedback?.blockReason) {
-    throw new Error(`gemini image: blocked — ${data.promptFeedback.blockReason}`);
-  }
-
-  const outParts = data.candidates?.[0]?.content?.parts ?? [];
-  for (const part of outParts) {
-    if (part.inlineData?.data) {
-      const bytes = Uint8Array.from(Buffer.from(part.inlineData.data, "base64"));
-      return { bytes, mimeType: part.inlineData.mimeType ?? "image/png" };
+  // Every Gemini image call retries up to 3 attempts on transient
+  // failure (5xx, blocked-response, empty-parts, network error).
+  // Austin: "have the 3 retryies for all of them."
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(GEMINI_ENDPOINT(GEMINI_MODEL, apiKey), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            responseModalities: ["IMAGE"],
+            imageConfig: { aspectRatio: "1:1" },
+          },
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`gemini image: HTTP ${response.status} — ${body.slice(0, 400)}`);
+      }
+      const data = (await response.json()) as GeminiResponse;
+      if (data.promptFeedback?.blockReason) {
+        throw new Error(`gemini image: blocked — ${data.promptFeedback.blockReason}`);
+      }
+      const outParts = data.candidates?.[0]?.content?.parts ?? [];
+      for (const part of outParts) {
+        if (part.inlineData?.data) {
+          const bytes = Uint8Array.from(Buffer.from(part.inlineData.data, "base64"));
+          if (attempt > 1) {
+            console.info("latte.gemini_call_succeeded_after_retry", { attempt });
+          }
+          return { bytes, mimeType: part.inlineData.mimeType ?? "image/png" };
+        }
+      }
+      throw new Error("gemini image: no inline image data in response");
+    } catch (err) {
+      lastErr = err;
+      console.warn("latte.gemini_call_attempt_failed", {
+        attempt,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
-  throw new Error("gemini image: no inline image data in response");
+  throw lastErr instanceof Error ? lastErr : new Error(`gemini image: exhausted 3 attempts — ${String(lastErr)}`);
 }
 
 async function generateOneImage(
@@ -777,11 +792,10 @@ export async function generateTastingImageWithReference(
   // buildings, and feeding those into a Gemini reference-preserve
   // edit produces "bottle-shaped-poster-of-a-guy" output.
   if (kind === "drink") {
-    // Gemini background-only edit around the retailer bottle photo. Up
-    // to 3 attempts. Austin: "retry if it fails ... it has showed the
-    // dumb ref image. it needs to not do that ... 3 retrys." Only if
-    // all 3 attempts throw do we return the raw ref as an absolute
-    // last-resort so the slot doesn't render empty.
+    // Gemini background-only edit around the retailer bottle photo.
+    // callGemini itself does 3-attempt retry on transient failure; if
+    // it still throws after that, ship the raw retailer ref as a last
+    // resort so the slot never renders empty.
     try {
       const drinkRef = await fetchProductReferenceImage(subject);
       if (drinkRef) {
@@ -792,34 +806,20 @@ export async function generateTastingImageWithReference(
           sectionTag,
         });
         const base64 = Buffer.from(drinkRef.bytes).toString("base64");
-        let lastErr: unknown = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            const edited = await callGemini(apiKey, [
-              { text: geminiPrompt },
-              { inlineData: { mimeType: drinkRef.mimeType, data: base64 } },
-            ]);
-            console.info("latte.drink_shipped_gemini_edited", {
-              subject,
-              sourceUrl: drinkRef.sourceUrl,
-              attempt,
-            });
-            return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
-          } catch (err) {
-            lastErr = err;
-            console.warn("latte.drink_gemini_edit_attempt_failed", {
-              subject,
-              attempt,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
+        try {
+          const edited = await callGemini(apiKey, [
+            { text: geminiPrompt },
+            { inlineData: { mimeType: drinkRef.mimeType, data: base64 } },
+          ]);
+          console.info("latte.drink_shipped_gemini_edited", { subject, sourceUrl: drinkRef.sourceUrl });
+          return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
+        } catch (err) {
+          console.error("latte.drink_gemini_edit_exhausted_shipping_raw", {
+            subject,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return { bytes: drinkRef.bytes, mimeType: drinkRef.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
         }
-        console.error("latte.drink_gemini_edit_exhausted_shipping_raw", {
-          subject,
-          attempts: 3,
-          lastError: lastErr instanceof Error ? lastErr.message : String(lastErr),
-        });
-        return { bytes: drinkRef.bytes, mimeType: drinkRef.mimeType, usedReference: true, referenceUrl: drinkRef.sourceUrl };
       }
     } catch (err) {
       console.warn("latte.drink_scrape_failed", err instanceof Error ? err.message : String(err));
@@ -871,34 +871,20 @@ REMINDER: the subject "${subject}" must be recognizable as this specific bottle 
           sectionTag,
         });
         const base64 = Buffer.from(productRef.bytes).toString("base64");
-        let lastErr: unknown = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            const edited = await callGemini(apiKey, [
-              { text: geminiPrompt },
-              { inlineData: { mimeType: productRef.mimeType, data: base64 } },
-            ]);
-            console.info("latte.product_shipped_gemini_edited", {
-              subject,
-              sourceUrl: productRef.sourceUrl,
-              attempt,
-            });
-            return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: productRef.sourceUrl };
-          } catch (err) {
-            lastErr = err;
-            console.warn("latte.product_gemini_edit_attempt_failed", {
-              subject,
-              attempt,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
+        try {
+          const edited = await callGemini(apiKey, [
+            { text: geminiPrompt },
+            { inlineData: { mimeType: productRef.mimeType, data: base64 } },
+          ]);
+          console.info("latte.product_shipped_gemini_edited", { subject, sourceUrl: productRef.sourceUrl });
+          return { bytes: edited.bytes, mimeType: edited.mimeType, usedReference: true, referenceUrl: productRef.sourceUrl };
+        } catch (err) {
+          console.error("latte.product_gemini_edit_exhausted_shipping_raw", {
+            subject,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return { bytes: productRef.bytes, mimeType: productRef.mimeType, usedReference: true, referenceUrl: productRef.sourceUrl };
         }
-        console.error("latte.product_gemini_edit_exhausted_shipping_raw", {
-          subject,
-          attempts: 3,
-          lastError: lastErr instanceof Error ? lastErr.message : String(lastErr),
-        });
-        return { bytes: productRef.bytes, mimeType: productRef.mimeType, usedReference: true, referenceUrl: productRef.sourceUrl };
       }
     } catch (err) {
       console.warn(
