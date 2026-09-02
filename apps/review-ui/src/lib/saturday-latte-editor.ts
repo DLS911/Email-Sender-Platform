@@ -194,5 +194,68 @@ export function findDuplicateSentencesInContent(content: SaturdayLatteContent): 
       severity: "must_fix",
     });
   }
+
+  // Phrase-repeat detector for tag lines and dramatic openers. Austin:
+  // "conventional wisdom" appeared twice in the Oaxaca cover story.
+  // Same content produces those repeats through habitual scaffolding
+  // ("the truth is", "the reality is", "in fact", "here's the thing").
+  // Scan the same prose fields for any banned tag-phrase repeated OR
+  // any 3-word sequence repeated 2+ times across all prose (excluding
+  // very common transitions).
+  const bannedTagPhrases = [
+    "conventional wisdom", "the truth is", "the reality is", "in fact",
+    "here's the thing", "here is the thing", "the fact is", "let me be clear",
+    "let's be honest", "make no mistake", "at the end of the day",
+    "the bottom line", "the thing is", "to be honest", "in reality",
+    "the real question", "the real answer", "put it this way",
+    "the sweet spot", "the play here", "the move here", "the trick is",
+  ];
+  const allText = proseFields.map((f) => normalize(f.text)).join(" ");
+  for (const phrase of bannedTagPhrases) {
+    const phraseNorm = normalize(phrase);
+    if (!phraseNorm) continue;
+    const escapedPhrase = phraseNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${escapedPhrase}\\b`, "g");
+    const matches = allText.match(re);
+    if (matches && matches.length >= 2) {
+      out.push({
+        location: "cover story / tasting bodies / other prose",
+        issue: `repeated tag phrase — "${phrase}" appears ${matches.length} times across the issue's prose. This is a habitual scaffolding phrase; use it at most ONCE per issue and rewrite the rest without it (or drop the frame entirely and get to the specific insight).`,
+        severity: "must_fix",
+      });
+    }
+  }
+
+  // Generic 4-gram repeat check. Any 4-word sequence that appears 2+
+  // times in the prose is likely a phrasing template the writer leaned
+  // on twice. Skip trivial n-grams (all-stopwords, numeric).
+  const stopSet = new Set([
+    "the", "a", "an", "and", "or", "but", "of", "in", "on", "at", "to",
+    "for", "with", "from", "by", "as", "is", "are", "was", "were", "be",
+    "been", "being", "this", "that", "these", "those", "it", "its", "he",
+    "she", "they", "them", "their", "we", "us", "our", "you", "your",
+    "not", "no", "yes", "if", "then", "so",
+  ]);
+  const tokens = allText.split(/\s+/).filter(Boolean);
+  const ngramCounts = new Map<string, number>();
+  const N = 4;
+  for (let i = 0; i + N <= tokens.length; i++) {
+    const slice = tokens.slice(i, i + N);
+    // Skip if every token is a stopword or numeric-only
+    if (slice.every((t) => stopSet.has(t) || /^\d+$/.test(t))) continue;
+    // Skip if more than 2 are stopwords (very common transitions)
+    if (slice.filter((t) => stopSet.has(t)).length > 2) continue;
+    const key = slice.join(" ");
+    ngramCounts.set(key, (ngramCounts.get(key) ?? 0) + 1);
+  }
+  for (const [phrase, count] of ngramCounts) {
+    if (count >= 2) {
+      out.push({
+        location: "cover story / tasting bodies / other prose",
+        issue: `repeated phrasing scaffold — "${phrase}" appears ${count} times. Rewrite the second use so nothing is verbatim-repeated at the 4-word level.`,
+        severity: "must_fix",
+      });
+    }
+  }
   return out;
 }

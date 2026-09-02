@@ -1596,6 +1596,69 @@ function labelKindFor(label: string): string {
   return "item";
 }
 
+/**
+ * Runtime cascade for Worth Drinking URLs: try Amazon → Total Wine →
+ * fall through to the Google URL that enforceBookUrls seeded. Fetches
+ * each retailer's search page and looks for the primary title token
+ * in the response body. First hit wins. Bounded to 5s per fetch;
+ * Amazon frequently serves a bot-check page which naturally fails
+ * the title-hit test and cascades to the next retailer.
+ */
+async function resolveDrinkUrls(content: SaturdayLatteContent): Promise<SaturdayLatteContent> {
+  const browserUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  const fetchWithTimeout = async (url: string): Promise<string | null> => {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5000);
+      const res = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        signal: ctrl.signal,
+        headers: { "User-Agent": browserUa, "Accept": "text/html,application/xhtml+xml" },
+      });
+      clearTimeout(t);
+      if (!res.ok) return null;
+      const body = await res.text();
+      return body.slice(0, 200_000).toLowerCase();
+    } catch {
+      return null;
+    }
+  };
+  const titleHits = (bodyLower: string, tokens: string[]): boolean => {
+    if (!bodyLower) return false;
+    // Need at least half of the significant title tokens present.
+    const hitCount = tokens.filter((tok) => bodyLower.includes(tok)).length;
+    return tokens.length > 0 && hitCount >= Math.ceil(tokens.length / 2);
+  };
+  const newTasting = await Promise.all(
+    content.tastingMenu.map(async (item) => {
+      const label = (item.label ?? "").toLowerCase();
+      if (!label.includes("drinking")) return item;
+      const rawTitle = item.title.trim();
+      if (!rawTitle) return item;
+      const titleTokens = tokensForRepeat(normalizeTitleForRepeat(rawTitle));
+      if (titleTokens.length === 0) return item;
+      const encoded = encodeURIComponent(rawTitle);
+
+      const amazonUrl = `https://www.amazon.com/s?k=${encoded}&i=grocery`;
+      const amazonBody = await fetchWithTimeout(amazonUrl);
+      if (amazonBody && titleHits(amazonBody, titleTokens)) {
+        console.info("latte.drink_url_resolved", { title: rawTitle, resolver: "amazon" });
+        return { ...item, url: amazonUrl };
+      }
+      const totalWineUrl = `https://www.totalwine.com/search/all?text=${encoded}`;
+      const totalWineBody = await fetchWithTimeout(totalWineUrl);
+      if (totalWineBody && titleHits(totalWineBody, titleTokens)) {
+        console.info("latte.drink_url_resolved", { title: rawTitle, resolver: "totalwine" });
+        return { ...item, url: totalWineUrl };
+      }
+      console.info("latte.drink_url_resolved", { title: rawTitle, resolver: "google-fallback" });
+      return item; // keep Google URL seeded by enforceBookUrls
+    }),
+  );
+  return { ...content, tastingMenu: newTasting };
+}
+
 function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
   const newTasting = content.tastingMenu.map((item) => {
     const label = (item.label ?? "").toLowerCase();
@@ -1630,12 +1693,10 @@ function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
       const q = encodeURIComponent(rawTitle);
       return { ...item, url: `https://www.amazon.com/s?k=${q}&i=digital-music` };
     }
-    // Worth Drinking → Google search. Total Wine misses obscure
-    // bottles ("total wine link also couldnt find that specific
-    // bottle"); Amazon doesn't ship spirits. Google always resolves
-    // and surfaces whichever retailer / distillery / spirits shop
-    // actually carries the bottle. "<title> buy" biases toward
-    // purchase results over Wikipedia articles.
+    // Worth Drinking → placeholder Google URL, will be resolved async by
+    // resolveDrinkUrls() below via Amazon → Total Wine → Google cascade
+    // with runtime title-hit check. We can't do async work inside this
+    // synchronous function, so seed with Google as the safe default.
     if (label.includes("drinking")) {
       const q = encodeURIComponent(`${rawTitle} buy`.trim());
       return { ...item, url: `https://www.google.com/search?q=${q}` };
@@ -2306,7 +2367,7 @@ export async function generateSaturdayLatteIssue(opts: {
   // outside Mark's authentic scope as attributed statements. Best-effort;
   // if the guard fails, keep the writer's original content.
   const scope = await enforceAuthorScope(client, writer.content);
-  const scopedContent = enforceBookUrls(scope.content);
+  const scopedContent = await resolveDrinkUrls(enforceBookUrls(scope.content));
 
   // Image generation phase: fire 7 DALL-E 3 calls in parallel, upload to
   // Supabase Storage. Best-effort — if any fail, the email still renders
