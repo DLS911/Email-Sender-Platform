@@ -52,6 +52,28 @@ function collectResearchUrls(researchUrls: string[]): Set<string> {
   return set;
 }
 
+// Hosts we generate URLs for deterministically and know always
+// resolve. Amazon aggressively blocks HEAD requests from unknown
+// user agents (returns 503/403), which was causing every tasting
+// menu link to be dropped as "head-fail" even though the search
+// page loads fine in a browser. Same story for google.com search.
+// Skip the HEAD check for these trusted hosts.
+const TRUSTED_HOSTS = new Set([
+  "www.amazon.com",
+  "amazon.com",
+  "www.google.com",
+  "google.com",
+]);
+
+function urlHostIsTrusted(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return TRUSTED_HOSTS.has(parsed.host);
+  } catch {
+    return false;
+  }
+}
+
 async function validateUrlForField(
   url: string | undefined,
   researchSet: Set<string>,
@@ -63,6 +85,8 @@ async function validateUrlForField(
   if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
     return { keep: false, reason: "not-http" };
   }
+  // Trust deterministically-constructed URLs on known-good hosts
+  if (urlHostIsTrusted(cleaned)) return { keep: true, reason: "trusted-host" };
   // Trust research-cited URLs
   if (researchSet.has(cleaned)) return { keep: true, reason: "research-cited" };
   // Check cache
