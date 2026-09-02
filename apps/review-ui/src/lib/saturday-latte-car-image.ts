@@ -82,7 +82,7 @@ async function isPhotoOfWholeCar(
           content: [
             {
               type: "text",
-              text: `Look at this image. THREE checks must ALL pass for ok=true:
+              text: `Look at this image. FIVE checks must ALL pass for ok=true:
 
 1) Does this image show the WHOLE EXTERIOR of a road-going car (all four wheels or nearly so, full body from roof to sills, no cropping that removes the front or rear)?
 
@@ -90,7 +90,11 @@ async function isPhotoOfWholeCar(
 
 3) Are the car's PROPORTIONS NATURAL? Wide-angle / fisheye / ultra-close lens shots stretch the front (or rear) grotesquely — a nose that looks 1.5x longer than reality, a hood that curves toward the camera, wheels that look tiny relative to a bulging fascia. Photographer's stylistic distortion IS an AI trap: Gemini uses these as reference and inherits the stretched geometry. FAIL any shot where the front OR rear of the car is visibly foreshortened / bulging / wide-angle-warped. The reference must be a natural-perspective photograph (roughly 50mm equivalent or a mild telephoto) where the car's proportions look correct at first glance — front-end length matches the marque's actual proportions, no rubber-band stretch.
 
-Return {"ok": true, "reason": "brief"} if ALL pass. Return {"ok": false, "reason": "what it actually is — e.g. 'wide-angle front stretch', 'fisheye distortion', 'foreshortened nose', 'motion blur', 'wheels blurred from movement', 'glitched wheel spokes', 'suspension close-up', 'engine bay only', 'interior shot', 'wheel detail', 'headlight only'"} if any fails. No preamble.`,
+4) IS THERE ONLY ONE CAR IN THE FRAME? The reference must show ONE car — nothing else. Group shots (two cars parked side-by-side at a dealership, concours line-ups with 3+ cars in view, a car alongside a truck / SUV / motorcycle, a car being trailered behind another vehicle, a rally paddock with other race cars in the frame) — ALL FAIL. If a second complete or partial car is visible ANYWHERE in the frame (background parking lot with parked cars visible, another car in the mirror or reflection, a car behind or beside the subject), FAIL. Gemini renders whatever is in the reference; two cars in → two cars out. Passing shots have ONE isolated car with no other vehicles in view (an empty road, an empty parking lot, a studio backdrop, a garage doorway, a driveway with nothing else in frame).
+
+5) IS THE ANGLE A STANDARD EDITORIAL VIEW? The reference must be one of: clean 3/4 front, clean 3/4 rear, direct side profile, direct front (12 o'clock), direct rear (6 o'clock), or slight-low hero angle. FAIL: overhead / top-down / drone shots that look at the roof, extreme low-angle "ground worm" shots looking up under the car, oblique 45-degree tilt-corner shots, shots from behind another car in traffic. If you can't identify the angle as one of the standard editorial views, FAIL.
+
+Return {"ok": true, "reason": "brief"} if ALL pass. Return {"ok": false, "reason": "what it actually is — e.g. 'two cars in frame', 'group shot with other vehicles', 'overhead drone angle', 'wide-angle front stretch', 'fisheye distortion', 'foreshortened nose', 'motion blur', 'wheels blurred from movement', 'glitched wheel spokes', 'suspension close-up', 'engine bay only', 'interior shot', 'wheel detail', 'headlight only'"} if any fails. No preamble.`,
             },
             {
               type: "image",
@@ -370,9 +374,15 @@ async function findWebPagesForCar(
       model: HAIKU_MODEL,
       max_tokens: 1200,
       temperature: 0.1,
-      system: `You find PAGE URLs (not direct image URLs) using web_search. Each page must be a page that likely contains full-car photos of the requested car — a review article with hero images, a manufacturer press release with a gallery, an automotive-journalism gallery page.
+      system: `You find PAGE URLs (not direct image URLs) using web_search. Each page must be a page that likely contains full-car SOLO-CAR press/gallery photos of the requested car — a manufacturer press release with a gallery, a review article with hero images, an automotive-journalism gallery page.
 
-Return 6-10 page URLs. Prefer: press.bmwgroup.com, media.porsche.com, media.audi.com, media.ford.com, media.gm.com, media.stellantis.com, media.mclaren.com, caranddriver.com, motortrend.com, roadandtrack.com, autoblog.com, autoweek.com, topgear.com, autocar.co.uk. Reject: enthusiast forums, Reddit, Instagram, Pinterest, stock-photo sites, used-car listings.
+Return 8-12 page URLs. Bias STRONGLY toward manufacturer press sites (they publish clean solo-car studio + configurator shots) and toward review pages that are single-car-focused. Prefer, in this order:
+- Manufacturer press sites: press.bmwgroup.com, media.porsche.com, media.audi.com, mercedes-benz.com/en/press, media.ford.com, media.gm.com, media.stellantis.com, media.mclaren.com, mclaren.com, aston-martin.com, media.bentleymotors.com, jaguar-mena.com/en-me/press-releases, landrover.com, ferrari.com/en-US/auto, lamborghini.com, mediacenter.polestar.com, media.mazda.com, toyota-europe.com/newsroom, honda.com/newsroom, nissannews.com, hyundainews.com, kianewscenter.com, subarunews.com, mitsubishi-motors.com/en/newsrelease
+- Manufacturer official model pages: bmw.com, porsche.com, audi.com, mercedes-benz.com, ford.com, chevrolet.com, cadillac.com, corvette.com, mazda.com, subaru.com, lexus.com, acura.com, infiniti.com — the specific model's product page has hero photography
+- Reviews: caranddriver.com, motortrend.com, roadandtrack.com, autoblog.com, autoweek.com, topgear.com, autocar.co.uk, thedrive.com, hagerty.com/media, hagerty.com/valuation
+- Auction/broker galleries for classics (solo-car photography is the norm): bringatrailer.com, cars.bonhams.com, rmsothebys.com, gooding.com, mecum.com, hemmings.com
+
+Reject: enthusiast forums, Reddit, Instagram, Pinterest, stock-photo sites, generic dealer lot pages, used-car listings, "top 10 lists" pages that show a grid of different cars, auction result index pages, ANY page whose thumbnail suggests a group shot or a car alongside another vehicle.
 
 Return ONLY JSON:
 {"pages": ["https://...", "https://..."]}`,
