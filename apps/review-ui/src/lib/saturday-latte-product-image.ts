@@ -123,15 +123,17 @@ async function findWebPagesForProduct(productName: string): Promise<string[]> {
       model: HAIKU_MODEL,
       max_tokens: 1200,
       temperature: 0.1,
-      system: `You find PAGE URLs (not direct image URLs) using web_search. Each page must be a page that likely contains a hero photo of the specific product requested — a manufacturer product page, a retailer product listing (Amazon, Sur La Table, Williams-Sonoma, Crate & Barrel, REI, B&H, etc.), or a professional review article.
+      system: `You find PAGE URLs (not direct image URLs) using web_search. Each page must be a page that likely contains a hero photo of the specific product requested — a manufacturer product page, a retailer product listing, or a professional review article.
 
 Return 6-10 page URLs. Prefer:
-- Manufacturer sites (bakingsteel.com, lodgecastiron.com, fellowproducts.com, thermoworks.com, chemexcoffeemaker.com, kalitausa.com, hario.com, breville.com, kitchenaid.com, oxo.com, made-in.com, staub.com, lecreuset.com, etc.)
-- Serious Eats / Wirecutter / Kitchn / America's Test Kitchen review pages
-- Sur La Table / Williams-Sonoma / Crate & Barrel product listings
-- Amazon product pages (usually good hero photos)
+- Kitchen/cookware manufacturers: bakingsteel.com, lodgecastiron.com, fellowproducts.com, thermoworks.com, chemexcoffeemaker.com, kalitausa.com, hario.com, breville.com, kitchenaid.com, oxo.com, made-in.com, staub.com, lecreuset.com, allclad.com, greatjonesgoods.com, smithey.com
+- Retailer listings: surlatable.com, williams-sonoma.com, crateandbarrel.com, amazon.com, rei.com, bhphotovideo.com
+- Kitchen/cookware review pubs: seriouseats.com, wirecutter.com, thekitchn.com, americastestkitchen.com
+- Spirits: distillery sites (buffalotracedistillery.com, foursquarerum.com, macallan.com, glenmorangie.com, ardbeg.com, casamigos.com, patronspirits.com, deleon.com, delmaguey.com, etc.), whiskyadvocate.com, breakingbourbon.com, masterofmalt.com, caskers.com, reservebar.com, totalwine.com, wine-searcher.com, klwines.com, astorwines.com
+- Wine: winespectator.com, decanter.com, wine.com, vivino.com, jjbuckley.com, klwines.com
+- Beer: beeradvocate.com, ratebeer.com, brewery-owned sites
 
-Reject: enthusiast forums, Reddit, Instagram, Pinterest, generic shopping-aggregator sites, category-grid pages that aren't a specific product listing.
+Reject: enthusiast forums, Reddit, Instagram, Pinterest, generic shopping-aggregator SERPs, category-grid pages that aren't a specific product listing, Wikipedia (returns portraits/buildings for spirits, not bottles).
 
 Return ONLY JSON:
 {"pages": ["https://...", "https://..."]}`,

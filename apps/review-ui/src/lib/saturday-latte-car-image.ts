@@ -82,13 +82,15 @@ async function isPhotoOfWholeCar(
           content: [
             {
               type: "text",
-              text: `Look at this image. TWO checks must BOTH pass for ok=true:
+              text: `Look at this image. THREE checks must ALL pass for ok=true:
 
 1) Does this image show the WHOLE EXTERIOR of a road-going car (all four wheels or nearly so, full body from roof to sills, no cropping that removes the front or rear)?
 
 2) Is the car STATIONARY / PARKED? Panning shots, driving-past shots, rolling shots, motion-blurred wheels, streaking road under the car, blurred background from a moving camera — ALL FAIL. The image must be a clean static reference: parked car, sharp wheels, no directional motion blur, no visible speed lines. A perfectly still car on a road / dealership / studio / driveway = pass. A car mid-corner with blurred wheels = fail. Auto-generated / glitched-looking wheel spokes or shifted body panels also fail (Gemini output rather than a real photo).
 
-Return {"ok": true, "reason": "brief"} if BOTH pass. Return {"ok": false, "reason": "what it actually is — e.g. 'motion blur / panning shot', 'wheels blurred from movement', 'glitched wheel spokes', 'suspension close-up', 'engine bay only', 'interior shot', 'wheel detail', 'headlight only'"} if either fails. No preamble.`,
+3) Are the car's PROPORTIONS NATURAL? Wide-angle / fisheye / ultra-close lens shots stretch the front (or rear) grotesquely — a nose that looks 1.5x longer than reality, a hood that curves toward the camera, wheels that look tiny relative to a bulging fascia. Photographer's stylistic distortion IS an AI trap: Gemini uses these as reference and inherits the stretched geometry. FAIL any shot where the front OR rear of the car is visibly foreshortened / bulging / wide-angle-warped. The reference must be a natural-perspective photograph (roughly 50mm equivalent or a mild telephoto) where the car's proportions look correct at first glance — front-end length matches the marque's actual proportions, no rubber-band stretch.
+
+Return {"ok": true, "reason": "brief"} if ALL pass. Return {"ok": false, "reason": "what it actually is — e.g. 'wide-angle front stretch', 'fisheye distortion', 'foreshortened nose', 'motion blur', 'wheels blurred from movement', 'glitched wheel spokes', 'suspension close-up', 'engine bay only', 'interior shot', 'wheel detail', 'headlight only'"} if any fails. No preamble.`,
             },
             {
               type: "image",

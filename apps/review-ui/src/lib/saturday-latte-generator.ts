@@ -1627,14 +1627,15 @@ function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
       const q = encodeURIComponent(rawTitle);
       return { ...item, url: `https://www.amazon.com/s?k=${q}&i=digital-music` };
     }
-    // Worth Drinking → Total Wine search. Direct retailer with real
-    // inventory across bourbon / rye / scotch / tequila / mezcal /
-    // wine / beer. Amazon doesn't ship spirits and a Google search
-    // is a step of indirection; Total Wine lands the reader on the
-    // right product page.
+    // Worth Drinking → Google search. Total Wine misses obscure
+    // bottles ("total wine link also couldnt find that specific
+    // bottle"); Amazon doesn't ship spirits. Google always resolves
+    // and surfaces whichever retailer / distillery / spirits shop
+    // actually carries the bottle. "<title> buy" biases toward
+    // purchase results over Wikipedia articles.
     if (label.includes("drinking")) {
-      const q = encodeURIComponent(rawTitle);
-      return { ...item, url: `https://www.totalwine.com/search/all?text=${q}` };
+      const q = encodeURIComponent(`${rawTitle} buy`.trim());
+      return { ...item, url: `https://www.google.com/search?q=${q}` };
     }
     // Worth Trying → Amazon all-departments search. Products span too
     // many categories to pin to one department; the general search is
