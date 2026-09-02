@@ -910,15 +910,14 @@ async function runWriterPhase(
     const ctx = recentContext;
     const exclusions: string[] = [];
     if (ctx.cars.length > 0) {
-      // Era-rotation. Alternation-first: the immediately previous pick
-      // determines this pick's era. If last was modern, this MUST be
-      // classic; if last was classic, this MUST be modern. "Modern" =
-      // model year within the last 6 years. "Classic" = model year 2010
-      // or earlier (real classic), OR a restomod based on such a car.
-      // A modern-restomod (a 2024 build of a '69 Bronco) STILL COUNTS AS
-      // CLASSIC because visually it reads as vintage. Austin's feedback:
-      // "it's been a lot of newer cars, use the percentage system like
-      // the locations" → 50/50 alternation.
+      // Era-rotation, 2:1 classic:modern. Austin: "cars havent been
+      // going the 50/50 route. its been new cars still." Prior rule was
+      // strict alternation → the writer still produced modern-heavy
+      // sequences (either the retry loop leaked or the writer's real
+      // bias won). New rule: if EITHER of the last 2 picks was modern,
+      // this issue MUST be classic. Only when BOTH last 2 are classic
+      // may this issue be modern. Sequence: C, C, M, C, C, M... =
+      // 1/3 modern. Same restomod = classic classification.
       const currentYear = new Date().getUTCFullYear();
       const isModern = (car: string): boolean => {
         const restomodHit = /restomod|restoration|resto[- ]mod|coyote[- ]swap|ls[- ]swap|k[- ]swap/i.test(car);
@@ -928,13 +927,11 @@ async function runWriterPhase(
         const oldestYear = Math.min(...years);
         return oldestYear >= currentYear - 6;
       };
-      const last = ctx.cars[0];
-      const lastWasModern = last ? isModern(last) : false;
-      const eraRule = lastWasModern
-        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** Last issue's Drive was a MODERN pick ("${last}"). This issue MUST pick a CLASSIC or restomod — Category 6 of the WEEKEND_CAR_SPECTRUM voice module. **Model year must be 2010 or earlier**, OR a restomod BASED on such a car (a modern build of a '69 Bronco counts as classic). Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth / 500E / SL R107, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise/Esprit, Jaguar E-Type/XJ6, any '80s-'90s JDM hero, Saab 900 Turbo, Peugeot 205 GTI, VW GTI Mk1/Mk2, Ferrari 308/348/Testarossa, first-gen NSX. Under $120k. Do NOT pick another 2020s car this issue — a 2024/2025 model year is an automatic fail on this rule.`
-        : ctx.cars.length > 0
-        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** Last issue's Drive was a CLASSIC / older pick ("${last}"). This issue MUST pick a MODERN car — model year 2018 or later. Rotate the era every issue; don't stack two classics or two moderns in a row.`
-        : "";
+      const last2 = ctx.cars.slice(0, 2);
+      const anyRecentModern = last2.some(isModern);
+      const eraRule = anyRecentModern
+        ? `\n\n**ERA-ROTATION RULE (mandatory this issue):** At least one of the last 2 Drive picks was MODERN (recent picks: ${last2.map((c) => `"${c}"`).join(", ")}). Under the 2:1 classic-to-modern rule, this issue MUST pick a CLASSIC or restomod. **Model year must be 2010 or earlier**, OR a restomod BASED on such a car (a modern build of a '69 Bronco counts as classic). Examples that qualify: any air-cooled Porsche (964/993/pre-964/944 Turbo), BMW E30 M3 / E28-E39 M5 / 2002tii, Datsun 240Z/260Z/280Z, Mazda RX-7 FD, Toyota Supra Mk4, Honda NSX, first-gen Miata NA, R32-R34 Skyline GT-R, restomod Bronco or Land Cruiser, LS-swap builds, Mercedes W123/190E Cosworth / 500E / SL R107, Alfa GTV6/Milano/Spider, Volvo 240 wagon, Lotus Elise/Esprit, Jaguar E-Type/XJ6, any '80s-'90s JDM hero, Saab 900 Turbo, Peugeot 205 GTI, VW GTI Mk1/Mk2, Ferrari 308/348/Testarossa. Under $120k. Do NOT pick a 2020s car this issue — a 2024/2025 model year is an automatic fail on this rule.`
+        : `\n\n**ERA-ROTATION RULE (this issue):** The last 2 Drive picks were both CLASSIC (recent picks: ${last2.map((c) => `"${c}"`).join(", ")}). Under the 2:1 rule, this issue MAY be a MODERN pick (2018+) — but it doesn't have to be. Classic is always fine.`;
       exclusions.push(
         `## RECENT THE DRIVE PICKS — HARD RULE, DO NOT REPEAT ANY OF THESE:\n${ctx.cars.map((c) => `- ${c}`).join("\n")}\n\nThe car you pick for The Drive this issue MUST NOT be any car on the list above. Not the same year+model, not a different year of the same model, not a different trim of the same model. Pick from a completely different nameplate or generation. If you can only think of cars on the list, keep thinking — there are hundreds of cool cars under $120k across the spectrum.${eraRule}`,
       );
@@ -1403,7 +1400,7 @@ function findTastingUrlMismatchOffenses(content: SaturdayLatteContent): RepeatOf
   const offenses: RepeatOffense[] = [];
   for (const [i, item] of content.tastingMenu.entries()) {
     const label = (item.label ?? "").toLowerCase();
-    if (label.includes("reading")) continue;
+    if (label.includes("reading") || label.includes("trying")) continue;
     const url = (item.url ?? "").trim();
     if (!url) continue;
     let path = "";
@@ -1472,8 +1469,6 @@ function findCarEraOffenses(
   ctx: LatteRecentContext | undefined,
 ): RepeatOffense[] {
   if (!ctx || ctx.cars.length === 0) return [];
-  const last = ctx.cars[0];
-  if (!last) return [];
   const currentYear = new Date().getUTCFullYear();
   const isModern = (car: string): boolean => {
     const restomodHit = /restomod|restoration|resto[- ]mod|coyote[- ]swap|ls[- ]swap|k[- ]swap/i.test(car);
@@ -1483,23 +1478,20 @@ function findCarEraOffenses(
     const oldestYear = Math.min(...years);
     return oldestYear >= currentYear - 6;
   };
-  const lastWasModern = isModern(last);
-  const pickWasModern = isModern(content.theDrive.car);
-  const offenses: RepeatOffense[] = [];
-  if (lastWasModern && pickWasModern) {
-    offenses.push({
+  // 2:1 rule: if EITHER of the last 2 was modern, this MUST be classic.
+  // Only when both last-2 are classic is a modern pick allowed. Prior
+  // strict-alternation rule leaked too many moderns.
+  const last2 = ctx.cars.slice(0, 2);
+  const anyRecentModern = last2.some(isModern);
+  const pickIsModern = isModern(content.theDrive.car);
+  if (anyRecentModern && pickIsModern) {
+    return [{
       slot: "theDrive",
       picked: content.theDrive.car,
-      matched: `ERA ROTATION VIOLATION. Last issue's Drive was MODERN ("${last}") — this issue MUST be a CLASSIC (pre-2010) or a real restomod. Your pick "${content.theDrive.car}" is another modern car; alternate the era every issue. Pick an air-cooled 911, E30 M3, NSX, Miata NA, RX-7 FD, Supra Mk4, R32-R34 GT-R, 240Z, Fox Body Mustang, W123, restomod Bronco or FJ — anything pre-2010 or a swap build.`,
-    });
-  } else if (!lastWasModern && !pickWasModern) {
-    offenses.push({
-      slot: "theDrive",
-      picked: content.theDrive.car,
-      matched: `ERA ROTATION VIOLATION. Last issue's Drive was a CLASSIC/restomod ("${last}") — this issue MUST be MODERN (2018+). Your pick "${content.theDrive.car}" is another classic; alternate the era every issue. Pick a modern-era performance car — M2, GT3, RS6, C8 Corvette, GR Corolla, Blackwing sedan, AMG C63, current M3/M4, etc.`,
-    });
+      matched: `ERA ROTATION VIOLATION (2:1 rule). Recent Drive picks include a MODERN car (last 2: ${last2.map((c) => `"${c}"`).join(", ")}) — this issue MUST be a CLASSIC (pre-2010) or a real restomod. Your pick "${content.theDrive.car}" is another modern car. Pick an air-cooled 911, E30 M3, NSX, Miata NA, RX-7 FD, Supra Mk4, R32-R34 GT-R, 240Z, Fox Body Mustang, W123, restomod Bronco or FJ — anything pre-2010 or a swap build.`,
+    }];
   }
-  return offenses;
+  return [];
 }
 
 /**
@@ -1612,20 +1604,31 @@ function findRepeatedTastingRecOffenses(
 function enforceBookUrls(content: SaturdayLatteContent): SaturdayLatteContent {
   const newTasting = content.tastingMenu.map((item) => {
     const label = (item.label ?? "").toLowerCase();
-    if (!label.includes("reading")) return item;
-    const rawTitle = item.title.trim();
-    if (!rawTitle) return item;
-    const cleanTitle = rawTitle.replace(/\s+by\s+.+$/i, "").trim();
-    const author = extractCreatorHelperForTitle(rawTitle) ?? "";
-    const shelfMatch = LATTE_BOOK_SHELF.find((b) => {
-      const bn = normalizeTitleForRepeat(b.title);
-      const tn = normalizeTitleForRepeat(cleanTitle);
-      return bn === tn || bn.includes(tn) || tn.includes(bn);
-    });
-    const searchTitle = shelfMatch?.title ?? cleanTitle;
-    const searchAuthor = shelfMatch?.author ?? author;
-    const q = encodeURIComponent(`${searchTitle} ${searchAuthor}`.trim());
-    return { ...item, url: `https://www.google.com/search?tbm=bks&q=${q}` };
+    if (label.includes("reading")) {
+      const rawTitle = item.title.trim();
+      if (!rawTitle) return item;
+      const cleanTitle = rawTitle.replace(/\s+by\s+.+$/i, "").trim();
+      const author = extractCreatorHelperForTitle(rawTitle) ?? "";
+      const shelfMatch = LATTE_BOOK_SHELF.find((b) => {
+        const bn = normalizeTitleForRepeat(b.title);
+        const tn = normalizeTitleForRepeat(cleanTitle);
+        return bn === tn || bn.includes(tn) || tn.includes(bn);
+      });
+      const searchTitle = shelfMatch?.title ?? cleanTitle;
+      const searchAuthor = shelfMatch?.author ?? author;
+      const q = encodeURIComponent(`${searchTitle} ${searchAuthor}`.trim());
+      return { ...item, url: `https://www.google.com/search?tbm=bks&q=${q}` };
+    }
+    // Worth Trying → Amazon search. Same idea as books: writer-emitted
+    // product URLs are often 404 or point to the wrong SKU; an Amazon
+    // search URL always resolves and puts the correct product at the top.
+    if (label.includes("trying")) {
+      const rawTitle = item.title.trim();
+      if (!rawTitle) return item;
+      const q = encodeURIComponent(rawTitle);
+      return { ...item, url: `https://www.amazon.com/s?k=${q}` };
+    }
+    return item;
   });
   return { ...content, tastingMenu: newTasting };
 }

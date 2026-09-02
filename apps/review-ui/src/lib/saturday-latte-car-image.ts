@@ -82,11 +82,13 @@ async function isPhotoOfWholeCar(
           content: [
             {
               type: "text",
-              text: `Look at this image. Answer ONE question with strict JSON:
+              text: `Look at this image. TWO checks must BOTH pass for ok=true:
 
-Does this image show the WHOLE EXTERIOR of a road-going car (all four wheels or nearly so, full body from roof to sills, no cropping that removes the front or rear)?
+1) Does this image show the WHOLE EXTERIOR of a road-going car (all four wheels or nearly so, full body from roof to sills, no cropping that removes the front or rear)?
 
-Return {"ok": true, "reason": "brief"} if yes, {"ok": false, "reason": "what it actually is — e.g. 'suspension close-up', 'engine bay only', 'interior shot', 'wheel detail', 'headlight only'"} if no. No preamble.`,
+2) Is the car STATIONARY / PARKED? Panning shots, driving-past shots, rolling shots, motion-blurred wheels, streaking road under the car, blurred background from a moving camera — ALL FAIL. The image must be a clean static reference: parked car, sharp wheels, no directional motion blur, no visible speed lines. A perfectly still car on a road / dealership / studio / driveway = pass. A car mid-corner with blurred wheels = fail. Auto-generated / glitched-looking wheel spokes or shifted body panels also fail (Gemini output rather than a real photo).
+
+Return {"ok": true, "reason": "brief"} if BOTH pass. Return {"ok": false, "reason": "what it actually is — e.g. 'motion blur / panning shot', 'wheels blurred from movement', 'glitched wheel spokes', 'suspension close-up', 'engine bay only', 'interior shot', 'wheel detail', 'headlight only'"} if either fails. No preamble.`,
             },
             {
               type: "image",
