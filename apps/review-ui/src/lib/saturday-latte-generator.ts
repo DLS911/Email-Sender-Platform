@@ -1459,6 +1459,96 @@ function findOffShelfDrinkOffenses(content: SaturdayLatteContent): RepeatOffense
 }
 
 /**
+ * Deterministic car-era offense. Mirrors the writer's ERA-ROTATION
+ * RULE: if the last recent Drive pick was modern, this issue's Drive
+ * MUST be classic (pre-2010) or a real restomod; if the last was
+ * classic/restomod, this issue MUST be modern (2018+). If the writer
+ * violates the rule, fire a retry. Uses the same restomod detection
+ * as the runtime rule so a modern build of a '69 Bronco counts as
+ * classic.
+ */
+function findCarEraOffenses(
+  content: SaturdayLatteContent,
+  ctx: LatteRecentContext | undefined,
+): RepeatOffense[] {
+  if (!ctx || ctx.cars.length === 0) return [];
+  const last = ctx.cars[0];
+  if (!last) return [];
+  const currentYear = new Date().getUTCFullYear();
+  const isModern = (car: string): boolean => {
+    const restomodHit = /restomod|restoration|resto[- ]mod|coyote[- ]swap|ls[- ]swap|k[- ]swap/i.test(car);
+    if (restomodHit) return false;
+    const years = Array.from(car.matchAll(/\b(19|20)\d{2}\b/g)).map((m) => parseInt(m[0], 10));
+    if (years.length === 0) return false;
+    const oldestYear = Math.min(...years);
+    return oldestYear >= currentYear - 6;
+  };
+  const lastWasModern = isModern(last);
+  const pickWasModern = isModern(content.theDrive.car);
+  const offenses: RepeatOffense[] = [];
+  if (lastWasModern && pickWasModern) {
+    offenses.push({
+      slot: "theDrive",
+      picked: content.theDrive.car,
+      matched: `ERA ROTATION VIOLATION. Last issue's Drive was MODERN ("${last}") — this issue MUST be a CLASSIC (pre-2010) or a real restomod. Your pick "${content.theDrive.car}" is another modern car; alternate the era every issue. Pick an air-cooled 911, E30 M3, NSX, Miata NA, RX-7 FD, Supra Mk4, R32-R34 GT-R, 240Z, Fox Body Mustang, W123, restomod Bronco or FJ — anything pre-2010 or a swap build.`,
+    });
+  } else if (!lastWasModern && !pickWasModern) {
+    offenses.push({
+      slot: "theDrive",
+      picked: content.theDrive.car,
+      matched: `ERA ROTATION VIOLATION. Last issue's Drive was a CLASSIC/restomod ("${last}") — this issue MUST be MODERN (2018+). Your pick "${content.theDrive.car}" is another classic; alternate the era every issue. Pick a modern-era performance car — M2, GT3, RS6, C8 Corvette, GR Corolla, Blackwing sedan, AMG C63, current M3/M4, etc.`,
+    });
+  }
+  return offenses;
+}
+
+/**
+ * Deterministic tasting-repeat offense against the FULL permanent-memory
+ * recommendations. RecentContext.allRecommendations is populated from
+ * latte_recommendations (append-only, survives regenerations). If the
+ * writer picks a tasting title whose normalized form matches a
+ * previously-recorded book / film / album / podcast / drink / product,
+ * fire a retry. This catches "Conclave" recommended a second time.
+ */
+function findRepeatedTastingRecOffenses(
+  content: SaturdayLatteContent,
+  ctx: LatteRecentContext | undefined,
+): RepeatOffense[] {
+  if (!ctx?.allRecommendations) return [];
+  const kindToSlot: Record<string, string[]> = {
+    book: ["reading"],
+    film: ["watching"],
+    album: ["listening"],
+    podcast: ["listening"],
+    drink: ["drinking"],
+    product: ["trying"],
+  };
+  const offenses: RepeatOffense[] = [];
+  for (const [i, item] of content.tastingMenu.entries()) {
+    const label = (item.label ?? "").toLowerCase();
+    const pickedNorm = normalizeTitleForRepeat(item.title);
+    if (!pickedNorm) continue;
+    for (const [kind, allowedLabels] of Object.entries(kindToSlot)) {
+      if (!allowedLabels.some((l) => label.includes(l))) continue;
+      const list = ctx.allRecommendations[kind] ?? [];
+      const hit = list.find((prev) => {
+        const prevNorm = normalizeTitleForRepeat(prev);
+        return prevNorm && (prevNorm === pickedNorm || prevNorm.includes(pickedNorm) || pickedNorm.includes(prevNorm));
+      });
+      if (hit) {
+        offenses.push({
+          slot: `tasting-${i + 1}` as RepeatOffense["slot"],
+          picked: item.title,
+          matched: `ALREADY RECOMMENDED. "${item.title}" was previously featured in a past issue (recorded as ${kind}: "${hit}"). Pick a different ${kind}.`,
+        });
+        break;
+      }
+    }
+  }
+  return offenses;
+}
+
+/**
  * Force every Worth Reading URL to a guaranteed-live Google Books search
  * URL for that book's title (and author if we can extract it). The writer
  * has repeatedly emitted plausible-looking but 404-ing publisher/Amazon
@@ -2038,6 +2128,8 @@ export async function generateSaturdayLatteIssue(opts: {
         ...findOffShelfDrinkOffenses(writer.content),
         ...findTastingImagePromptMismatchOffenses(writer.content, writer.imagePrompts),
         ...findTastingUrlMismatchOffenses(writer.content),
+        ...findCarEraOffenses(writer.content, recentContext),
+        ...findRepeatedTastingRecOffenses(writer.content, recentContext),
         ...editorOffenses,
       ]
     : [
@@ -2157,6 +2249,24 @@ export async function generateSaturdayLatteIssue(opts: {
       driveReferenceUrl = imageResult.driveReferenceUrl ?? null;
       driveUsedReference = imageResult.driveUsedReference ?? false;
       imageValidatorVerdicts = imageResult.validatorVerdicts ?? [];
+      if (imageResult.failures.length > 0) {
+        for (const f of imageResult.failures) {
+          console.error("latte.image_slot_failed", { slot: f.slot, error: f.error });
+        }
+      }
+      // Which subject we tried to render per tasting slot — logged so a
+      // missing tasting-N image can be traced to the actual title, not
+      // just "tasting-3 failed".
+      for (let i = 0; i < subjects.tastingMenuTitles.length; i++) {
+        const url = imageResult.urls.tastingMenu?.[i];
+        if (!url || url.trim() === "") {
+          console.error("latte.tasting_image_missing", {
+            slot: `tasting-${i + 1}`,
+            subject: subjects.tastingMenuTitles[i],
+            label: subjects.tastingMenuLabels?.[i],
+          });
+        }
+      }
       // Count successes by counting set keys in urls (tasting menu counted per slot)
       const tmCount = imageResult.urls.tastingMenu
         ? imageResult.urls.tastingMenu.filter((u) => u && u.trim() !== "").length
