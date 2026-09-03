@@ -77,7 +77,15 @@ export default async function LatteReviewIndex({
 
   return (
     <main style={pageStyle}>
-      <h1 style={{ marginBottom: 8 }}>Latte review</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h1 style={{ marginBottom: 8 }}>Latte review</h1>
+        <Link
+          href={`/admin/latte/curated?test=${testParam}`}
+          style={{ color: "#0a5fb8", fontSize: 13, textDecoration: "none", padding: "6px 12px", border: "1px solid #0a5fb8", borderRadius: 4 }}
+        >
+          ⭐ Curated lists →
+        </Link>
+      </div>
       <p style={{ color: "#666", fontSize: 14, marginBottom: 24 }}>
         Recent Saturday Morning Latte issues. Click a row to see per-slot images and regenerate anything that came out wrong.
       </p>

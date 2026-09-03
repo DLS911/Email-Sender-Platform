@@ -2258,18 +2258,48 @@ export type LatteRecentContext = {
   allRecommendations?: Record<string, string[]>;
 };
 
+function formatCuratedForWriterLocal(
+  curated: Record<"car" | "drink" | "book" | "product", Array<{ title: string; notes: string | null }>> | undefined,
+): string {
+  if (!curated) return "";
+  const lines: string[] = [];
+  const kindLabel: Record<string, string> = {
+    car: "Cars (The Drive)",
+    drink: "Drinks (Worth Drinking)",
+    book: "Books (Worth Reading)",
+    product: "Products (Worth Trying)",
+  };
+  let anyActive = false;
+  for (const kind of ["car", "drink", "book", "product"] as const) {
+    const items = curated[kind];
+    if (!items || items.length === 0) continue;
+    anyActive = true;
+    lines.push(`\n## ${kindLabel[kind]} — ${items.length} curated available`);
+    for (const it of items) {
+      const note = it.notes ? ` (${it.notes})` : "";
+      lines.push(`- ${it.title}${note}`);
+    }
+  }
+  if (!anyActive) return "";
+  return `\n# ⭐ PRIORITY CURATED LIST — HARD RULE\nAustin has pre-selected specific items for the writer to pick from. For any KIND below with items listed, this issue MUST pick from that curated list. Only if a kind has NO curated items are you free to pick from shelves / research as normal. The lists are ordered oldest-first; when in doubt, pick the oldest curated item that fits the issue's theme.\n${lines.join("\n")}\n\nIf a curated item's spelling / brand / year differs slightly from what's in your research, USE THE CURATED TITLE VERBATIM — the curator's spelling is authoritative.`;
+}
+
 export async function generateSaturdayLatteIssue(opts: {
   issueDate: string;
   recentCoverStories?: string[];
   recentContext?: LatteRecentContext;
   anthropicApiKey?: string;
   perplexityApiKey?: string;
+  /** Austin's manual pre-selections, grouped by kind. Writer picks
+   *  from these FIRST when they're non-empty. */
+  curated?: Record<"car" | "drink" | "book" | "product", Array<{ title: string; notes: string | null }>>;
 }): Promise<SaturdayLatteIssue> {
   const anthropicKey = opts.anthropicApiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey: anthropicKey });
   const recentCoverStories = opts.recentCoverStories ?? [];
   const recentContext = opts.recentContext;
+  const curatedBlock = formatCuratedForWriterLocal(opts.curated);
 
   const research = await runPerplexityResearch(
     opts.perplexityApiKey
@@ -2287,6 +2317,8 @@ export async function generateSaturdayLatteIssue(opts: {
     research.bundle,
     recentCoverStories,
     recentContext,
+    undefined,
+    curatedBlock,
   );
 
   // Label-content kind mismatch guard: Worth Watching MUST be a film,
@@ -2351,6 +2383,7 @@ export async function generateSaturdayLatteIssue(opts: {
       recentCoverStories,
       recentContext,
       rejectionMessage,
+      curatedBlock,
     );
     writer = {
       content: retryWriter.content,
@@ -2382,6 +2415,7 @@ export async function generateSaturdayLatteIssue(opts: {
           recentCoverStories,
           recentContext,
           `⚠️ SECOND RETRY. Your previous retry ALSO violated one or more mandatory rules. This is your LAST chance to comply. Read every rule below carefully and produce a draft that violates NONE of them:\n\n${secondMsg}`,
+          curatedBlock,
         );
         writer = {
           content: secondRetry.content,

@@ -19,6 +19,8 @@ import {
   loadAllRecommendations,
   recordRecommendations,
 } from "./saturday-latte-recommendations";
+import { loadActiveCurated, markCuratedUsed, type CuratedItem, type CuratedKind } from "./latte-curated";
+export type { CuratedItem, CuratedKind };
 import {
   type SaturdayLatteIssue,
   generateSaturdayLatteIssue,
@@ -568,15 +570,19 @@ export async function runLatteGenerate(
     // Permanent memory: pull the last 200 APPROVED issues (~4 years of
     // Saturdays). The writer sees the full history of what's already been
     // recommended and MUST NOT pick anything on that list.
-    const [recentCoverStories, recentContext] = await Promise.all([
+    // Curated: Austin's manual pre-selections take PRIORITY over
+    // shelf/research picks (per-kind: cars, drinks, books, products).
+    const [recentCoverStories, recentContext, curated] = await Promise.all([
       loadRecentCoverStories(db, 200),
       loadRecentLatteContext(db, 200),
+      loadActiveCurated(db),
     ]);
     const start = Date.now();
     const issue = await generateSaturdayLatteIssue({
       issueDate: targetDate,
       recentCoverStories,
       recentContext,
+      curated,
     });
     const rendered = renderSaturdayLatteHtml(issue.content, {
       issueDate: targetDate,
@@ -610,6 +616,29 @@ export async function runLatteGenerate(
       }
     } catch (err) {
       logger.warn("cron.saturday_latte_generate.recs_threw", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    // Curated-used marker. Walk the actually-published picks and flip
+    // any matching curated rows from active → used with the issue date
+    // stamped. Idempotent (only affects rows still in "active").
+    try {
+      const usedList: Array<{ kind: CuratedKind; title: string }> = [];
+      if (issue.content.theDrive?.car) usedList.push({ kind: "car", title: issue.content.theDrive.car });
+      for (const t of issue.content.tastingMenu ?? []) {
+        const label = (t.label ?? "").toLowerCase();
+        if (!t.title) continue;
+        if (label.includes("drinking")) usedList.push({ kind: "drink", title: t.title });
+        else if (label.includes("reading")) usedList.push({ kind: "book", title: t.title });
+        else if (label.includes("trying") || label.includes("listening")) usedList.push({ kind: "product", title: t.title });
+      }
+      const markRes = await markCuratedUsed(db, targetDate, usedList);
+      if (markRes.marked > 0) {
+        logger.info("cron.saturday_latte_generate.curated_marked_used", { marked: markRes.marked, issue_date: targetDate });
+      }
+    } catch (err) {
+      logger.warn("cron.saturday_latte_generate.curated_mark_threw", {
         error: err instanceof Error ? err.message : String(err),
       });
     }
