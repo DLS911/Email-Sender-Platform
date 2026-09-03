@@ -224,7 +224,7 @@ function parseLatteResearchItem(raw: unknown, citationsSet: Set<string>): LatteR
   return item;
 }
 
-async function runPerplexityResearch(opts: {
+export async function runPerplexityResearch(opts: {
   issueDate: string;
   recentCoverStories: string[];
   recentContext?: LatteRecentContext;
@@ -896,13 +896,14 @@ function parseLatteContent(rawText: string): {
   return { content, contentType, imagePrompts };
 }
 
-async function runWriterPhase(
+export async function runWriterPhase(
   client: Anthropic,
   issueDate: string,
   research: LatteResearch,
   recentCoverStories: string[],
   recentContext?: LatteRecentContext,
   retryRejectionMessage?: string,
+  additionalContext?: string,
 ): Promise<{
   content: SaturdayLatteContent;
   contentType: string;
@@ -915,6 +916,7 @@ async function runWriterPhase(
   parts.push(`Today is ${issueDate}. Write today's Saturday Morning Latte using the research below.`);
   parts.push("\n# RESEARCH (use specific items from these arrays — real names, real places):");
   parts.push(JSON.stringify(research, null, 2));
+  if (additionalContext && additionalContext.trim()) parts.push(additionalContext);
   if (recentCoverStories.length > 0) {
     parts.push(
       `\n# RECENT COVER STORIES (do NOT pick a destination or theme that overlaps):\n${recentCoverStories.map((s) => `- ${s}`).join("\n")}`,

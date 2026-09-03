@@ -85,7 +85,7 @@ export type ImageGenResult = {
   }>;
 };
 
-function getStorageClient(): SupabaseClient {
+export function getStorageClient(): SupabaseClient {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
@@ -413,7 +413,7 @@ export async function editDriveImageBackground(
   ]);
 }
 
-async function uploadToStorage(
+export async function uploadToStorage(
   storage: SupabaseClient,
   bytes: Uint8Array,
   storagePath: string,
@@ -432,7 +432,7 @@ async function uploadToStorage(
   return publicData.publicUrl;
 }
 
-function extForMime(mimeType: string): string {
+export function extForMime(mimeType: string): string {
   if (mimeType.includes("png")) return "png";
   if (mimeType.includes("jpeg") || mimeType.includes("jpg")) return "jpg";
   if (mimeType.includes("webp")) return "webp";

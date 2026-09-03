@@ -172,7 +172,7 @@ async function loadMostRecentCachedIssue(
 // (which contains real picks the writer made) would get re-picked on
 // the next generate. Lookback is deep (200 issues ~= 4 years) so the
 // system remembers permanently.
-async function loadRecentCoverStories(db: SupabaseClient, limit = 12): Promise<string[]> {
+export async function loadRecentCoverStories(db: SupabaseClient, limit = 12): Promise<string[]> {
   const { data, error } = await db
     .from("saturday_latte_issues")
     .select("cover_story_headline")
