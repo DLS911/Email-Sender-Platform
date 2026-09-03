@@ -1073,7 +1073,7 @@ REMINDER: the subject "${subject}" must appear per the reference image. Only the
   }
 }
 
-async function generateForSlot(
+export async function generateForSlot(
   apiKey: string,
   slot: string,
   prompt: string,

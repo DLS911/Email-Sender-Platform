@@ -555,7 +555,24 @@ Pull from research: cars. If no cars in research, pick from any of the six categ
 **MODERN ↔ CLASSIC ROTATION — HARD RULE (mirrors the destination rule).** Look at the RECENT DRIVE PICKS list. For this rule "modern" = model year 2015+ and "classic" = anything older (including restomods based on pre-2015 platforms — a Coyote-swap Fox Body is CLASSIC, not modern). Count how many of the last 3 picks were modern. **If the last 3 were all modern, this issue's Drive MUST be a classic (pre-2015).** Similarly, if the last 3 were all classic, this issue MUST be modern. Across a rolling window of ~10 recent picks, aim for 40-60% classic. The section is called The Drive, not The New Car of the Week — an air-cooled 911, an NSX, a Miata NA, an E30 M3, a Fox Body Coyote-swap, a Land Cruiser FJ60, or an LS-swapped 240Z belongs here as often as a new M2 does. If the research bundle is modern-heavy this week and the rotation says classic, pick a classic anyway — Mark's car knowledge doesn't depend on a Perplexity link.
 
 ### 5. Sunday Prep
-50-100 words on ONE concrete action for the week ahead. Practical, friend-texting tone.
+50-100 words on ONE concrete SUNDAY-AFTERNOON action for the WEEK AHEAD. Practical, friend-texting tone. Think "what does a thoughtful person actually do on a Sunday afternoon that makes the week better."
+
+**WHAT COUNTS AS SUNDAY PREP:**
+- Meal prep (a stew that eats for three lunches, a grain salad that lasts, brine a chicken for Wednesday)
+- Household ops (laundry rotation, run the dishwasher, restock coffee/staples, refill the water pitcher, clean out the fridge, ten-minute reset of the bar cart)
+- Weekly planning (block the calendar for one hard thing, write the week's three priorities on an index card, pull up the school calendar, check the family group text)
+- Weekend-to-week bridges (charge the AirPods for Monday's call, lay out running gear by the door, download the podcast for the commute)
+- Rest-adjacent (Sunday walk, an hour of reading in a chair, one hour of email offline)
+
+**BANNED for Sunday Prep — these are NOT weekly-cadence household actions:**
+- Car maintenance ("check the coilovers", "torque the wheel bolts", "top up the diff fluid", "corner-balance the suspension"). Cars go in The Drive; enthusiast maintenance is not a Sunday task the average reader does.
+- Home renovation ("re-caulk the tub", "sand a table", "re-stain the deck"). Those are project weekends, not weekly prep.
+- Health-tech setups ("recalibrate your Oura ring", "reset your Whoop strap"). Niche.
+- Financial admin ("rebalance your 401k", "check the muni-bond ladder"). Wrong newsletter.
+- Anything that reads as a specialty hobby chore for a small subset of readers.
+
+If the pick reads more like an enthusiast maintenance item than a household reset, rewrite it toward the household-reset frame.
+
 - title: short subject for the action
 - body: the action itself
 
@@ -2400,6 +2417,51 @@ export async function generateSaturdayLatteIssue(opts: {
             },
           },
         };
+      }
+      // Final backstop for TASTING repeats: if the writer picked a
+      // shelf drink or book that's already in permanent memory AFTER
+      // two retries, deterministically substitute an unused shelf
+      // item. Austin: "wy some bottle repeat" — the writer keeps
+      // ignoring the memory list for Highland Park 12 / Buffalo
+      // Trace / etc. and dedup was leaking. This closes the loop.
+      const finalTastingOffenses = findRepeatedTastingRecOffenses(writer.content, recentContext);
+      if (finalTastingOffenses.length > 0) {
+        const usedDrinks = new Set((recentContext.allRecommendations?.drink ?? []).map((v) => normalizeTitleForRepeat(v)));
+        const usedBooks = new Set((recentContext.allRecommendations?.book ?? []).map((v) => normalizeTitleForRepeat(v)));
+        for (const off of finalTastingOffenses) {
+          const idx = off.slot === "tasting-1" ? 0 : off.slot === "tasting-2" ? 1 : off.slot === "tasting-3" ? 2 : -1;
+          if (idx < 0) continue;
+          const item = writer.content.tastingMenu[idx];
+          if (!item) continue;
+          const label = (item.label ?? "").toLowerCase();
+          let replacement: { title: string; body?: string } | null = null;
+          if (label.includes("drinking")) {
+            const unused = LATTE_DRINK_SHELF.find((s) => !usedDrinks.has(normalizeTitleForRepeat(s.title)));
+            if (unused) replacement = { title: unused.title, body: `Substituted from the drink shelf after the writer repeated a previous pick. Try this instead: ${unused.title}. It's on the shelf for a reason.` };
+          } else if (label.includes("reading")) {
+            const unused = LATTE_BOOK_SHELF.find((s) => !usedBooks.has(normalizeTitleForRepeat(s.title)));
+            if (unused) replacement = { title: `${unused.title} by ${unused.author}`, body: `Substituted from the book shelf after the writer repeated a previous pick. Try this instead: ${unused.title} by ${unused.author}.` };
+          }
+          if (replacement) {
+            console.error("latte.tasting_force_inject_replacement", {
+              slot: off.slot,
+              original: item.title,
+              injected: replacement.title,
+              reason: "writer repeated a previous pick after two retries",
+            });
+            writer.content.tastingMenu[idx] = {
+              ...item,
+              title: replacement.title,
+              body: replacement.body ?? item.body,
+            };
+          } else {
+            console.error("latte.tasting_force_inject_no_shelf_left", {
+              slot: off.slot,
+              original: item.title,
+              reason: "shelf exhausted or non-shelf kind",
+            });
+          }
+        }
       }
     }
   }
