@@ -572,10 +572,22 @@ export async function runLatteGenerate(
     // recommended and MUST NOT pick anything on that list.
     // Curated: Austin's manual pre-selections take PRIORITY over
     // shelf/research picks (per-kind: cars, drinks, books, products).
+    // Wrapped in try/catch so a curated-loader failure never aborts the
+    // whole generate flow (empty curated is a valid state and simply
+    // means the writer picks normally).
     const [recentCoverStories, recentContext, curated] = await Promise.all([
       loadRecentCoverStories(db, 200),
       loadRecentLatteContext(db, 200),
-      loadActiveCurated(db),
+      (async () => {
+        try {
+          return await loadActiveCurated(db);
+        } catch (err) {
+          logger.warn("cron.saturday_latte_generate.curated_load_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return { car: [], drink: [], book: [], product: [] };
+        }
+      })(),
     ]);
     const start = Date.now();
     const issue = await generateSaturdayLatteIssue({
