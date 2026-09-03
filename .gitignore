@@ -50,3 +50,6 @@ supabase/.env
 # Generated
 **/*.generated.ts
 .vercel
+
+# harness runs (per-run artifacts, not tracked)
+apps/review-ui/harness-runs/
