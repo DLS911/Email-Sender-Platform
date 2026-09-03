@@ -54,6 +54,8 @@ async function handle(req: Request): Promise<NextResponse> {
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY missing" }, { status: 500 });
+  const googleKey = process.env.GOOGLE_API_KEY;
+  if (!googleKey) return NextResponse.json({ error: "GOOGLE_API_KEY missing" }, { status: 500 });
 
   const validatorCtx: V2ValidatorContext = {
     slot: c.slot,
@@ -74,7 +76,7 @@ async function handle(req: Request): Promise<NextResponse> {
   try {
     if (c.slot === "hero" || c.slot === "coverDetail" || c.slot === "hostsCorner") {
       const res = await generateSceneSlot({
-        apiKey: anthropicKey,
+        apiKey: googleKey,
         slot: c.slot,
         subject: c.subject,
         slotPrompt: c.slotPrompt,
@@ -100,7 +102,7 @@ async function handle(req: Request): Promise<NextResponse> {
     }
     if (c.slot === "theDrive") {
       const compRes = await generateCarSlot({
-        apiKey: anthropicKey,
+        apiKey: googleKey,
         carName: c.subject,
         slotPrompt: c.slotPrompt,
         sectionTag: `[Harness — theDrive] ${c.subject}`,

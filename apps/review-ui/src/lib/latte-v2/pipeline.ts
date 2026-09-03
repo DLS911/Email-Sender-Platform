@@ -102,6 +102,9 @@ export async function runLatteGenerateV2(opts: { targetDate?: string; regenerate
     const anthropicKeyOrUndef = process.env.ANTHROPIC_API_KEY;
     if (!anthropicKeyOrUndef) throw new Error("ANTHROPIC_API_KEY missing");
     const anthropicKey: string = anthropicKeyOrUndef;
+    const googleKeyOrUndef = process.env.GOOGLE_API_KEY;
+    if (!googleKeyOrUndef) throw new Error("GOOGLE_API_KEY missing");
+    const googleKey: string = googleKeyOrUndef;
     const client = new Anthropic({ apiKey: anthropicKey });
 
     // 1. Perplexity research (unchanged from v1).
@@ -177,7 +180,7 @@ export async function runLatteGenerateV2(opts: { targetDate?: string; regenerate
 
     async function runScene(slot: "hero" | "coverDetail" | "hostsCorner", subject: string, prompt: string, validatorCtx: V2ValidatorContext): Promise<void> {
       const res = await generateSceneSlot({
-        apiKey: anthropicKey,
+        apiKey: googleKey,
         slot,
         subject,
         slotPrompt: prompt,
@@ -218,7 +221,7 @@ export async function runLatteGenerateV2(opts: { targetDate?: string; regenerate
     // The Drive → composite-legacy route.
     jobs.push((async () => {
       const carRes = await generateCarSlot({
-        apiKey: anthropicKey,
+        apiKey: googleKey,
         carName: writer.content.theDrive.car,
         slotPrompt: imagePrompts.theDrive,
         sectionTag: `[Saturday Morning Latte v2 — The Drive] Subject: "${writer.content.theDrive.car}"`,
@@ -248,7 +251,7 @@ export async function runLatteGenerateV2(opts: { targetDate?: string; regenerate
           : "tastingMenu-product";
         const validatorCtx: V2ValidatorContext = { slot: slotType, subject: item.title };
         const res = await generateProductOrDrinkSlot({
-          apiKey: anthropicKey,
+          apiKey: googleKey,
           subject: item.title,
           kind,
           slotPrompt: imagePrompts.tastingMenu[i] ?? "",
