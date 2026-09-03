@@ -102,28 +102,52 @@ export default async function LatteReviewIndex({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.issue_date} style={{ borderBottom: "1px solid #eef" }}>
-              <td style={cellStyle}>{r.issue_date}</td>
-              <td style={{ ...cellStyle, color: r.pipelineVersion === "v2" ? "#0a5fb8" : "#666" }}>{r.pipelineVersion}</td>
-              <td style={cellStyle}>{r.headline}</td>
-              <td style={cellStyle}>
-                <span style={{
-                  padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
-                  ...(r.approval === "approved" ? { color: "#0a7f3f", backgroundColor: "#e6f5ec" }
-                    : r.approval === "needs_work" ? { color: "#b8651a", backgroundColor: "#fdf1e5" }
-                    : { color: "#666", backgroundColor: "#f0f0f2" }),
-                }}>{r.approval}</span>
-              </td>
-              <td style={{ ...cellStyle, color: r.regenCount > 0 ? "#b8651a" : "#aaa" }}>{r.regenCount || "—"}</td>
-              <td style={{ ...cellStyle, color: r.hasImages ? "#0a7f3f" : "#aaa" }}>{r.hasImages ? "✓" : "—"}</td>
-              <td style={cellStyle}>
-                <Link href={`/admin/latte/${r.issue_date}?test=${testParam}`} style={{ color: "#0a5fb8" }}>
-                  review →
-                </Link>
-              </td>
-            </tr>
-          ))}
+          {(() => {
+            // Newest = the row with the most recent generated_at (not issue_date,
+            // since regenerate=1 overwrites and issue_date is a future target).
+            let newestIdx = -1;
+            let newestGen = 0;
+            for (let i = 0; i < rows.length; i++) {
+              const g = rows[i]!.generated_at ? new Date(rows[i]!.generated_at!).getTime() : 0;
+              if (g > newestGen) { newestGen = g; newestIdx = i; }
+            }
+            return rows.map((r, i) => {
+              const isNewest = i === newestIdx;
+              return (
+                <tr key={r.issue_date} style={{
+                  borderBottom: "1px solid #eef",
+                  ...(isNewest ? { background: "#eef7ff", boxShadow: "inset 4px 0 0 0 #0a5fb8" } : {}),
+                }}>
+                  <td style={cellStyle}>
+                    {isNewest ? (
+                      <span style={{
+                        display: "inline-block", marginRight: 8, padding: "2px 8px", borderRadius: 3,
+                        background: "#0a5fb8", color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                      }}>NEWEST</span>
+                    ) : null}
+                    {r.issue_date}
+                  </td>
+                  <td style={{ ...cellStyle, color: r.pipelineVersion === "v2" ? "#0a5fb8" : "#666" }}>{r.pipelineVersion}</td>
+                  <td style={cellStyle}>{r.headline}</td>
+                  <td style={cellStyle}>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                      ...(r.approval === "approved" ? { color: "#0a7f3f", backgroundColor: "#e6f5ec" }
+                        : r.approval === "needs_work" ? { color: "#b8651a", backgroundColor: "#fdf1e5" }
+                        : { color: "#666", backgroundColor: "#f0f0f2" }),
+                    }}>{r.approval}</span>
+                  </td>
+                  <td style={{ ...cellStyle, color: r.regenCount > 0 ? "#b8651a" : "#aaa" }}>{r.regenCount || "—"}</td>
+                  <td style={{ ...cellStyle, color: r.hasImages ? "#0a7f3f" : "#aaa" }}>{r.hasImages ? "✓" : "—"}</td>
+                  <td style={cellStyle}>
+                    <Link href={`/admin/latte/${r.issue_date}?test=${testParam}`} style={{ color: "#0a5fb8", fontWeight: isNewest ? 600 : 400 }}>
+                      review →
+                    </Link>
+                  </td>
+                </tr>
+              );
+            });
+          })()}
         </tbody>
       </table>
     </main>
