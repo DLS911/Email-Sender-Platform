@@ -67,6 +67,14 @@ function extractByPath(obj: Record<string, unknown>, path: string): string {
   return typeof cur === "string" ? cur : "";
 }
 
+// Convert the regenerate-slot storage key ("the-drive", "tasting-1", …)
+// to the imageReferences map key emitted by generateAndStore
+// ("the-drive", "tasting-1", …). The two are aligned by convention;
+// this helper exists so a future rename doesn't silently drift.
+function slotToImageKeyForRef(slot: string): string {
+  return slot;
+}
+
 function imageUrlFor(images: Record<string, unknown>, key: SlotDef["imagesKey"]): string | null {
   if (Array.isArray(key)) {
     const [outer, idx] = key;
@@ -125,12 +133,21 @@ export default async function LatteReviewDetail({
 
   const sections = (row.sections ?? {}) as Record<string, unknown>;
   const images = (sections.images ?? {}) as Record<string, unknown>;
+  const imageReferences = (sections.imageReferences ?? {}) as Record<string, string | null>;
   const regenHistory = Array.isArray(sections.slotRegenerations) ? (sections.slotRegenerations as Array<Record<string, unknown>>) : [];
   const regenCountBySlot = regenHistory.reduce<Record<string, number>>((acc, e) => {
     const s = typeof e.slot === "string" ? e.slot : "?";
     acc[s] = (acc[s] ?? 0) + 1;
     return acc;
   }, {});
+  // Latest slotRegenerations entry per slot exposes the reference URL used
+  // on the most recent regenerate (useful when the initial gen didn't use
+  // a ref but a regen did). Overrides the initial imageReferences entry.
+  for (const entry of regenHistory) {
+    const s = typeof entry.slot === "string" ? entry.slot : null;
+    const r = typeof entry.referenceUrl === "string" ? entry.referenceUrl : null;
+    if (s && r) imageReferences[slotToImageKeyForRef(s)] = r;
+  }
 
   const baseUrl = process.env.PUBLIC_BASE_URL || "https://email-sndr-platform.vercel.app";
   const approveUrl = approvalUrl(baseUrl, "latte", issueDate, "approve");
@@ -158,6 +175,7 @@ export default async function LatteReviewDetail({
             const url = imageUrlFor(images, slot.imagesKey);
             const subject = extractByPath(sections, slot.subjectPath);
             const regens = regenCountBySlot[slot.key] ?? 0;
+            const referenceUrl = imageReferences[slot.key] ?? null;
             return (
               <SlotControls
                 key={slot.key}
@@ -168,6 +186,7 @@ export default async function LatteReviewDetail({
                 imageUrl={url}
                 subject={subject}
                 regenCount={regens}
+                referenceUrl={referenceUrl}
               />
             );
           })}

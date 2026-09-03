@@ -1792,6 +1792,43 @@ function refInList(picked: string, list: string[]): boolean {
   return list.some((r) => normalizeRef(r) === norm);
 }
 
+/**
+ * Body writer for tasting items that got deterministically substituted
+ * after the writer refused to comply with dedup on two retries. The
+ * body must read exactly like the writer picked it themselves — no
+ * meta-copy ("substituted from the shelf") and no explanation. Mark's
+ * voice, 80-150 words, opinionated, no hedging, surface the counter-
+ * intuitive dimension.
+ */
+async function writeSubstitutionBody(
+  client: Anthropic,
+  kind: "drink" | "book",
+  title: string,
+  coverStoryHeadline: string,
+): Promise<string> {
+  const kindNoun = kind === "drink" ? "drink (bourbon / whisky / wine / beer / tequila / mezcal / spirit / coffee bean / tea)" : "book";
+  const labelWord = kind === "drink" ? "Worth Drinking" : "Worth Reading";
+  const response = await client.messages.create({
+    model: IMAGE_PROMPT_MODEL,
+    max_tokens: 500,
+    temperature: 0.7,
+    system: `You write the tasting-menu body copy for a single item in The Saturday Morning Latte, a lifestyle newsletter for established financial advisors. Voice: Mark speaking directly — direct, opinionated, no hedging, no travel-magazine prose, no "perhaps consider," no "a hidden gem awaits."
+
+Return ONLY the body text — no preamble, no label, no title, no meta-commentary. 80-150 words. One paragraph, no headings. Surface a counter-intuitive dimension or the specific sensory detail that separates this pick from close competitors. Do NOT literally write "the unexpected variable" or "the hidden variable." Do NOT mention that this is a substitution or that it came from a shelf. Do NOT hedge. Reference the cover story theme only if it fits naturally — otherwise ignore it.`,
+    messages: [
+      {
+        role: "user",
+        content: `Write the ${labelWord} body for this ${kindNoun}:\n\n"${title}"\n\nThis week's cover story is about: ${coverStoryHeadline}. Reference it only if the connection is natural; otherwise write about the ${kind} on its own merits.`,
+      },
+    ],
+  });
+  let text = "";
+  for (const block of response.content) if (block.type === "text") text += block.text;
+  const cleaned = text.trim();
+  if (!cleaned) throw new Error("writeSubstitutionBody: empty response");
+  return cleaned;
+}
+
 async function swapSabbathVerse(
   client: Anthropic,
   bannedRefs: string[],
@@ -2219,6 +2256,7 @@ export type SaturdayLatteIssue = {
     imagePromptsError?: string;
     imagesError?: string;
     driveReferenceUrl?: string | null;
+    imageReferences?: Record<string, string | null>;
     driveUsedReference?: boolean;
     imageValidatorVerdicts?: Array<{
       slot: string;
@@ -2468,25 +2506,40 @@ export async function generateSaturdayLatteIssue(opts: {
           const item = writer.content.tastingMenu[idx];
           if (!item) continue;
           const label = (item.label ?? "").toLowerCase();
-          let replacement: { title: string; body?: string } | null = null;
+          let replacementTitle: string | null = null;
+          let replacementKind: "drink" | "book" | null = null;
           if (label.includes("drinking")) {
             const unused = LATTE_DRINK_SHELF.find((s) => !usedDrinks.has(normalizeTitleForRepeat(s.title)));
-            if (unused) replacement = { title: unused.title, body: `Substituted from the drink shelf after the writer repeated a previous pick. Try this instead: ${unused.title}. It's on the shelf for a reason.` };
+            if (unused) { replacementTitle = unused.title; replacementKind = "drink"; }
           } else if (label.includes("reading")) {
             const unused = LATTE_BOOK_SHELF.find((s) => !usedBooks.has(normalizeTitleForRepeat(s.title)));
-            if (unused) replacement = { title: `${unused.title} by ${unused.author}`, body: `Substituted from the book shelf after the writer repeated a previous pick. Try this instead: ${unused.title} by ${unused.author}.` };
+            if (unused) { replacementTitle = `${unused.title} by ${unused.author}`; replacementKind = "book"; }
           }
-          if (replacement) {
+          if (replacementTitle && replacementKind) {
             console.error("latte.tasting_force_inject_replacement", {
               slot: off.slot,
               original: item.title,
-              injected: replacement.title,
+              injected: replacementTitle,
               reason: "writer repeated a previous pick after two retries",
             });
+            // Generate a proper editorial body in Mark's voice for the
+            // substituted item so the reader can't tell a substitution
+            // happened. Austin: "it needs to be the same kind of copy for
+            // if it wasnt changed." Fallback: reuse the writer's original
+            // body if the Haiku call fails (better than meta-copy).
+            let body = item.body;
+            try {
+              body = await writeSubstitutionBody(client, replacementKind, replacementTitle, writer.content.coverStoryHeadline);
+            } catch (err) {
+              console.warn("latte.tasting_substitution_body_failed", {
+                slot: off.slot,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
             writer.content.tastingMenu[idx] = {
               ...item,
-              title: replacement.title,
-              body: replacement.body ?? item.body,
+              title: replacementTitle,
+              body,
             };
           } else {
             console.error("latte.tasting_force_inject_no_shelf_left", {
@@ -2520,6 +2573,7 @@ export async function generateSaturdayLatteIssue(opts: {
   let imagesError: string | null = null;
   let driveReferenceUrl: string | null = null;
   let driveUsedReference = false;
+  let imageReferences: Record<string, string | null> = {};
   let imageValidatorVerdicts: Array<{
     slot: string;
     attempts: number;
@@ -2617,6 +2671,7 @@ export async function generateSaturdayLatteIssue(opts: {
       imagesFailed = imageResult.failures.length;
       driveReferenceUrl = imageResult.driveReferenceUrl ?? null;
       driveUsedReference = imageResult.driveUsedReference ?? false;
+      imageReferences = imageResult.imageReferences ?? {};
       imageValidatorVerdicts = imageResult.validatorVerdicts ?? [];
       if (imageResult.failures.length > 0) {
         for (const f of imageResult.failures) {
@@ -2754,6 +2809,7 @@ export async function generateSaturdayLatteIssue(opts: {
       ...(imagesError ? { imagesError } : {}),
       driveReferenceUrl,
       driveUsedReference,
+      imageReferences,
       imageValidatorVerdicts,
       urlsValidated: urlValidation.validated,
       urlsDropped: urlValidation.dropped,

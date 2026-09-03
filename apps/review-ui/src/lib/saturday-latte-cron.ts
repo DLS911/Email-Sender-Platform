@@ -406,7 +406,10 @@ async function persistIssue(
       subject: rendered.subject,
       cover_story_headline: issue.content.coverStoryHeadline,
       preheader: rendered.preheader,
-      sections: issue.content,
+      sections: {
+        ...issue.content,
+        ...(issue.meta.imageReferences ? { imageReferences: issue.meta.imageReferences } : {}),
+      },
       html: rendered.html,
       text_body: rendered.text,
       model: issue.meta.model,

@@ -19,13 +19,14 @@ export function SlotControls(props: {
   imageUrl: string | null;
   subject: string;
   regenCount: number;
+  referenceUrl: string | null;
 }) {
-  const { issueDate, testSecret, slot, label, subject, regenCount } = props;
+  const { issueDate, testSecret, slot, label, subject, regenCount, referenceUrl } = props;
   const [imageUrl, setImageUrl] = useState<string | null>(props.imageUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regens, setRegens] = useState(regenCount);
-  const [showFull, setShowFull] = useState(false);
+  const [showFull, setShowFull] = useState<"gen" | "ref" | null>(null);
 
   const regenerate = useCallback(async () => {
     if (busy) return;
@@ -59,7 +60,7 @@ export function SlotControls(props: {
           <img
             src={imageUrl}
             alt={label}
-            onClick={() => setShowFull(true)}
+            onClick={() => setShowFull("gen")}
             style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "zoom-in", display: "block" }}
           />
         ) : (
@@ -75,6 +76,28 @@ export function SlotControls(props: {
         <div style={{ fontWeight: 600, fontSize: 13, color: "#222" }}>{label}</div>
         <div style={{ fontSize: 11, color: "#666", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>{subject || "—"}</div>
         {regens > 0 ? <div style={{ fontSize: 10, color: "#b8651a", marginTop: 2 }}>regenerated {regens}×</div> : null}
+        {referenceUrl ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, padding: "4px 6px", background: "#f6f6f8", borderRadius: 4 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={referenceUrl}
+              alt={`ref: ${label}`}
+              onClick={() => setShowFull("ref")}
+              style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 3, border: "1px solid #d5d8de", cursor: "zoom-in", flexShrink: 0 }}
+            />
+            <a
+              href={referenceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 10, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: "none" }}
+              title={referenceUrl}
+            >
+              ref image ↗
+            </a>
+          </div>
+        ) : (
+          <div style={{ fontSize: 10, color: "#aaa", marginTop: 6 }}>no reference (text-only)</div>
+        )}
         {error ? <div style={{ fontSize: 10, color: "#c22", marginTop: 4 }}>err: {error}</div> : null}
         <button
           type="button"
@@ -88,17 +111,22 @@ export function SlotControls(props: {
           {busy ? "…" : "Regenerate"}
         </button>
       </div>
-      {showFull && imageUrl ? (
-        // Lightbox
+      {showFull ? (
+        // Lightbox — shows either the generated image or the reference
         <div
-          onClick={() => setShowFull(false)}
+          onClick={() => setShowFull(null)}
           style={{
             position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000,
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out", padding: 24,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out", padding: 24, flexDirection: "column", gap: 12,
           }}
         >
+          <div style={{ color: "#fff", fontSize: 12, opacity: 0.75 }}>{showFull === "gen" ? "generated" : "reference"}</div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl} alt={label} style={{ maxWidth: "100%", maxHeight: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }} />
+          <img
+            src={showFull === "gen" ? imageUrl ?? "" : referenceUrl ?? ""}
+            alt={label}
+            style={{ maxWidth: "100%", maxHeight: "80vh", boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }}
+          />
         </div>
       ) : null}
     </div>

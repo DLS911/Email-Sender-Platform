@@ -75,6 +75,12 @@ export type ImageGenResult = {
   driveReferenceUrl?: string | null;
   /** True if the drive slot was populated from a press photo (accuracy guaranteed); false if it fell back to text-only Gemini (may be inaccurate). */
   driveUsedReference?: boolean;
+  /** Per-slot reference URLs (source of the raw image Gemini started from).
+   *  Populated for slots that used a reference (theDrive, tastingMenu-book,
+   *  tastingMenu-film-poster, tastingMenu-product, tastingMenu-drink,
+   *  hostsCorner if cookware continuity fired). Missing / null when the
+   *  slot rendered text-only. Surfaced in the /admin/latte review UI. */
+  imageReferences?: Record<string, string | null>;
   /** Per-slot validator verdicts (attempts, whether validator passed, final reason). Populated for every slot when the validator is enabled. */
   validatorVerdicts?: Array<{
     slot: string;
@@ -132,7 +138,9 @@ The "one lonely stool at a bar" or "one lonely chair in a restaurant" is a stron
 - **Specifically for open water in landscape shots (Great Lakes, ocean bays, harbors):** the surface must show visible micro-chop — thousands of small facets catching light at different angles, wind fetch lanes running in one direction, darker patches where clouds shadow the water, brighter patches where sun hits, and a subtle color gradient from deeper (darker teal/navy) offshore to shallower (lighter green/gray) toward shore. NO uniform slate-gray or uniform teal wash. NO reflection of the sky that's cleaner and sharper than the sky itself. NO "flat matte painting of water" look.
 - **Water-reflection specifics:** if a lighthouse, boat, or shoreline structure reflects on the water, the reflection is BROKEN into thousands of pieces by chop — never a mirror-clean mirror. Vertical elements (mast, tower) show as vertical streaks of reflected color that jiggle and interrupt, not as a clean flipped copy.
 
-**NO UNIFORM ATMOSPHERIC HAZE.** Fog, mist, and morning atmosphere have STRUCTURE — banks that hang over the water in bands, patches that break around trees or buildings, directional layers. Do NOT render fog as a smooth gray gradient that fades uniformly from foreground to background. If the frame has atmosphere, it must have shape and directionality — you should be able to say "the fog is heavier over the water on the right side" or "the mist is clearing over the harbor as the sun comes up."
+**FOG / MIST IS RARE — ONLY WHEN THE PROMPT EXPLICITLY CALLS FOR IT.** Default weather is CLEAR — real sun, real shadows, real color. Do NOT add fog / mist / haze / atmospheric bloom just to make the frame feel "moody" or "atmospheric" — that's the AI-editorial tell. Only render fog when (a) the slot prompt explicitly names it ("morning fog on the harbor", "mist rising off the fjord"), OR (b) the destination is genuinely known for it (San Francisco summer, coastal Maine at dawn, Loch Ness). If you do add fog, it must have STRUCTURE — banks that hang over the water in bands, patches that break around trees or buildings, directional layers. Do NOT render fog as a smooth gray gradient that fades uniformly from foreground to background. If the frame has atmosphere, it must have shape and directionality — you should be able to say "the fog is heavier over the water on the right side" or "the mist is clearing over the harbor as the sun comes up."
+
+**When in doubt about weather: CLEAR light. Sunshine. Real shadows.** Overcast is fine when it's motivated (rainy region, winter). A "moody atmospheric" fog wash over every landscape is the #1 way to make a shot read as AI.
 - **Fog physicality:** real fog is water vapor made of billions of small droplets. Under real light it has TONAL BREAKS — brighter where sun hits from behind, darker where shadowed by a landmass or a cloud. It reveals its edges against dark backgrounds (a fog bank has a visible top edge against a treeline or hillside). Distant objects don't just fade to a soft matte gray — they show progressive contrast falloff (a boat 400m out shows silhouette + faint hull markings; a shoreline 1km out shows only silhouette; the horizon vanishes entirely). NO uniform bluish-gray wash over the whole frame. NO "beautifully misty" airbrush effect. NO fog that has no visible top edge or lower boundary.
 - **Fog interacts with light in specific ways:** morning fog at dawn is warm-tinted where sun hits and cool-blue in the shadows — NOT one flat "atmospheric" color. Fog burns off from the top down as sun heats it, so a fog bank often has a lower dense layer and a thinning upper layer with visible sky above.
 
@@ -146,6 +154,15 @@ The "one lonely stool at a bar" or "one lonely chair in a restaurant" is a stron
 **NO SCUFFED OR MANGLED BRAND LOGOS.** If a brand logo would appear in the frame (car badging, product labels), either (a) render it correctly and legibly, or (b) shoot the frame from an angle where the logo is not visible or is small enough to be indistinct. Never render a garbled / half-formed / smudged version of a real logo. If in doubt, choose the angle that hides the badging.
 
 **GEOGRAPHIC ACCURACY (for location shots like Cover Story hero, cover detail).** Do NOT invent proximity between features that would not exist in the real place. If the Cover Story is Burlington VT, the downtown brick storefronts are NOT immediately adjacent to Lake Champlain — there are streets, a waterfront park, and open ground between them. If the writer's prompt describes a compressed relationship between features that isn't geographically real, render the frame HONESTLY with only ONE feature at a time (a downtown street scene, OR a lake shoreline scene, but not both compressed together in a way that misrepresents the actual layout). When in doubt, show LESS in a single frame — a single street corner, a single waterfront view, a single park bench — rather than trying to combine unrelated features into one impossible composition.
+
+**PARKED CAR SURFACE — HARD RULE for theDrive.** A parked car sits on a coherent surface: a plain driveway (concrete or brick pavers), a gravel or dirt pad, a garage doorway with a clean concrete floor, a dealership showroom floor, an empty parking lot, or a plain asphalt pullout with NO painted road markings. Do NOT render painted lane lines (double yellow, dashed white, solid white edge stripe, turn arrows, crosswalks, bike-lane symbols) under a parked car. Painted road markings render wrong every time — lanes that end mid-frame, arrows pointing sideways, dashes with wrong spacing. If the setting demands a road, choose an angle that keeps the painted markings out of frame (a low-angle 3/4 with the car body covering the lane lines, or a driveway apron next to the road rather than on it). No painted road lines under the car, ever.
+
+**NOTHING FLOATS — GLOBAL HARD RULE.** Every object in every frame is gravitationally supported by a visible surface. This is not a Host's Corner rule, it applies to EVERY slot:
+- Teapot, cup, saucer, spoon, plate, book, bottle, jar, vase, phone, camera, glasses, keys, notebook, pen — sitting ON a table / counter / shelf / mantel. Not levitating.
+- Fruit, herbs, flowers — in a bowl or on a surface. Not suspended in mid-air.
+- Products (grinder, kettle, thermometer, headphones) — resting on a surface.
+- Cars, motorcycles, boats — on the ground / road / water.
+- Every floating object has a visible shadow directly under it consistent with the frame's primary light source. If you cannot place a plausible shadow under it, it should not be in the frame.
 
 **INFRASTRUCTURE / LANDSCAPE STRUCTURAL COHERENCE (for hero and cover detail shots).** Every man-made structure in the frame must be COMPLETE and CONNECTED at both ends. This is the #1 landscape hero AI failure — half-built infrastructure that terminates in mid-air.
 - **BRIDGES HAVE TWO ENDS. HARD RULE.** A bridge spans a gap and lands on solid ground at BOTH ends. Never render a bridge that vanishes into fog on the far side, terminates mid-water, or connects to nothing. **Drawbridges / bascule bridges / lift bridges in the RAISED position still have (a) an approach roadway on the near shore leading up to the raised span, AND (b) a matching landing / approach visible on the far shore where the span comes back down.** A raised drawbridge with no visible far shore reads as a "dead-end bridge" and is an automatic fail. If the far side would be too far to render believably, DO NOT lift the bridge — render the bridge closed instead, or choose a different frame (a side-view of the bridge from the shore, a detail of the mechanism, an approach shot from ground level).
@@ -1009,15 +1026,15 @@ You have been given the poster as REFERENCE input only. It is a color/subject/ch
       : kind === "book"
         ? `This is the official BOOK COVER for "${subject}". Render this book with LOCKED FRAMING that leaves no room for reinterpretation:
 
-- Camera looks STRAIGHT DOWN at 90 degrees at the book lying FLAT on a wooden table.
-- The book cover fills roughly 75-80% of the square frame, centered or gently rule-of-thirds offset.
+- **THE BOOK IS CLOSED. COVER-UP. FLAT.** HARD RULE. Do NOT render the book open (pages visible / spread flat / one page turning / bookmark between pages). Do NOT render it standing on edge. Do NOT render the spine facing camera. Do NOT show the cover of a closed book AND the pages of an open book in the same frame — Gemini has done that ("cover showing while book is open") and it is an automatic FAIL. The book is a closed rectangular object with the cover art facing UP, spine on one side, page edges (fore-edge) on the other three sides. Nothing else.
+- Camera looks STRAIGHT DOWN at 90 degrees at the closed book lying flat on a wooden table.
+- The closed cover fills roughly 75-80% of the square frame, centered or gently rule-of-thirds offset.
 - **THE COVER IS THE REFERENCE IMAGE, IDENTICAL.** Do not repaint the artwork. Do not reword or restyle the title text. Do not invent alternative typography. The cover output MUST match the reference cover pixel-close.
 - Warm side-window light rakes across the cover from one edge, natural falloff, real book-cover material texture (matte paperback, glossy hardcover with dust jacket, or cloth-bound).
 - The wooden surface has visible grain and warmth (oak / walnut / reclaimed pine).
-- **NOTHING ELSE ON THE TABLE OR ON THE BOOK.** No coffee cup, no glasses, no bookmark, no leaf, no petals, no herb sprig, no rolled paper, no scroll, no cylinder of paper, no cassette, no pen, no napkin, no crumb, no food particle, no plate, no candle, no plant. Nothing. Just the book on wood.
-- Do NOT show the book at an angle if you can help it — flat, cover up, camera looking down.
+- **NOTHING ELSE ON THE TABLE OR ON THE BOOK.** No coffee cup, no glasses, no bookmark, no leaf, no petals, no herb sprig, no rolled paper, no scroll, no cylinder of paper, no cassette, no pen, no napkin, no crumb, no food particle, no plate, no candle, no plant. Nothing. Just the closed book on wood.
 
-The point of this frame is to reproduce the cover cleanly on a real surface, not to build an editorial scene. Fidelity to the reference cover is the ONLY thing that matters.`
+The point of this frame is to reproduce the cover cleanly on a real surface, not to build an editorial scene. Fidelity to the reference cover is the ONLY thing that matters, and the book is CLOSED.`
         : kind === "product"
           ? `This is the official product photo. Preserve the product form factor, proportions, color, branding, and any physical details exactly (handle placement, port locations, dimensions). The product must appear as it actually exists - do not invent broken/modified variants.
 
@@ -1277,7 +1294,8 @@ CRITICAL FIX ON RETRY: A previous attempt to generate this exact image failed va
 
 The previous attempts to render this book cover garbled the title text. Retry with LOCKED FRAMING that leaves no room for reinterpretation:
 
-- Camera looks STRAIGHT DOWN at 90 degrees at a book lying flat on a wooden table.
+- **THE BOOK IS CLOSED. COVER-UP. FLAT.** Never open, never spine-out, never a mix of cover-and-pages. A closed rectangular object, cover art facing UP.
+- Camera looks STRAIGHT DOWN at 90 degrees at a closed book lying flat on a wooden table.
 - The book cover fills roughly 75-80% of the square frame, centered.
 - The COVER IS THE REFERENCE IMAGE, IDENTICAL. Do not repaint the artwork. Do not reword the title. Do not restyle the typography. If you can only render the cover exactly as reference, that is the goal.
 - Warm side-window light rakes across the cover from one edge, natural falloff.
@@ -1515,6 +1533,7 @@ export async function generateLatteImages(opts: {
   let successCount = 0;
   let driveReferenceUrl: string | null = null;
   let driveUsedReference = false;
+  const imageReferences: Record<string, string | null> = {};
   const validatorVerdicts: NonNullable<ImageGenResult["validatorVerdicts"]> = [];
   for (let i = 0; i < jobs.length; i++) {
     const job = jobs[i]!;
@@ -1522,6 +1541,7 @@ export async function generateLatteImages(opts: {
     if (res.status === "fulfilled") {
       job.set(res.value.url);
       successCount++;
+      imageReferences[job.slot] = res.value.referenceUrl ?? null;
       if (job.slot === "the-drive") {
         driveReferenceUrl = res.value.referenceUrl ?? null;
         driveUsedReference = res.value.usedReference ?? false;
@@ -1552,6 +1572,7 @@ export async function generateLatteImages(opts: {
     failures,
     driveReferenceUrl,
     driveUsedReference,
+    imageReferences,
     validatorVerdicts,
   };
 }
