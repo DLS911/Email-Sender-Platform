@@ -33,6 +33,7 @@ export function CuratedTabs({ testSecret }: { testSecret: string }) {
   const [addNotes, setAddNotes] = useState("");
   const [addRefUrl, setAddRefUrl] = useState("");
   const [busyAdd, setBusyAdd] = useState(false);
+  const [busyUpload, setBusyUpload] = useState(false);
 
   const authHeaders = { Authorization: `Bearer ${testSecret}`, "Content-Type": "application/json" } as const;
 
@@ -100,6 +101,62 @@ export function CuratedTabs({ testSecret }: { testSecret: string }) {
       setErr(e instanceof Error ? e.message : String(e));
     }
   }, [testSecret, refresh]);
+
+  const uploadFile = useCallback(async (file: File) => {
+    setBusyUpload(true);
+    setErr(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("kind", tab);
+      if (addTitle.trim()) form.append("title", addTitle.trim());
+      const res = await fetch(`/api/admin/curated-upload?test=${encodeURIComponent(testSecret)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${testSecret}` },
+        body: form,
+      });
+      const data = (await res.json()) as { publicUrl?: string; error?: string };
+      if (!res.ok || data.error || !data.publicUrl) {
+        setErr(data.error ?? `HTTP ${res.status}`);
+      } else {
+        setAddRefUrl(data.publicUrl);
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyUpload(false);
+    }
+  }, [tab, testSecret, addTitle]);
+
+  const uploadForExisting = useCallback(async (id: string, file: File, currentTitle: string) => {
+    setErr(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("kind", tab);
+      form.append("title", currentTitle);
+      const upRes = await fetch(`/api/admin/curated-upload?test=${encodeURIComponent(testSecret)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${testSecret}` },
+        body: form,
+      });
+      const upData = (await upRes.json()) as { publicUrl?: string; error?: string };
+      if (!upRes.ok || upData.error || !upData.publicUrl) {
+        setErr(upData.error ?? `HTTP ${upRes.status}`);
+        return;
+      }
+      const patchRes = await fetch(`/api/admin/curated?test=${encodeURIComponent(testSecret)}`, {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify({ id, reference_url: upData.publicUrl }),
+      });
+      const patchData = (await patchRes.json()) as { error?: string };
+      if (!patchRes.ok || patchData.error) setErr(patchData.error ?? `HTTP ${patchRes.status}`);
+      else await refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [tab, testSecret, refresh]);
 
   const hardDelete = useCallback(async (id: string) => {
     if (!confirm("Delete this curated item permanently? (Use Archive if you want to keep it in history.)")) return;
@@ -178,9 +235,28 @@ export function CuratedTabs({ testSecret }: { testSecret: string }) {
             type="text"
             value={addRefUrl}
             onChange={(e) => setAddRefUrl(e.target.value)}
-            placeholder="optional ref image URL"
+            placeholder="optional ref image URL (or upload →)"
             style={{ flex: "1 1 180px", minWidth: 140, padding: "8px 10px", border: "1px solid #d5d8de", borderRadius: 4, fontSize: 13 }}
           />
+          <label
+            style={{
+              padding: "8px 12px", border: "1px solid #d5d8de", borderRadius: 4, background: busyUpload ? "#f0f0f2" : "#fff",
+              cursor: busyUpload ? "wait" : "pointer", fontSize: 13, fontWeight: 500, color: "#333", display: "inline-flex", alignItems: "center", gap: 6,
+            }}
+          >
+            {busyUpload ? "uploading…" : "📁 Upload"}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={busyUpload}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadFile(f);
+                e.target.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+          </label>
           <button
             type="button"
             onClick={add}
@@ -193,6 +269,14 @@ export function CuratedTabs({ testSecret }: { testSecret: string }) {
             {busyAdd ? "…" : "Add"}
           </button>
         </div>
+        {addRefUrl ? (
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={addRefUrl} alt="ref preview" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4, border: "1px solid #d5d8de" }} />
+            <span style={{ fontSize: 11, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{addRefUrl}</span>
+            <button type="button" onClick={() => setAddRefUrl("")} style={{ padding: "2px 8px", border: "1px solid #c22", background: "#fff", color: "#c22", cursor: "pointer", borderRadius: 3, fontSize: 11 }}>clear</button>
+          </div>
+        ) : null}
       </div>
 
       {err ? <div style={{ color: "#c22", fontSize: 13, marginBottom: 12 }}>err: {err}</div> : null}
@@ -217,10 +301,32 @@ export function CuratedTabs({ testSecret }: { testSecret: string }) {
             {current.map((it) => (
               <tr key={it.id} style={{ borderBottom: "1px solid #eef" }}>
                 <td style={cellStyle}>
-                  <div style={{ fontWeight: 500 }}>{it.title}</div>
-                  {it.reference_url ? (
-                    <a href={it.reference_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#0a5fb8" }}>ref image →</a>
-                  ) : null}
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    {it.reference_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <a href={it.reference_url} target="_blank" rel="noopener noreferrer">
+                        <img src={it.reference_url} alt="ref" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4, border: "1px solid #d5d8de", display: "block" }} />
+                      </a>
+                    ) : (
+                      <div style={{ width: 40, height: 40, borderRadius: 4, border: "1px dashed #d5d8de", background: "#f8f8fa" }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>{it.title}</div>
+                      <label style={{ fontSize: 10, color: "#0a5fb8", cursor: "pointer" }}>
+                        {it.reference_url ? "swap image" : "upload image"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void uploadForExisting(it.id, f, it.title);
+                            e.target.value = "";
+                          }}
+                          style={{ display: "none" }}
+                        />
+                      </label>
+                    </div>
+                  </div>
                 </td>
                 <td style={{ ...cellStyle, color: "#666" }}>{it.notes || "—"}</td>
                 <td style={cellStyle}>
