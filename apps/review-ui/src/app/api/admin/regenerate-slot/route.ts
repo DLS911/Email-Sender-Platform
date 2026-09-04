@@ -60,7 +60,7 @@ function slotToImageKey(slot: Slot): "hero" | "coverDetail" | "hostsCorner" | "t
 async function handle(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { issueDate?: string; slot?: string; promptOverride?: string; criticism?: string };
+  let body: { issueDate?: string; slot?: string; promptOverride?: string; criticism?: string; mode?: "edit" | "regen" | "auto" };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -158,7 +158,17 @@ async function handle(req: Request): Promise<NextResponse> {
     : (images[key] as string | undefined) ?? null;
 
   const criticism = body.criticism?.trim() ?? "";
-  const editMode = Boolean(criticism && prevUrl);
+  // Explicit mode from the caller wins over auto-detection. "edit"
+  // requires a criticism + a prev image; if either is missing, falls
+  // through to regen. "regen" is a full-swap: fresh page-scrape /
+  // Wikipedia lookup / new reference, ignoring the prev image
+  // entirely. "auto" (default) uses edit when criticism is present +
+  // prev exists, else regen.
+  const requestedMode: "edit" | "regen" | "auto" = body.mode ?? "auto";
+  const editMode = (
+    requestedMode === "edit"
+    || (requestedMode === "auto" && Boolean(criticism))
+  ) && Boolean(prevUrl);
   let mode: "edit" | "regen" = editMode ? "edit" : "regen";
 
   const promptFromScratch = criticism

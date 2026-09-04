@@ -29,7 +29,7 @@ export function SlotControls(props: {
   const [showFull, setShowFull] = useState<"gen" | "ref" | null>(null);
   const [criticism, setCriticism] = useState("");
 
-  const regenerate = useCallback(async () => {
+  const runRegen = useCallback(async (mode: "edit" | "regen") => {
     if (busy) return;
     setError(null);
     setBusy(true);
@@ -38,7 +38,7 @@ export function SlotControls(props: {
       const res = await fetch(`/api/admin/regenerate-slot?test=${encodeURIComponent(testSecret)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${testSecret}` },
-        body: JSON.stringify({ issueDate, slot, ...(trimmed ? { criticism: trimmed } : {}) }),
+        body: JSON.stringify({ issueDate, slot, mode, ...(trimmed ? { criticism: trimmed } : {}) }),
       });
       const data = (await res.json()) as { newUrl?: string; error?: string; regenerationCount?: number };
       if (!res.ok || data.error) {
@@ -113,19 +113,39 @@ export function SlotControls(props: {
             fontSize: 11, fontFamily: "inherit", resize: "vertical", minHeight: 40, boxSizing: "border-box",
           }}
         />
-        <button
-          type="button"
-          onClick={regenerate}
-          disabled={busy}
-          style={{
-            marginTop: 4, width: "100%", padding: "6px 10px", border: "1px solid #d5d8de", borderRadius: 4,
-            background: busy ? "#f0f0f2" : criticism.trim() ? "#0a5fb8" : "#fff",
-            color: busy ? "#666" : criticism.trim() ? "#fff" : "#333",
-            cursor: busy ? "wait" : "pointer", fontSize: 12, fontWeight: 500,
-          }}
-        >
-          {busy ? "…" : criticism.trim() ? "Regenerate with feedback" : "Regenerate"}
-        </button>
+        <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={() => runRegen("edit")}
+            disabled={busy || !criticism.trim() || !imageUrl}
+            title={!criticism.trim() ? "Add feedback first" : !imageUrl ? "No current image to edit" : "Surgical edit of the current image — keeps everything else the same"}
+            style={{
+              flex: 1, padding: "6px 10px", border: "1px solid #0a5fb8", borderRadius: 4,
+              background: busy ? "#f0f0f2" : criticism.trim() && imageUrl ? "#0a5fb8" : "#fff",
+              color: busy ? "#666" : criticism.trim() && imageUrl ? "#fff" : "#0a5fb8",
+              cursor: busy || !criticism.trim() || !imageUrl ? "default" : "pointer",
+              fontSize: 11, fontWeight: 600, opacity: !criticism.trim() || !imageUrl ? 0.5 : 1,
+            }}
+          >
+            {busy ? "…" : "✎ Edit"}
+          </button>
+          <button
+            type="button"
+            onClick={() => runRegen("regen")}
+            disabled={busy}
+            title="Full swap — new reference image + regenerate from scratch. Ignores the current image entirely."
+            style={{
+              flex: 1, padding: "6px 10px", border: "1px solid #b8651a", borderRadius: 4,
+              background: busy ? "#f0f0f2" : "#fff", color: busy ? "#666" : "#b8651a",
+              cursor: busy ? "wait" : "pointer", fontSize: 11, fontWeight: 600,
+            }}
+          >
+            {busy ? "…" : "⟳ Swap"}
+          </button>
+        </div>
+        <div style={{ fontSize: 9, color: "#888", marginTop: 4, lineHeight: 1.3 }}>
+          Edit = surgical fix of this image. Swap = fresh ref + new render.
+        </div>
       </div>
       {showFull ? (
         // Lightbox — shows either the generated image or the reference
