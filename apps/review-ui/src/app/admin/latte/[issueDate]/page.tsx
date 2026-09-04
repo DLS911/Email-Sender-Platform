@@ -17,6 +17,7 @@ import Link from "next/link";
 import { approvalUrl } from "../../../../lib/approval-token";
 import { SlotControls, ApprovalActions } from "./SlotControls";
 import { InlineHistory } from "./InlineHistory";
+import { EditableTextBlock } from "./EditableTextBlock";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,111 @@ export default async function LatteReviewDetail({
         </div>
       </section>
 
+      <section style={{ marginTop: 32, position: "relative" }}>
+        <h2 style={{ fontSize: 16, marginBottom: 12, color: "#333" }}>
+          Copy — highlight text to flag it
+        </h2>
+        <p style={{ fontSize: 12, color: "#666", margin: "0 0 12px 0" }}>
+          Select any span of text below, click the <span style={{ background: "#0a5fb8", color: "#fff", padding: "1px 6px", borderRadius: 8, fontSize: 10 }}>💬 Flag</span> pill, type what's wrong, and Sonnet rewrites the whole passage in Mark's voice preserving everything else.
+        </p>
+        <div style={{ background: "#fdfdfe", border: "1px solid #eef", borderRadius: 6, padding: 20 }}>
+          {(() => {
+            const c = sections as unknown as {
+              coverStoryHeadline?: string; preheader?: string; coverStoryParagraphs?: string[];
+              tastingMenu?: Array<{ label?: string; title?: string; body?: string }>;
+              hostsCorner?: { leadIn?: string; moveTitle?: string; moveBody?: string };
+              theDrive?: { car?: string; body?: string };
+              sundayPrep?: { title?: string; body?: string };
+              sabbath?: { verse?: string; reference?: string; reflection?: string };
+              ps?: string;
+            };
+            const blocks: React.ReactNode[] = [];
+            if (c.coverStoryHeadline) {
+              blocks.push(
+                <div key="hdr" style={{ marginBottom: 20 }}>
+                  <div style={mutedLabel}>Cover Story headline</div>
+                  <EditableTextBlock as="div" issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="coverStoryHeadline" label="Cover Story headline" initialText={c.coverStoryHeadline} style={{ fontSize: 22, fontWeight: 700, color: "#2d2926", lineHeight: 1.25 }} />
+                </div>,
+              );
+            }
+            if (c.preheader) {
+              blocks.push(
+                <div key="pre" style={{ marginBottom: 20 }}>
+                  <div style={mutedLabel}>Preheader</div>
+                  <EditableTextBlock as="div" issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="preheader" label="Preheader" initialText={c.preheader} style={{ fontSize: 14, fontStyle: "italic", color: "#666" }} />
+                </div>,
+              );
+            }
+            (c.coverStoryParagraphs ?? []).forEach((p, i) => {
+              blocks.push(
+                <div key={`cp-${i}`} style={{ marginBottom: 14 }}>
+                  <div style={mutedLabel}>Cover Story · paragraph {i + 1}</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath={`coverStoryParagraphs.${i}`} label={`Cover Story paragraph ${i + 1}`} initialText={p} style={sectionText} />
+                </div>,
+              );
+            });
+            (c.tastingMenu ?? []).forEach((t, i) => {
+              if (!t?.body) return;
+              blocks.push(
+                <div key={`tm-${i}`} style={{ marginBottom: 14 }}>
+                  <div style={mutedLabel}>{t.label ?? "Tasting"} · {t.title ?? `#${i + 1}`}</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath={`tastingMenu.${i}.body`} label={`Tasting #${i + 1} body`} initialText={t.body} style={sectionText} />
+                </div>,
+              );
+            });
+            if (c.hostsCorner?.leadIn) {
+              blocks.push(
+                <div key="hc-lead" style={{ marginBottom: 14 }}>
+                  <div style={mutedLabel}>Host&apos;s Corner · lead-in</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="hostsCorner.leadIn" label="Host's Corner lead-in" initialText={c.hostsCorner.leadIn} style={sectionText} />
+                </div>,
+              );
+            }
+            if (c.hostsCorner?.moveBody) {
+              blocks.push(
+                <div key="hc-body" style={{ marginBottom: 14 }}>
+                  <div style={mutedLabel}>Host&apos;s Corner · {c.hostsCorner.moveTitle ?? "move"} body</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="hostsCorner.moveBody" label="Host's Corner move body" initialText={c.hostsCorner.moveBody} style={sectionText} />
+                </div>,
+              );
+            }
+            if (c.theDrive?.body) {
+              blocks.push(
+                <div key="drive" style={{ marginBottom: 14 }}>
+                  <div style={mutedLabel}>The Drive · {c.theDrive.car ?? ""} body</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="theDrive.body" label="The Drive body" initialText={c.theDrive.body} style={sectionText} />
+                </div>,
+              );
+            }
+            if (c.sundayPrep?.body) {
+              blocks.push(
+                <div key="sp" style={{ marginBottom: 14 }}>
+                  <div style={mutedLabel}>Sunday Prep · {c.sundayPrep.title ?? ""} body</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="sundayPrep.body" label="Sunday Prep body" initialText={c.sundayPrep.body} style={sectionText} />
+                </div>,
+              );
+            }
+            if (c.sabbath?.reflection) {
+              blocks.push(
+                <div key="sab" style={{ marginBottom: 14 }}>
+                  <div style={mutedLabel}>Sabbath · reflection ({c.sabbath.reference ?? ""})</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="sabbath.reflection" label="Sabbath reflection" initialText={c.sabbath.reflection} style={sectionText} />
+                </div>,
+              );
+            }
+            if (c.ps) {
+              blocks.push(
+                <div key="ps" style={{ marginBottom: 4 }}>
+                  <div style={mutedLabel}>P.S.</div>
+                  <EditableTextBlock issueDate={issueDate} testSecret={testParam ?? ""} fieldPath="ps" label="P.S." initialText={c.ps} style={sectionText} />
+                </div>,
+              );
+            }
+            return blocks;
+          })()}
+        </div>
+      </section>
+
       <InlineHistory rows={historyRows} />
 
       <section style={{ marginTop: 32 }}>
@@ -270,3 +376,5 @@ const pageStyle: React.CSSProperties = {
 };
 const cellStyle: React.CSSProperties = { padding: "6px 8px" };
 const backLinkStyle: React.CSSProperties = { color: "#0a5fb8", fontSize: 13, textDecoration: "none" };
+const mutedLabel: React.CSSProperties = { fontSize: 10, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 };
+const sectionText: React.CSSProperties = { fontSize: 15, lineHeight: 1.65, color: "#2d2926", margin: 0 };
