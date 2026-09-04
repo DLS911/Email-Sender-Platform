@@ -169,7 +169,17 @@ export default async function LatteReviewDetail({
       </div>
 
       <section style={{ marginTop: 32 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 12, color: "#333" }}>Images (per-slot regenerate)</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <h2 style={{ fontSize: 16, margin: 0, color: "#333" }}>Images (per-slot regenerate)</h2>
+          <Link
+            href={`/admin/latte/history?test=${testParam}`}
+            target="_blank"
+            style={{ color: "#4a4540", fontSize: 12, textDecoration: "none", padding: "4px 10px", border: "1px solid #d5d8de", borderRadius: 4 }}
+            title="Every item ever recommended — check for repeats"
+          >
+            📜 History
+          </Link>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
           {SLOTS.map((slot) => {
             const url = imageUrlFor(images, slot.imagesKey);
