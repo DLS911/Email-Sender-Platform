@@ -59,7 +59,7 @@ function slotToImageKey(slot: Slot): "hero" | "coverDetail" | "hostsCorner" | "t
 async function handle(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { issueDate?: string; slot?: string; promptOverride?: string };
+  let body: { issueDate?: string; slot?: string; promptOverride?: string; criticism?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -144,6 +144,17 @@ async function handle(req: Request): Promise<NextResponse> {
     : subjects.tastingMenuTitles[slot === "tasting-1" ? 0 : slot === "tasting-2" ? 1 : 2]
   }"`;
 
+  // If the reviewer supplied a criticism of the previous render, append
+  // it as a CRITICAL FIX instruction so Gemini avoids the same mistake.
+  const criticism = body.criticism?.trim() ?? "";
+  if (criticism) {
+    prompt = `${prompt}
+
+CRITICAL FIX — REVIEWER FEEDBACK ON THE PREVIOUS RENDER: ${criticism}
+
+Do NOT repeat the mistake described above. Address it directly in this new attempt.`;
+  }
+
   const start = Date.now();
   let generatedBytes: { bytes: Uint8Array; mimeType: string; usedReference?: boolean; referenceUrl?: string };
   try {
@@ -192,6 +203,7 @@ async function handle(req: Request): Promise<NextResponse> {
     prompt: prompt.slice(0, 500),
     latencyMs: Date.now() - start,
     ...(body.promptOverride ? { promptOverride: true } : {}),
+    ...(criticism ? { criticism } : {}),
   });
 
   const updatedContent: SaturdayLatteContent = { ...content, images: newImages as never };

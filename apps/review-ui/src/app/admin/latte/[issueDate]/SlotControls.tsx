@@ -27,16 +27,18 @@ export function SlotControls(props: {
   const [error, setError] = useState<string | null>(null);
   const [regens, setRegens] = useState(regenCount);
   const [showFull, setShowFull] = useState<"gen" | "ref" | null>(null);
+  const [criticism, setCriticism] = useState("");
 
   const regenerate = useCallback(async () => {
     if (busy) return;
     setError(null);
     setBusy(true);
     try {
+      const trimmed = criticism.trim();
       const res = await fetch(`/api/admin/regenerate-slot?test=${encodeURIComponent(testSecret)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${testSecret}` },
-        body: JSON.stringify({ issueDate, slot }),
+        body: JSON.stringify({ issueDate, slot, ...(trimmed ? { criticism: trimmed } : {}) }),
       });
       const data = (await res.json()) as { newUrl?: string; error?: string; regenerationCount?: number };
       if (!res.ok || data.error) {
@@ -44,13 +46,14 @@ export function SlotControls(props: {
       } else if (data.newUrl) {
         setImageUrl(`${data.newUrl}?t=${Date.now()}`);
         if (typeof data.regenerationCount === "number") setRegens(data.regenerationCount);
+        setCriticism("");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
-  }, [busy, issueDate, slot, testSecret]);
+  }, [busy, issueDate, slot, testSecret, criticism]);
 
   return (
     <div style={cardStyle}>
@@ -99,16 +102,29 @@ export function SlotControls(props: {
           <div style={{ fontSize: 10, color: "#aaa", marginTop: 6 }}>no reference (text-only)</div>
         )}
         {error ? <div style={{ fontSize: 10, color: "#c22", marginTop: 4 }}>err: {error}</div> : null}
+        <textarea
+          value={criticism}
+          onChange={(e) => setCriticism(e.target.value)}
+          placeholder="what's wrong? (e.g. book was open, wheels too small, teapot floating)"
+          rows={2}
+          disabled={busy}
+          style={{
+            marginTop: 8, width: "100%", padding: "6px 8px", border: "1px solid #d5d8de", borderRadius: 4,
+            fontSize: 11, fontFamily: "inherit", resize: "vertical", minHeight: 40, boxSizing: "border-box",
+          }}
+        />
         <button
           type="button"
           onClick={regenerate}
           disabled={busy}
           style={{
-            marginTop: 8, width: "100%", padding: "6px 10px", border: "1px solid #d5d8de", borderRadius: 4,
-            background: busy ? "#f0f0f2" : "#fff", cursor: busy ? "wait" : "pointer", fontSize: 12, fontWeight: 500,
+            marginTop: 4, width: "100%", padding: "6px 10px", border: "1px solid #d5d8de", borderRadius: 4,
+            background: busy ? "#f0f0f2" : criticism.trim() ? "#0a5fb8" : "#fff",
+            color: busy ? "#666" : criticism.trim() ? "#fff" : "#333",
+            cursor: busy ? "wait" : "pointer", fontSize: 12, fontWeight: 500,
           }}
         >
-          {busy ? "…" : "Regenerate"}
+          {busy ? "…" : criticism.trim() ? "Regenerate with feedback" : "Regenerate"}
         </button>
       </div>
       {showFull ? (

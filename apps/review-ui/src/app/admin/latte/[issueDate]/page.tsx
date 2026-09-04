@@ -216,6 +216,7 @@ export default async function LatteReviewDetail({
                 <th style={cellStyle}>Slot</th>
                 <th style={cellStyle}>Prev</th>
                 <th style={cellStyle}>New</th>
+                <th style={cellStyle}>Feedback</th>
                 <th style={cellStyle}>Latency</th>
               </tr>
             </thead>
@@ -226,6 +227,9 @@ export default async function LatteReviewDetail({
                   <td style={cellStyle}>{typeof e.slot === "string" ? e.slot : "—"}</td>
                   <td style={cellStyle}>{typeof e.prevUrl === "string" ? <a href={e.prevUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#0a5fb8" }}>prev</a> : "—"}</td>
                   <td style={cellStyle}>{typeof e.newUrl === "string" ? <a href={e.newUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#0a5fb8" }}>new</a> : "—"}</td>
+                  <td style={{ ...cellStyle, maxWidth: 320, color: typeof e.criticism === "string" && e.criticism ? "#333" : "#aaa" }}>
+                    {typeof e.criticism === "string" && e.criticism ? e.criticism : "—"}
+                  </td>
                   <td style={cellStyle}>{typeof e.latencyMs === "number" ? `${e.latencyMs}ms` : "—"}</td>
                 </tr>
               ))}
