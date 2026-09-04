@@ -25,6 +25,7 @@ import {
   getStorageClient,
   uploadToStorage,
   extForMime,
+  callGemini,
   type LatteImageSubjects,
 } from "../../../../lib/saturday-latte-images";
 
@@ -71,8 +72,9 @@ async function handle(req: Request): Promise<NextResponse> {
   if (!slot || !VALID_SLOTS.includes(slot)) {
     return NextResponse.json({ error: `slot must be one of: ${VALID_SLOTS.join(", ")}` }, { status: 400 });
   }
-  const googleKey = process.env.GOOGLE_API_KEY;
-  if (!googleKey) return NextResponse.json({ error: "GOOGLE_API_KEY missing" }, { status: 500 });
+  const googleKeyRaw = process.env.GOOGLE_API_KEY;
+  if (!googleKeyRaw) return NextResponse.json({ error: "GOOGLE_API_KEY missing" }, { status: 500 });
+  const googleKey: string = googleKeyRaw;
 
   const supaUrl = process.env.SUPABASE_URL;
   const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -144,21 +146,73 @@ async function handle(req: Request): Promise<NextResponse> {
     : subjects.tastingMenuTitles[slot === "tasting-1" ? 0 : slot === "tasting-2" ? 1 : 2]
   }"`;
 
-  // If the reviewer supplied a criticism of the previous render, append
-  // it as a CRITICAL FIX instruction so Gemini avoids the same mistake.
+  // Compute prevUrl first — we need it BOTH as the record-keeping value
+  // AND (when a criticism is provided) as the input reference for an
+  // edit-mode Gemini call so the reviewer's "remove the people" note
+  // surgically edits the previous frame instead of re-rolling a new
+  // scene from scratch.
+  const images = ((content as unknown as { images?: Record<string, unknown> }).images ?? {}) as Record<string, unknown>;
+  const key = slotToImageKey(slot);
+  const prevUrl = key.startsWith("tastingMenu-")
+    ? Array.isArray(images.tastingMenu) ? (images.tastingMenu as string[])[Number(key.slice(-1)) - 1] ?? null : null
+    : (images[key] as string | undefined) ?? null;
+
   const criticism = body.criticism?.trim() ?? "";
-  if (criticism) {
-    prompt = `${prompt}
+  const editMode = Boolean(criticism && prevUrl);
+  let mode: "edit" | "regen" = editMode ? "edit" : "regen";
+
+  const promptFromScratch = criticism
+    ? `${prompt}
 
 CRITICAL FIX — REVIEWER FEEDBACK ON THE PREVIOUS RENDER: ${criticism}
 
-Do NOT repeat the mistake described above. Address it directly in this new attempt.`;
+Do NOT repeat the mistake described above. Address it directly in this new attempt.`
+    : prompt;
+
+  async function editModeFromPrev(): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+    if (!prevUrl) return null;
+    try {
+      const dl = await fetch(prevUrl, { method: "GET" });
+      if (!dl.ok) throw new Error(`prev image fetch HTTP ${dl.status}`);
+      const dlBytes = new Uint8Array(await dl.arrayBuffer());
+      const dlMime = (dl.headers.get("content-type") ?? "image/png").split(";")[0]?.trim() ?? "image/png";
+      const editInstruction = `Take this exact image and apply this specific correction: ${criticism}.
+
+PRESERVE EVERYTHING ELSE about the source image — same subject, same composition, same camera angle, same lighting direction, same colors, same background, same overall mood. Only change what the correction explicitly calls out; do not re-imagine the scene.
+
+If the correction is "remove the people", keep every other element (buildings, lighting, sky, foreground detail) identical and simply remove the human figures, filling in the space they occupied with plausible extensions of the surrounding scene. If the correction is "wheels too small", keep the car's angle / color / setting identical and enlarge the wheels to match the correct proportions. If the correction is "book was open", keep the book's cover art / table / lighting identical and render the book closed, cover-up.
+
+The output must be a 1:1 square aspect ratio image.`;
+      const b64 = Buffer.from(dlBytes).toString("base64");
+      const geminiMime = dlMime === "image/jpg" ? "image/jpeg" : dlMime;
+      const edited = await callGemini(googleKey, [
+        { text: editInstruction },
+        { inlineData: { mimeType: geminiMime, data: b64 } },
+      ]);
+      logger.info("regenerate_slot.edit_mode_success", { issueDate, slot, criticism: criticism.slice(0, 120) });
+      return { bytes: edited.bytes, mimeType: edited.mimeType };
+    } catch (err) {
+      logger.warn("regenerate_slot.edit_mode_failed_falling_back", {
+        issueDate, slot, error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
   }
 
   const start = Date.now();
   let generatedBytes: { bytes: Uint8Array; mimeType: string; usedReference?: boolean; referenceUrl?: string };
   try {
-    generatedBytes = await generateForSlot(googleKey, slot, prompt, sectionTag, subjects);
+    if (editMode) {
+      const editRes = await editModeFromPrev();
+      if (editRes) {
+        generatedBytes = editRes;
+      } else {
+        mode = "regen";
+        generatedBytes = await generateForSlot(googleKey, slot, promptFromScratch, sectionTag, subjects);
+      }
+    } else {
+      generatedBytes = await generateForSlot(googleKey, slot, promptFromScratch, sectionTag, subjects);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error("regenerate_slot.gen_failed", { issueDate, slot, error: msg });
@@ -177,13 +231,6 @@ Do NOT repeat the mistake described above. Address it directly in this new attem
     logger.error("regenerate_slot.upload_failed", { issueDate, slot, error: msg });
     return NextResponse.json({ error: `upload failed: ${msg}` }, { status: 500 });
   }
-
-  // Update sections.images[slot] and record the regen attempt.
-  const images = ((content as unknown as { images?: Record<string, unknown> }).images ?? {}) as Record<string, unknown>;
-  const key = slotToImageKey(slot);
-  const prevUrl = key.startsWith("tastingMenu-")
-    ? Array.isArray(images.tastingMenu) ? (images.tastingMenu as string[])[Number(key.slice(-1)) - 1] : null
-    : (images[key] as string | undefined) ?? null;
   const newImages: Record<string, unknown> = { ...images };
   if (key.startsWith("tastingMenu-")) {
     const idx = Number(key.slice(-1)) - 1;
@@ -198,6 +245,7 @@ Do NOT repeat the mistake described above. Address it directly in this new attem
   regenHistory.push({
     slot,
     at: new Date().toISOString(),
+    mode,
     prevUrl,
     newUrl: publicUrl,
     prompt: prompt.slice(0, 500),

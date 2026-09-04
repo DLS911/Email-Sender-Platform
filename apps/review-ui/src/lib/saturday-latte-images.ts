@@ -255,7 +255,7 @@ type GeminiResponse = {
   };
 };
 
-async function callGemini(
+export async function callGemini(
   apiKey: string,
   parts: Array<Record<string, unknown>>,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
