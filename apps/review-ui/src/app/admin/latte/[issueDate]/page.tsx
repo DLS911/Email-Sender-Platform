@@ -16,6 +16,7 @@ import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { approvalUrl } from "../../../../lib/approval-token";
 import { SlotControls, ApprovalActions } from "./SlotControls";
+import { InlineHistory } from "./InlineHistory";
 
 export const dynamic = "force-dynamic";
 
@@ -106,11 +107,19 @@ export default async function LatteReviewDetail({
   }
 
   const db = createClient(process.env.SUPABASE_URL ?? "", process.env.SUPABASE_SERVICE_ROLE_KEY ?? "", { auth: { persistSession: false } });
-  const { data, error } = await db
-    .from("saturday_latte_issues")
-    .select("issue_date, cover_story_headline, subject, html, approval_status, approval_notes, sections")
-    .eq("issue_date", issueDate)
-    .maybeSingle();
+  const [issueRes, historyRes] = await Promise.all([
+    db.from("saturday_latte_issues")
+      .select("issue_date, cover_story_headline, subject, html, approval_status, approval_notes, sections")
+      .eq("issue_date", issueDate)
+      .maybeSingle(),
+    db.from("latte_recommendations")
+      .select("id, kind, value, normalized_value, context, issue_date, created_at")
+      .eq("brand", "saturday_latte")
+      .order("created_at", { ascending: false })
+      .limit(5000),
+  ]);
+  const { data, error } = issueRes;
+  const historyRows = (historyRes.data ?? []) as Array<{ id: string; kind: string; value: string; normalized_value: string; context: string | null; issue_date: string; created_at: string }>;
   if (error) {
     return (
       <main style={pageStyle}>
@@ -202,6 +211,8 @@ export default async function LatteReviewDetail({
           })}
         </div>
       </section>
+
+      <InlineHistory rows={historyRows} />
 
       <section style={{ marginTop: 32 }}>
         <h2 style={{ fontSize: 16, marginBottom: 12, color: "#333" }}>Rendered preview</h2>
