@@ -85,11 +85,23 @@ export async function sendPreviewEmail(input: PreviewInput): Promise<PreviewSend
   if (!apiKey) return { ok: false, error: "RESEND_API_KEY missing" };
 
   const to = process.env.PREVIEW_APPROVER_EMAIL || DEFAULT_APPROVER;
-  // CC the editor (Austin by default) on every preview so both Mark and
-  // Austin see the draft. Editor gets visibility without needing to be
-  // pinged separately. Skipped if it's the same address as `to`.
+  // CC the editor (Austin by default) + any extra managers from
+  // PREVIEW_CC_EXTRA (comma-separated). Every manager gets the same
+  // draft; only Mark hits Approve/Needs Work.
   const editorCc = process.env.EDITOR_ESCALATION_EMAIL || "austin@castorabbott.com";
-  const ccList = editorCc && editorCc.toLowerCase() !== to.toLowerCase() ? [editorCc] : [];
+  const extraCc = (process.env.PREVIEW_CC_EXTRA ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const seen = new Set([to.toLowerCase()]);
+  const ccList: string[] = [];
+  for (const addr of [editorCc, ...extraCc]) {
+    if (!addr) continue;
+    const lower = addr.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    ccList.push(addr);
+  }
   const fromAddress = process.env.RESEND_FROM_ADDRESS || DEFAULT_FROM;
   const label = brandLabel(input.brand);
   const html = renderPreviewHtml(input);

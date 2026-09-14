@@ -18,6 +18,7 @@ import { approvalUrl } from "../../../../lib/approval-token";
 import { SlotControls, ApprovalActions } from "./SlotControls";
 import { InlineHistory } from "./InlineHistory";
 import { EditableTextBlock } from "./EditableTextBlock";
+import { PushToActiveCampaign } from "./PushToActiveCampaign";
 
 export const dynamic = "force-dynamic";
 
@@ -171,11 +172,14 @@ export default async function LatteReviewDetail({
           <h1 style={{ margin: "8px 0 4px 0" }}>{row.cover_story_headline}</h1>
           <p style={{ color: "#666", fontSize: 14, margin: 0 }}>{row.issue_date} · {row.subject}</p>
         </div>
-        <ApprovalActions
-          approvalStatus={row.approval_status ?? "pending"}
-          approveUrl={approveUrl}
-          needsWorkUrl={needsWorkUrl}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <ApprovalActions
+            approvalStatus={row.approval_status ?? "pending"}
+            approveUrl={approveUrl}
+            needsWorkUrl={needsWorkUrl}
+          />
+          <PushToActiveCampaign issueDate={issueDate} testSecret={testParam ?? ""} approvalStatus={row.approval_status ?? "pending"} />
+        </div>
       </div>
 
       <section style={{ marginTop: 32 }}>
