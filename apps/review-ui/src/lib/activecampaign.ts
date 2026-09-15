@@ -183,6 +183,11 @@ export async function createMessage(input: {
 /**
  * Create a campaign. `sdate` schedules the send; omit for a draft that
  * requires manual send from the AC UI.
+ *
+ * AC v3 quirk: the campaign body wants `listIds` as an array of
+ * numbers AND `messages` as an array of message IDs (top-level 100%
+ * split assumed for a single-message campaign). The older v1-style
+ * `p` / `m` maps get rejected on the v3 endpoint.
  */
 export async function createCampaign(input: {
   name: string;
@@ -197,8 +202,8 @@ export async function createCampaign(input: {
       type: "single",
       name: input.name,
       status: input.sendAtISO ? 1 : 0, // 0=draft, 1=scheduled
-      p: { [String(input.listId)]: String(input.listId) },
-      m: { [String(input.messageId)]: 100 }, // 100% of recipients get this message
+      listIds: [Number(input.listId)],
+      messages: [Number(input.messageId)],
       ...(input.sendAtISO ? { sdate: input.sendAtISO } : {}),
       fromname: input.fromName,
       fromemail: input.fromAddress,
