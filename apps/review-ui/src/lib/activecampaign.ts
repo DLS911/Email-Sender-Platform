@@ -203,9 +203,8 @@ export async function createCampaign(input: {
       name: input.name,
       status: input.sendAtISO ? 1 : 0, // 0=draft, 1=scheduled
       listIds: [Number(input.listId)],
-      // AC quirk: messages is an array of [messageId, percentage] tuples.
-      // For a single-message send, one tuple at 100%.
-      messages: [[Number(input.messageId), 100]],
+      // AC v3: messages is an array of { messageId, percentage } objects.
+      messages: [{ messageId: Number(input.messageId), percentage: 100 }],
       ...(input.sendAtISO ? { sdate: input.sendAtISO } : {}),
       fromname: input.fromName,
       fromemail: input.fromAddress,
