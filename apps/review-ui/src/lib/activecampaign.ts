@@ -57,12 +57,24 @@ export type ACCampaign = { id: string; name: string; status: string };
 // ── Segments (aka "advanced search" segments) ───────────────────────
 
 export async function listSegments(): Promise<ACSegment[]> {
-  const data = await acJson<{ segments?: Array<Record<string, unknown>> }>("/segments?limit=100");
-  return (data.segments ?? []).map((s) => ({
-    id: String(s.id ?? ""),
-    name: String(s.name ?? ""),
-    ...(s.series_id ? { series_id: String(s.series_id) } : {}),
-  }));
+  const all: ACSegment[] = [];
+  const pageSize = 100;
+  let offset = 0;
+  // Hard cap to prevent runaway paging on very large accounts.
+  while (all.length < 2000) {
+    const data = await acJson<{ segments?: Array<Record<string, unknown>> }>(`/segments?limit=${pageSize}&offset=${offset}`);
+    const page = data.segments ?? [];
+    for (const s of page) {
+      all.push({
+        id: String(s.id ?? ""),
+        name: String(s.name ?? ""),
+        ...(s.series_id ? { series_id: String(s.series_id) } : {}),
+      });
+    }
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+  return all;
 }
 
 // ── Lists ───────────────────────────────────────────────────────────
