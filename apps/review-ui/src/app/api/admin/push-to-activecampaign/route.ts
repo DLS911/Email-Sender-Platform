@@ -17,7 +17,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "@platform/observability";
 import { createClient } from "@supabase/supabase-js";
-import { createCampaign, createMessage, getCampaign } from "../../../../lib/activecampaign";
+import { createCampaign, createMessage, getCampaign, scheduleCampaign } from "../../../../lib/activecampaign";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,14 +94,23 @@ export async function POST(req: Request): Promise<NextResponse> {
     });
 
     const sendAtISO = body.asDraft ? undefined : body.sendAtISO;
+    // Always create as draft first — AC drops the sdate on the create
+    // call. Then, if a schedule was requested, PUT the campaign back
+    // with status:1 + sdate in a follow-up call.
     const campaign = await createCampaign({
       name: campaignName,
       listId,
       messageId: message.id,
       fromAddress,
       fromName,
-      ...(sendAtISO ? { sendAtISO } : {}),
     });
+    if (sendAtISO) {
+      try {
+        await scheduleCampaign({ id: campaign.id, sendAtISO });
+      } catch (schedErr) {
+        console.warn("ac_push.schedule_step_failed", { campaignId: campaign.id, error: schedErr instanceof Error ? schedErr.message : String(schedErr) });
+      }
+    }
 
     // Record the AC push on the issue row for audit.
     const nextGenMeta = brand === "latte"

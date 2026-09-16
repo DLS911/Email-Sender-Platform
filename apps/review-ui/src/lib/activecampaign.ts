@@ -268,3 +268,28 @@ export async function getCampaign(id: string | number): Promise<Record<string, u
     return null;
   }
 }
+
+/**
+ * Second-step scheduling. AC's /campaigns POST silently drops the
+ * sdate + status=1 combo — the campaign gets created as a draft
+ * regardless of what you send. Reliable path: create as draft first,
+ * then PUT the same campaign back with sdate + status=1 in a follow-
+ * up call. Returns the AC response so caller can verify.
+ */
+export async function scheduleCampaign(input: {
+  id: string | number;
+  sendAtISO: string;
+}): Promise<Record<string, unknown> | null> {
+  const sdate = toEasternOffsetISO(input.sendAtISO);
+  const body = {
+    campaign: {
+      status: 1,
+      sdate,
+    },
+  };
+  const data = await acJson<{ campaign?: Record<string, unknown> }>(`/campaigns/${input.id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return data.campaign ?? null;
+}
