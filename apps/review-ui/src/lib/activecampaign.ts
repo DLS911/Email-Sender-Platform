@@ -238,10 +238,10 @@ export async function createCampaign(input: {
       type: "single",
       name: input.name,
       status: sdate ? 1 : 0, // 0=draft, 1=scheduled
-      public: 1,
+      public: true,
       tracklinks: "all",
-      htmlunsub: 1,
-      textunsub: 1,
+      htmlunsub: true,
+      textunsub: true,
       listIds: [Number(input.listId)],
       messages: [{ messageId: Number(input.messageId), percentage: 100 }],
       ...(sdate ? { sdate } : {}),
