@@ -17,7 +17,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "@platform/observability";
 import { createClient } from "@supabase/supabase-js";
-import { createCampaign, createMessage } from "../../../../lib/activecampaign";
+import { createCampaign, createMessage, getCampaign } from "../../../../lib/activecampaign";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -112,13 +112,27 @@ export async function POST(req: Request): Promise<NextResponse> {
     const acHost = (process.env.AC_API_URL ?? "").replace(/\/api\/3\/?$/, "").replace(/\.api-us\d\.com/, ".activehosted.com");
     const dashboardUrl = `${acHost}/app/campaigns/${campaign.id}`;
 
-    logger.info("ac_push.success", { brand, issueDate, campaignId: campaign.id, messageId: message.id, sendAtISO: sendAtISO ?? null });
+    // Verify what AC actually stored — status codes: 0=draft, 1=scheduled,
+    // 2=sending, 5=sent. If we asked for scheduled but AC kept it as draft,
+    // return that mismatch so the caller sees the truth.
+    const verify = await getCampaign(campaign.id);
+    const acStoredStatus = verify ? String(verify.status ?? "") : "";
+    const acStoredSdate = verify ? String(verify.sdate ?? "") : "";
+    const stickinessOk = !sendAtISO || acStoredStatus === "1";
+
+    logger.info("ac_push.success", {
+      brand, issueDate, campaignId: campaign.id, messageId: message.id,
+      sendAtISO: sendAtISO ?? null, acStoredStatus, acStoredSdate, stickinessOk,
+    });
     return NextResponse.json({
       ok: true,
       brand, issueDate,
       messageId: message.id,
       campaignId: campaign.id,
-      status: sendAtISO ? "scheduled" : "draft",
+      requestedStatus: sendAtISO ? "scheduled" : "draft",
+      acStoredStatus,
+      acStoredSdate,
+      stickinessOk,
       sendAtISO: sendAtISO ?? null,
       listId,
       dashboardUrl,

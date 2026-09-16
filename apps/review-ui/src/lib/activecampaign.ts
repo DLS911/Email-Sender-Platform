@@ -181,13 +181,48 @@ export async function createMessage(input: {
 }
 
 /**
+ * Convert an ISO 8601 UTC timestamp (e.g. "2026-09-17T20:00:00Z") into
+ * the format AC's sdate field actually accepts: local ET wall-clock with
+ * explicit offset, e.g. "2026-09-17T16:00:00-04:00". AC silently drops
+ * the sdate when it comes in as `Z` and leaves the campaign as a draft.
+ *
+ * September falls in EDT (UTC-4). This is a naive US/Eastern DST rule
+ * (Mar 2nd Sun → Nov 1st Sun) — good enough for the send-cadence use
+ * case, doesn't try to be a full tz library.
+ */
+function toEasternOffsetISO(utcIso: string): string {
+  const d = new Date(utcIso);
+  if (isNaN(d.getTime())) return utcIso;
+  const y = d.getUTCFullYear();
+  // Second Sunday of March.
+  const dstStart = new Date(Date.UTC(y, 2, 1));
+  dstStart.setUTCDate(1 + ((7 - dstStart.getUTCDay()) % 7) + 7);
+  // First Sunday of November.
+  const dstEnd = new Date(Date.UTC(y, 10, 1));
+  dstEnd.setUTCDate(1 + ((7 - dstEnd.getUTCDay()) % 7));
+  const isEDT = d.getTime() >= dstStart.getTime() && d.getTime() < dstEnd.getTime();
+  const offsetHours = isEDT ? -4 : -5;
+  const local = new Date(d.getTime() + offsetHours * 3600 * 1000);
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  const iso = `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}`;
+  const sign = offsetHours < 0 ? "-" : "+";
+  const off = `${sign}${pad(Math.abs(offsetHours))}:00`;
+  return `${iso}${off}`;
+}
+
+/**
  * Create a campaign. `sdate` schedules the send; omit for a draft that
  * requires manual send from the AC UI.
  *
- * AC v3 quirk: the campaign body wants `listIds` as an array of
- * numbers AND `messages` as an array of message IDs (top-level 100%
- * split assumed for a single-message campaign). The older v1-style
- * `p` / `m` maps get rejected on the v3 endpoint.
+ * AC v3 quirks (learned the hard way):
+ * - `listIds` is an array of numbers.
+ * - `messages` is an array of `{messageId, percentage}` objects.
+ * - `sdate` must have an explicit tz offset (`-04:00` / `-05:00`) —
+ *   the `Z` UTC suffix is silently dropped and the campaign stays as
+ *   a draft (status 0) with the create-time as sdate.
+ * - `public`, `tracklinks`, `htmlunsub`, `textunsub` are all expected
+ *   by AC when the campaign is scheduled to send; omitting them can
+ *   quietly downgrade to a draft.
  */
 export async function createCampaign(input: {
   name: string;
@@ -197,15 +232,19 @@ export async function createCampaign(input: {
   fromName: string;
   sendAtISO?: string;
 }): Promise<ACCampaign> {
+  const sdate = input.sendAtISO ? toEasternOffsetISO(input.sendAtISO) : undefined;
   const body = {
     campaign: {
       type: "single",
       name: input.name,
-      status: input.sendAtISO ? 1 : 0, // 0=draft, 1=scheduled
+      status: sdate ? 1 : 0, // 0=draft, 1=scheduled
+      public: 1,
+      tracklinks: "all",
+      htmlunsub: 1,
+      textunsub: 1,
       listIds: [Number(input.listId)],
-      // AC v3: messages is an array of { messageId, percentage } objects.
       messages: [{ messageId: Number(input.messageId), percentage: 100 }],
-      ...(input.sendAtISO ? { sdate: input.sendAtISO } : {}),
+      ...(sdate ? { sdate } : {}),
       fromname: input.fromName,
       fromemail: input.fromAddress,
     },
@@ -216,4 +255,16 @@ export async function createCampaign(input: {
     name: String(data.campaign.name ?? ""),
     status: String(data.campaign.status ?? ""),
   };
+}
+
+/**
+ * Fetch a single campaign — used to verify a schedule actually stuck.
+ */
+export async function getCampaign(id: string | number): Promise<Record<string, unknown> | null> {
+  try {
+    const data = await acJson<{ campaign?: Record<string, unknown> }>(`/campaigns/${id}`);
+    return data.campaign ?? null;
+  } catch {
+    return null;
+  }
 }
