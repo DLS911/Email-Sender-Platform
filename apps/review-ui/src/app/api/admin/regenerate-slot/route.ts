@@ -20,6 +20,7 @@ import { logger } from "@platform/observability";
 import { createClient } from "@supabase/supabase-js";
 import type { SaturdayLatteContent } from "../../../../lib/saturday-latte-html-template";
 import { renderSaturdayLatteHtml } from "../../../../lib/saturday-latte-html-template";
+import { persistIssueVersion } from "../../../../lib/issue-versions";
 import {
   generateForSlot,
   getStorageClient,
@@ -284,6 +285,24 @@ The output must be a 1:1 square aspect ratio image.`;
     })
     .eq("issue_date", issueDate);
   if (upErr) return NextResponse.json({ error: `db update: ${upErr.message}` }, { status: 500 });
+
+  try {
+    await persistIssueVersion(db, {
+      brand: "latte",
+      issueDate,
+      subject: rendered.subject,
+      headline: (updatedContent as { coverStoryHeadline?: string }).coverStoryHeadline ?? null,
+      preheader: rendered.preheader,
+      html: rendered.html,
+      textBody: rendered.text,
+      sections: nextSections,
+      generationMeta: null,
+      source: "regenerate_slot",
+      sourceNote: `slot=${slot}${criticism ? ` — ${criticism.slice(0, 160)}` : ""}`,
+    });
+  } catch (err) {
+    logger.warn("regenerate_slot.version_persist_failed", { issueDate, slot, error: err instanceof Error ? err.message : String(err) });
+  }
 
   logger.info("regenerate_slot.success", { issueDate, slot, prevUrl, newUrl: publicUrl, latencyMs: Date.now() - start });
 

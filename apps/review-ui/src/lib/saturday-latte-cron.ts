@@ -13,6 +13,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { sendPreviewEmail } from "./preview-email";
 import { sendEditorEscalation } from "./editor-escalation";
+import { attachPreviewResendId, persistIssueVersion } from "./issue-versions";
 import {
   extractHaikuBodyRecommendations,
   extractStructuredRecommendations,
@@ -396,10 +397,39 @@ async function persistIssue(
   issueDate: string,
   issue: SaturdayLatteIssue,
   rendered: { html: string; text: string; subject: string; preheader: string },
-): Promise<void> {
+): Promise<{ versionId: string; versionSeq: number }> {
   const totalInput = issue.meta.researchInputTokens + issue.meta.writerInputTokens;
   const totalOutput = issue.meta.researchOutputTokens + issue.meta.writerOutputTokens;
   const totalLatency = issue.meta.researchLatencyMs + issue.meta.writerLatencyMs;
+  const sectionsSnapshot = {
+    ...issue.content,
+    ...(issue.meta.imageReferences ? { imageReferences: issue.meta.imageReferences } : {}),
+  };
+  const generationMeta = {
+    contentType: issue.contentType,
+    researchCitations: issue.meta.researchCitations,
+    researchCostUsd: issue.meta.researchCostUsd,
+    researchInputTokens: issue.meta.researchInputTokens,
+    researchOutputTokens: issue.meta.researchOutputTokens,
+    researchLatencyMs: issue.meta.researchLatencyMs,
+    writerInputTokens: issue.meta.writerInputTokens,
+    writerOutputTokens: issue.meta.writerOutputTokens,
+    writerLatencyMs: issue.meta.writerLatencyMs,
+    imagesGenerated: issue.meta.imagesGenerated,
+    imagesFailed: issue.meta.imagesFailed,
+    imagesCostUsd: issue.meta.imagesCostUsd,
+    imagesLatencyMs: issue.meta.imagesLatencyMs,
+    urlsValidated: issue.meta.urlsValidated,
+    urlsDropped: issue.meta.urlsDropped,
+    authorScopeViolationsFound: issue.meta.authorScopeViolationsFound,
+    authorScopeViolationsApplied: issue.meta.authorScopeViolationsApplied,
+    driveReferenceUrl: issue.meta.driveReferenceUrl ?? null,
+    driveUsedReference: issue.meta.driveUsedReference ?? false,
+    imageValidatorVerdicts: issue.meta.imageValidatorVerdicts ?? [],
+    ...(issue.meta.imagePromptsSource ? { imagePromptsSource: issue.meta.imagePromptsSource } : {}),
+    ...(issue.meta.imagePromptsError ? { imagePromptsError: issue.meta.imagePromptsError } : {}),
+    ...(issue.meta.imagesError ? { imagesError: issue.meta.imagesError } : {}),
+  };
   const { error } = await db.from("saturday_latte_issues").upsert(
     {
       issue_date: issueDate,
@@ -430,35 +460,26 @@ async function persistIssue(
         })),
         cooking: issue.research.cooking.map((r) => ({ source: r.source, url: r.url })),
       },
-      generation_meta: {
-        contentType: issue.contentType,
-        researchCitations: issue.meta.researchCitations,
-        researchCostUsd: issue.meta.researchCostUsd,
-        researchInputTokens: issue.meta.researchInputTokens,
-        researchOutputTokens: issue.meta.researchOutputTokens,
-        researchLatencyMs: issue.meta.researchLatencyMs,
-        writerInputTokens: issue.meta.writerInputTokens,
-        writerOutputTokens: issue.meta.writerOutputTokens,
-        writerLatencyMs: issue.meta.writerLatencyMs,
-        imagesGenerated: issue.meta.imagesGenerated,
-        imagesFailed: issue.meta.imagesFailed,
-        imagesCostUsd: issue.meta.imagesCostUsd,
-        imagesLatencyMs: issue.meta.imagesLatencyMs,
-        urlsValidated: issue.meta.urlsValidated,
-        urlsDropped: issue.meta.urlsDropped,
-        authorScopeViolationsFound: issue.meta.authorScopeViolationsFound,
-        authorScopeViolationsApplied: issue.meta.authorScopeViolationsApplied,
-        driveReferenceUrl: issue.meta.driveReferenceUrl ?? null,
-        driveUsedReference: issue.meta.driveUsedReference ?? false,
-        imageValidatorVerdicts: issue.meta.imageValidatorVerdicts ?? [],
-        ...(issue.meta.imagePromptsSource ? { imagePromptsSource: issue.meta.imagePromptsSource } : {}),
-        ...(issue.meta.imagePromptsError ? { imagePromptsError: issue.meta.imagePromptsError } : {}),
-        ...(issue.meta.imagesError ? { imagesError: issue.meta.imagesError } : {}),
-      },
+      generation_meta: generationMeta,
     },
     { onConflict: "issue_date" },
   );
   if (error) throw new Error(`persist_issue: ${error.message}`);
+
+  const version = await persistIssueVersion(db, {
+    brand: "latte",
+    issueDate,
+    subject: rendered.subject,
+    headline: issue.content.coverStoryHeadline,
+    preheader: rendered.preheader,
+    html: rendered.html,
+    textBody: rendered.text,
+    sections: sectionsSnapshot,
+    generationMeta,
+    source: "generate",
+    sourceNote: null,
+  });
+  return { versionId: version.id, versionSeq: version.versionSeq };
 }
 
 async function sendOne(
@@ -604,7 +625,7 @@ export async function runLatteGenerate(
       unsubscribeUrl: UNSUBSCRIBE_PLACEHOLDER,
       webArchiveUrl: "https://castorabbott.com/newsletter/latte/",
     });
-    await persistIssue(db, targetDate, issue, rendered);
+    const persisted = await persistIssue(db, targetDate, issue, rendered);
 
     result.generated = true;
     result.headline = issue.content.coverStoryHeadline;
@@ -676,6 +697,14 @@ export async function runLatteGenerate(
         logger.warn("cron.saturday_latte_generate.preview_failed", { error: preview.error });
       } else {
         logger.info("cron.saturday_latte_generate.preview_sent", { resendId: preview.resendId });
+        try {
+          await attachPreviewResendId(db, persisted.versionId, preview.resendId);
+        } catch (err) {
+          logger.warn("cron.saturday_latte_generate.attach_preview_failed", {
+            versionId: persisted.versionId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     } catch (err) {
       logger.warn("cron.saturday_latte_generate.preview_threw", {

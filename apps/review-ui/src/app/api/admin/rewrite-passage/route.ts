@@ -28,6 +28,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import type { SaturdayLatteContent } from "../../../../lib/saturday-latte-html-template";
 import { renderSaturdayLatteHtml } from "../../../../lib/saturday-latte-html-template";
+import { persistIssueVersion } from "../../../../lib/issue-versions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -274,6 +275,24 @@ Rewrite the passage. Return ONLY the rewritten passage — no preamble, no markd
     })
     .eq("issue_date", issueDate);
   if (upErr) return NextResponse.json({ error: `db update: ${upErr.message}` }, { status: 500 });
+
+  try {
+    await persistIssueVersion(db, {
+      brand: "latte",
+      issueDate,
+      subject: rendered.subject,
+      headline: (nextContent as { coverStoryHeadline?: string }).coverStoryHeadline ?? null,
+      preheader: rendered.preheader,
+      html: rendered.html,
+      textBody: rendered.text,
+      sections: nextSections,
+      generationMeta: null,
+      source: "rewrite_passage",
+      sourceNote: `${fieldPath} — ${feedback.slice(0, 200)}`,
+    });
+  } catch (err) {
+    logger.warn("rewrite_passage.version_persist_failed", { issueDate, fieldPath, error: err instanceof Error ? err.message : String(err) });
+  }
 
   logger.info("rewrite_passage.success", { issueDate, fieldPath, latencyMs: Date.now() - start });
 

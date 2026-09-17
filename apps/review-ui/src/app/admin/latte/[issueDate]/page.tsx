@@ -19,6 +19,7 @@ import { SlotControls, ApprovalActions } from "./SlotControls";
 import { InlineHistory } from "./InlineHistory";
 import { EditableTextBlock } from "./EditableTextBlock";
 import { PushToActiveCampaign } from "./PushToActiveCampaign";
+import { VersionHistory } from "./VersionHistory";
 
 export const dynamic = "force-dynamic";
 
@@ -323,6 +324,8 @@ export default async function LatteReviewDetail({
       </section>
 
       <InlineHistory rows={historyRows} />
+
+      <VersionHistory brand="latte" issueDate={issueDate} testSecret={testParam ?? ""} />
 
       <section style={{ marginTop: 32 }}>
         <h2 style={{ fontSize: 16, marginBottom: 12, color: "#333" }}>Rendered preview</h2>

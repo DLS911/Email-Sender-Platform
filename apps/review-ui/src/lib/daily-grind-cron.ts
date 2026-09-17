@@ -10,6 +10,7 @@ import {
   renderDailyGrindHtml,
 } from "./daily-grind-html-template";
 import { sendEditorEscalation } from "./editor-escalation";
+import { attachPreviewResendId, persistIssueVersion } from "./issue-versions";
 import { sendPreviewEmail } from "./preview-email";
 import {
   UNSUBSCRIBE_PLACEHOLDER,
@@ -341,10 +342,27 @@ async function persistIssue(
   issueDate: string,
   issue: DailyGrindIssue,
   rendered: { html: string; text: string; subject: string; preheader: string },
-): Promise<void> {
+): Promise<{ versionId: string; versionSeq: number }> {
   const totalInput = issue.meta.researchInputTokens + issue.meta.writerInputTokens;
   const totalOutput = issue.meta.researchOutputTokens + issue.meta.writerOutputTokens;
   const totalLatency = issue.meta.researchLatencyMs + issue.meta.writerLatencyMs;
+  const generationMeta = {
+    contentType: issue.content.contentType,
+    researchWebSearches: issue.meta.researchWebSearches,
+    researchInputTokens: issue.meta.researchInputTokens,
+    researchOutputTokens: issue.meta.researchOutputTokens,
+    researchLatencyMs: issue.meta.researchLatencyMs,
+    writerInputTokens: issue.meta.writerInputTokens,
+    writerOutputTokens: issue.meta.writerOutputTokens,
+    writerLatencyMs: issue.meta.writerLatencyMs,
+    researchItemCount: issue.research.items.length,
+    researchSources: issue.research.items.map((r) => ({ source: r.source, url: r.url })),
+    ...(issue.meta.issueSummary ? { issueSummary: issue.meta.issueSummary } : {}),
+    ...(issue.meta.formatStyle ? { formatStyle: issue.meta.formatStyle } : {}),
+    pipeline: issue.pipeline,
+    qualityGateStatus: issue.meta.qualityGateStatus ?? "passed",
+    qualityGateWarnings: issue.meta.qualityGateWarnings ?? [],
+  };
   const { error } = await db.from("daily_grind_issues").upsert(
     {
       issue_date: issueDate,
@@ -363,32 +381,26 @@ async function persistIssue(
       // INSERT, so upsert-replace would otherwise leave the old timestamp and
       // defeat the staleness-detection guard in cache_check.
       generated_at: new Date().toISOString(),
-      generation_meta: {
-        contentType: issue.content.contentType,
-        researchWebSearches: issue.meta.researchWebSearches,
-        researchInputTokens: issue.meta.researchInputTokens,
-        researchOutputTokens: issue.meta.researchOutputTokens,
-        researchLatencyMs: issue.meta.researchLatencyMs,
-        writerInputTokens: issue.meta.writerInputTokens,
-        writerOutputTokens: issue.meta.writerOutputTokens,
-        writerLatencyMs: issue.meta.writerLatencyMs,
-        researchItemCount: issue.research.items.length,
-        researchSources: issue.research.items.map((r) => ({ source: r.source, url: r.url })),
-        ...(issue.meta.issueSummary ? { issueSummary: issue.meta.issueSummary } : {}),
-        ...(issue.meta.formatStyle ? { formatStyle: issue.meta.formatStyle } : {}),
-        // Persist full pipeline trace (input → output at each handoff). This is
-        // what the /admin/trace/[issueDate] viewer reads to surface drift.
-        pipeline: issue.pipeline,
-        // Spec-compliant quality gate status. "pending_review_with_warnings"
-        // means the issue ships but the trace surface flags it for human
-        // review per spec `04_content_pipeline.spec.md:728`.
-        qualityGateStatus: issue.meta.qualityGateStatus ?? "passed",
-        qualityGateWarnings: issue.meta.qualityGateWarnings ?? [],
-      },
+      generation_meta: generationMeta,
     },
     { onConflict: "issue_date" },
   );
   if (error) throw new Error(`persist_issue: ${error.message}`);
+
+  const version = await persistIssueVersion(db, {
+    brand: "daily-grind",
+    issueDate,
+    subject: rendered.subject,
+    headline: issue.content.headline,
+    preheader: rendered.preheader,
+    html: rendered.html,
+    textBody: rendered.text,
+    sections: issue.content,
+    generationMeta,
+    source: "generate",
+    sourceNote: null,
+  });
+  return { versionId: version.id, versionSeq: version.versionSeq };
 }
 
 async function sendOne(
@@ -593,12 +605,12 @@ export async function runDailyGrindGenerate(
 
     // Stage: persist
     const persistStart = Date.now();
-    await persistIssue(db, targetDate, issue, renderedOutput);
+    const persisted = await persistIssue(db, targetDate, issue, renderedOutput);
     pipeline.push({
       name: "persist",
       status: "success",
       latencyMs: Date.now() - persistStart,
-      notes: `wrote daily_grind_issues row for ${targetDate}`,
+      notes: `wrote daily_grind_issues row + version ${persisted.versionSeq} (${persisted.versionId})`,
     });
 
     result.generated = true;
@@ -658,6 +670,13 @@ export async function runDailyGrindGenerate(
         issueText: renderedOutput.text,
         baseUrl,
       });
+      if (preview.ok) {
+        try {
+          await attachPreviewResendId(db, persisted.versionId, preview.resendId);
+        } catch (err) {
+          console.warn("issue_versions.attach_preview_failed", { versionId: persisted.versionId, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
       pipeline.push({
         name: "preview_send",
         status: preview.ok ? "success" : "failed",

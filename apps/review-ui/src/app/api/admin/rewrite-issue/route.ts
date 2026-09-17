@@ -18,6 +18,7 @@ import {
   renderDailyGrindHtml,
   type DailyGrindContent,
 } from "../../../../lib/daily-grind-html-template";
+import { persistIssueVersion } from "../../../../lib/issue-versions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -226,6 +227,30 @@ Return the rewritten JSON object only.`;
   );
   if (upsertErr) {
     return NextResponse.json({ error: `upsert: ${upsertErr.message}` }, { status: 500 });
+  }
+
+  try {
+    await persistIssueVersion(db, {
+      brand: "daily-grind",
+      issueDate: writeDate,
+      subject: rewritten.headline,
+      headline: rewritten.headline,
+      preheader: rewritten.preheader ?? null,
+      html: rendered.html,
+      textBody: rendered.text,
+      sections: rewritten as unknown,
+      generationMeta: {
+        source: "rewrite-issue",
+        sourceDate: issueDate,
+        tone: "more-contrarian",
+        rewriteInputTokens: response.usage.input_tokens,
+        rewriteOutputTokens: response.usage.output_tokens,
+      },
+      source: "rewrite_issue",
+      sourceNote: `sourceDate=${issueDate}`,
+    });
+  } catch (err) {
+    logger.warn("rewrite_issue.version_persist_failed", { writeDate, error: err instanceof Error ? err.message : String(err) });
   }
 
   return NextResponse.json({

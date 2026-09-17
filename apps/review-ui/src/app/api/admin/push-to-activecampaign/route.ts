@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 import { logger } from "@platform/observability";
 import { createClient } from "@supabase/supabase-js";
 import { createCampaign, createMessage, getCampaign, scheduleCampaign } from "../../../../lib/activecampaign";
+import { attachAcIds } from "../../../../lib/issue-versions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -117,6 +118,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       ? { ac_campaign_id: campaign.id, ac_message_id: message.id, ac_pushed_at: new Date().toISOString(), ac_send_at: sendAtISO ?? null }
       : { ac_campaign_id: campaign.id, ac_message_id: message.id, ac_pushed_at: new Date().toISOString(), ac_send_at: sendAtISO ?? null };
     await db.from(table).update({ generation_meta: nextGenMeta }).eq("issue_date", issueDate);
+
+    try {
+      await attachAcIds(db, brand as "latte" | "daily-grind", issueDate, String(campaign.id), String(message.id));
+    } catch (err) {
+      console.warn("ac_push.version_tag_failed", { brand, issueDate, error: err instanceof Error ? err.message : String(err) });
+    }
 
     const acHost = (process.env.AC_API_URL ?? "").replace(/\/api\/3\/?$/, "").replace(/\.api-us\d\.com/, ".activehosted.com");
     const dashboardUrl = `${acHost}/app/campaigns/${campaign.id}`;
