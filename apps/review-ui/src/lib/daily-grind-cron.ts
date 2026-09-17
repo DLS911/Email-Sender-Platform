@@ -387,20 +387,25 @@ async function persistIssue(
   );
   if (error) throw new Error(`persist_issue: ${error.message}`);
 
-  const version = await persistIssueVersion(db, {
-    brand: "daily-grind",
-    issueDate,
-    subject: rendered.subject,
-    headline: issue.content.headline,
-    preheader: rendered.preheader,
-    html: rendered.html,
-    textBody: rendered.text,
-    sections: issue.content,
-    generationMeta,
-    source: "generate",
-    sourceNote: null,
-  });
-  return { versionId: version.id, versionSeq: version.versionSeq };
+  try {
+    const version = await persistIssueVersion(db, {
+      brand: "daily-grind",
+      issueDate,
+      subject: rendered.subject,
+      headline: issue.content.headline,
+      preheader: rendered.preheader,
+      html: rendered.html,
+      textBody: rendered.text,
+      sections: issue.content,
+      generationMeta,
+      source: "generate",
+      sourceNote: null,
+    });
+    return { versionId: version.id, versionSeq: version.versionSeq };
+  } catch (err) {
+    console.warn("persist_issue.version_snapshot_failed", { issueDate, error: err instanceof Error ? err.message : String(err) });
+    return { versionId: "", versionSeq: 0 };
+  }
 }
 
 async function sendOne(
@@ -670,7 +675,7 @@ export async function runDailyGrindGenerate(
         issueText: renderedOutput.text,
         baseUrl,
       });
-      if (preview.ok) {
+      if (preview.ok && persisted.versionId) {
         try {
           await attachPreviewResendId(db, persisted.versionId, preview.resendId);
         } catch (err) {

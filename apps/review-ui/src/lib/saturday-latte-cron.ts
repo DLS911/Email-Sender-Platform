@@ -466,20 +466,25 @@ async function persistIssue(
   );
   if (error) throw new Error(`persist_issue: ${error.message}`);
 
-  const version = await persistIssueVersion(db, {
-    brand: "latte",
-    issueDate,
-    subject: rendered.subject,
-    headline: issue.content.coverStoryHeadline,
-    preheader: rendered.preheader,
-    html: rendered.html,
-    textBody: rendered.text,
-    sections: sectionsSnapshot,
-    generationMeta,
-    source: "generate",
-    sourceNote: null,
-  });
-  return { versionId: version.id, versionSeq: version.versionSeq };
+  try {
+    const version = await persistIssueVersion(db, {
+      brand: "latte",
+      issueDate,
+      subject: rendered.subject,
+      headline: issue.content.coverStoryHeadline,
+      preheader: rendered.preheader,
+      html: rendered.html,
+      textBody: rendered.text,
+      sections: sectionsSnapshot,
+      generationMeta,
+      source: "generate",
+      sourceNote: null,
+    });
+    return { versionId: version.id, versionSeq: version.versionSeq };
+  } catch (err) {
+    logger.warn("persist_issue.version_snapshot_failed", { issueDate, error: err instanceof Error ? err.message : String(err) });
+    return { versionId: "", versionSeq: 0 };
+  }
 }
 
 async function sendOne(
@@ -697,13 +702,15 @@ export async function runLatteGenerate(
         logger.warn("cron.saturday_latte_generate.preview_failed", { error: preview.error });
       } else {
         logger.info("cron.saturday_latte_generate.preview_sent", { resendId: preview.resendId });
-        try {
-          await attachPreviewResendId(db, persisted.versionId, preview.resendId);
-        } catch (err) {
-          logger.warn("cron.saturday_latte_generate.attach_preview_failed", {
-            versionId: persisted.versionId,
-            error: err instanceof Error ? err.message : String(err),
-          });
+        if (persisted.versionId) {
+          try {
+            await attachPreviewResendId(db, persisted.versionId, preview.resendId);
+          } catch (err) {
+            logger.warn("cron.saturday_latte_generate.attach_preview_failed", {
+              versionId: persisted.versionId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
       }
     } catch (err) {
