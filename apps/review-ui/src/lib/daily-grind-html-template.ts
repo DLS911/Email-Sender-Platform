@@ -105,7 +105,7 @@ function renderTheNumber(theNumber: {
       ? `<p style="font-size: 12px; color: #8a8178; margin: 8px 0 0 0;">Source: <a href="${escapeHtml(theNumber.sourceUrl)}" style="color: #8a8178; text-decoration: underline;">${escapeHtml(theNumber.sourceName)}</a></p>`
       : "";
   return `<tr>
-  <td style="padding: 20px 24px; border-bottom: 1px solid #e8e4de;">
+  <td style="padding: 20px 18px; border-bottom: 1px solid #e8e4de;">
     <p style="font-size: 11px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 8px 0;">The Number</p>
     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 700; color: #c4a882; margin: 0 0 8px 0; line-height: 1;">${escapeHtml(theNumber.stat)}</p>
     <p style="font-size: 15px; color: #4a4540; margin: 0;">${escapeHtml(theNumber.description)}</p>
@@ -116,7 +116,7 @@ function renderTheNumber(theNumber: {
 
 function renderTheUnspoken(text: string): string {
   return `<tr>
-  <td style="padding: 20px 24px; border-bottom: 1px solid #e8e4de;">
+  <td style="padding: 20px 18px; border-bottom: 1px solid #e8e4de;">
     <p style="font-size: 11px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 8px 0;">The Unspoken</p>
     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 15px; font-style: italic; color: #2d2926; margin: 0; line-height: 1.5;">${escapeHtml(text)}</p>
   </td>
@@ -125,7 +125,7 @@ function renderTheUnspoken(text: string): string {
 
 function renderTheFlip(flip: { conventional: string; reality: string }): string {
   return `<tr>
-  <td style="padding: 20px 24px;">
+  <td style="padding: 20px 18px;">
     <p style="font-size: 11px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 8px 0;">The Flip</p>
     <p style="font-size: 14px; color: #6b6560; margin: 0 0 6px 0;"><strong style="color: #9a8b7a;">Conventional:</strong> "${escapeHtml(flip.conventional)}"</p>
     <p style="font-size: 14px; color: #4a4540; margin: 0;"><strong style="color: #2d2926;">Reality:</strong> ${escapeHtml(flip.reality)}</p>
@@ -178,7 +178,7 @@ function renderHowToBox(howTo: { title: string; steps: HowToStep[] }): string {
     .join("\n");
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border: 1px solid #e8e4de; border-left: 4px solid #c4a882; margin: 24px 0;">
   <tr>
-    <td style="padding: 24px;">
+    <td style="padding: 24px 18px;">
       <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 700; color: #2d2926; margin: 0 0 16px 0;">${escapeHtml(howTo.title)}</p>
       ${stepsHtml}
     </td>
@@ -209,6 +209,19 @@ export function renderDailyGrindHtml(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Daily Grind</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      /* Stack the sponsor logo above the pitch text on mobile so the
+         80px column doesn't crush the copy into a thin ribbon. */
+      .sponsor-row { display: block !important; width: 100% !important; }
+      .sponsor-logo { display: block !important; width: 100% !important; padding: 0 0 14px 0 !important; text-align: center !important; }
+      .sponsor-logo img { margin: 0 auto !important; }
+      .sponsor-text { display: block !important; width: 100% !important; padding: 0 !important; }
+      /* Tighten the outer 40px gutters on very narrow screens for more copy width. */
+      .section-gutter { padding-left: 24px !important; padding-right: 24px !important; }
+      .callout-inner { padding-left: 16px !important; padding-right: 16px !important; }
+    }
+  </style>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #faf9f7; color: #2d2926; line-height: 1.7; font-size: 16px;">
   <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">${escapeHtml(content.preheader)}</div>
@@ -276,17 +289,17 @@ export function renderDailyGrindHtml(
 
           <!-- SPONSOR -->
           <tr>
-            <td style="padding: 0 40px;">
+            <td class="section-gutter" style="padding: 0 40px;">
               <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">A Word From Our Sponsor</p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border: 1px solid #e8e4de; border-radius: 8px;">
                 <tr>
-                  <td style="padding: 24px;">
+                  <td class="callout-inner" style="padding: 24px 20px;">
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                      <tr>
-                        <td style="width: 80px; vertical-align: top; padding-right: 20px;">
+                      <tr class="sponsor-row">
+                        <td class="sponsor-logo" style="width: 80px; vertical-align: top; padding-right: 20px;">
                           <img src="https://cdn.prod.website-files.com/62e057b9f7203c5b6fdf1a48/62e81abb175ad2b73e18ecdf_Castor-Abbott-Logo-Diamond-Webclip.jpg" alt="Castor Abbott" width="80" style="display: block; width: 80px; height: 80px; border-radius: 8px;">
                         </td>
-                        <td style="vertical-align: top;">
+                        <td class="sponsor-text" style="vertical-align: top;">
                           <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: #2d2926; margin: 0 0 12px 0;">Industry average: $5M. Our clients: $23M.</p>
                           <p style="color: #4a4540; font-size: 15px; margin: 0 0 16px 0;">Same effort. Different quality of prospect. We deliver appointments with investors averaging $2.36M in investable assets, looking for a good advisor.</p>
                           <p style="margin: 0;"><a href="https://go.oncehub.com/CastorAbbottTeam" style="color: #c4a882; text-decoration: none; font-size: 15px; font-weight: 600;">See if you qualify &rarr;</a></p>
@@ -330,7 +343,7 @@ export function renderDailyGrindHtml(
               <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">Ancient Truth</p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border-top: 1px solid #e8e4de; border-bottom: 1px solid #e8e4de;">
                 <tr>
-                  <td style="padding: 24px; text-align: center;">
+                  <td style="padding: 24px 18px; text-align: center;">
                     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 16px; font-style: italic; color: #2d2926; margin: 0 0 8px 0;">"${escapeHtml(content.ancientTruth.verse)}"</p>
                     <p style="font-size: 13px; color: #9a8b7a; margin: 0 0 12px 0;">${escapeHtml(content.ancientTruth.reference)}</p>
                     <p style="font-size: 14px; color: #6b6560; margin: 0;">${escapeHtml(content.ancientTruth.application)}</p>

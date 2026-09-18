@@ -321,7 +321,7 @@ export function renderSaturdayLatteHtml(
               <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 700; color: #2d2926; margin: 0 0 24px 0;">Sunday Reset</p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border-top: 1px solid #e8e4de; border-bottom: 1px solid #e8e4de;">
                 <tr>
-                  <td style="padding: 32px; text-align: center;">
+                  <td style="padding: 32px 20px; text-align: center;">
                     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 19px; font-style: italic; color: #2d2926; margin: 0 0 14px 0; line-height: 1.5;">&ldquo;${escapeHtml(content.sundayReset.quote)}&rdquo;</p>
                     <p style="font-size: 14px; color: #9a8b7a; margin: 0;">&mdash; ${escapeHtml(content.sundayReset.author)}</p>
                   </td>
@@ -338,7 +338,7 @@ export function renderSaturdayLatteHtml(
               <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 700; color: #2d2926; margin: 0 0 24px 0;">Sabbath</p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border-top: 1px solid #e8e4de; border-bottom: 1px solid #e8e4de;">
                 <tr>
-                  <td style="padding: 32px; text-align: center;">
+                  <td style="padding: 32px 20px; text-align: center;">
                     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-style: italic; color: #2d2926; margin: 0 0 8px 0; line-height: 1.5;">&ldquo;${escapeHtml(content.sabbath.verse)}&rdquo;</p>
                     <p style="font-size: 13px; color: #9a8b7a; margin: 0 0 18px 0;">&mdash; ${escapeHtml(content.sabbath.reference)}</p>
                     <p style="font-size: 15px; color: #4a4540; margin: 0; line-height: 1.7;">${escapeHtml(content.sabbath.reflection)}</p>
