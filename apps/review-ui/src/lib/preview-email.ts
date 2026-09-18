@@ -26,6 +26,12 @@ type PreviewInput = {
   issueHtml: string;
   issueText?: string;
   baseUrl: string;
+  /**
+   * Optional short label prepended to the subject and displayed as a
+   * pill in the banner — e.g. "check spacing fixes", "sponsor v2".
+   * Lets the sender flag WHAT to look at without regenerating the issue.
+   */
+  label?: string;
 };
 
 type PreviewSendResult = { ok: true; resendId: string } | { ok: false; error: string };
@@ -43,9 +49,13 @@ export function renderPreviewHtml(input: PreviewInput): string {
   const needsWorkHref = approvalUrl(input.baseUrl, input.brand, input.issueDate, "needs-work");
   const label = brandLabel(input.brand);
 
+  const labelPill = input.label
+    ? `<p style="margin:0 0 12px 0"><span style="display:inline-block;padding:5px 12px;background:#c47a1a;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:4px">🔍 ${escapeHtml(input.label)}</span></p>`
+    : "";
   const banner = `
 <div style="max-width:640px;margin:0 auto 24px auto;padding:24px;background:#fefaf3;border:1px solid #e6d9c3;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Georgia,serif;color:#2d2926">
   <p style="margin:0 0 4px 0;font-size:11px;font-weight:600;letter-spacing:1.5px;color:#a5905b;text-transform:uppercase">Preview for review · ${label}</p>
+  ${labelPill}
   <p style="margin:0 0 16px 0;font-size:18px;font-weight:600;color:#2d2926">${escapeHtml(input.subject)}</p>
   <p style="margin:0 0 20px 0;font-size:13px;color:#6a6360">Scheduled to send on <strong>${input.issueDate}</strong>. Nothing goes out to subscribers until you click Approve.</p>
   <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse">
@@ -118,7 +128,9 @@ ${input.issueText ?? ""}`;
       from: `Latte Preview <${fromAddress}>`,
       to: [to],
       ...(ccList.length > 0 ? { cc: ccList } : {}),
-      subject: `[Preview · ${input.issueDate}] ${input.subject}`,
+      subject: input.label
+        ? `[${input.label.toUpperCase()}] [Preview · ${input.issueDate}] ${input.subject}`
+        : `[Preview · ${input.issueDate}] ${input.subject}`,
       html,
       text,
       tags: [
