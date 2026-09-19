@@ -589,6 +589,8 @@ A short Bible verse + 2-3 sentence reflection.
 
 The verse should relate to rest, abundance, peace, gratitude — Saturday/Sunday morning themes. Not industry-tactic themes (those are for Daily Grind).
 
+**TEMPORAL GROUNDING — CRITICAL.** The reflection must ground in the reader's current moment (the issue's send date and its season), NOT the recommended travel destination's month or any future season the Cover Story previews. A destination pick like "Ljubljana in November" is planning-ahead advice; the reader receives this issue in September and needs the Sabbath to meet them where they are, not where their trip might take them. Never write "In November's dimming light" or "as the autumn frost settles" when the send date is early September. Prefer timeless language (light, breath, morning, threshold, rest) over month-specific atmospheric cues, or match the actual send-date season if you must reference weather. The Cover Story can talk about visiting in November; the Sabbath cannot pretend the reader is already there.
+
 ### preheader
 Gmail preview text. 60-110 chars. Extends the cover story hook.
 
