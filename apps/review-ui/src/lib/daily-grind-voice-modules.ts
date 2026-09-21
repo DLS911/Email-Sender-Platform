@@ -298,6 +298,10 @@ If you wrote "cry-once purchase" three weeks ago, don't write it again. Generate
 
 The model's natural tendency is to converge on phrases it has produced before. Resist this. Fresh language is the difference between a voice that has range and a voice that has tics.
 
+### Cap the anchor noun-phrase — hard rule
+
+Every issue has ONE central noun-phrase anchor (e.g. "service model," "capacity math," "fee compression," "meeting cadence," "onboarding week"). That anchor names the concept and appears in the headline and the framing. **Use the anchor phrase AT MOST 3 times in the whole body across First Pull, Worth Knowing, main content, and closing combined.** Once it's named, switch to variants: pronouns (it, that, the promise), synonyms (framework, arrangement, cadence, standard, offer), or partial restatements (what you told her you'd do). If you use "service model" more than 3 times in a single issue, the reader stops hearing the argument and starts hearing the phrase. Recent violation: 09-21 draft used "service model" eight times in one body — that's a tic, not an argument.
+
 ### Surgical Precision
 
 Every word earns its place. If removing a word doesn't change the meaning, remove it.
