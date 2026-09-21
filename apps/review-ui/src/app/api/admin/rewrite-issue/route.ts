@@ -19,6 +19,7 @@ import {
   type DailyGrindContent,
 } from "../../../../lib/daily-grind-html-template";
 import { persistIssueVersion } from "../../../../lib/issue-versions";
+import { mergePreviousVersion } from "../../../../lib/issue-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -201,6 +202,14 @@ Return the rewritten JSON object only.`;
   });
 
   const latencyMs = Date.now() - start;
+  const rewriteMeta: Record<string, unknown> = {
+    source: "rewrite-issue",
+    sourceDate: issueDate,
+    tone: "more-contrarian",
+    rewriteInputTokens: response.usage.input_tokens,
+    rewriteOutputTokens: response.usage.output_tokens,
+  };
+  const mergedMeta = await mergePreviousVersion(db, "daily_grind_issues", writeDate, rewriteMeta);
   const { error: upsertErr } = await db.from("daily_grind_issues").upsert(
     {
       issue_date: writeDate,
@@ -215,13 +224,7 @@ Return the rewritten JSON object only.`;
       output_tokens: response.usage.output_tokens,
       cost_usd: 0,
       latency_ms: latencyMs,
-      generation_meta: {
-        source: "rewrite-issue",
-        sourceDate: issueDate,
-        tone: "more-contrarian",
-        rewriteInputTokens: response.usage.input_tokens,
-        rewriteOutputTokens: response.usage.output_tokens,
-      },
+      generation_meta: mergedMeta,
     },
     { onConflict: "issue_date" },
   );

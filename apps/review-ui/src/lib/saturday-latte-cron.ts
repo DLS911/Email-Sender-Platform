@@ -13,6 +13,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { sendPreviewEmail } from "./preview-email";
 import { sendEditorEscalation } from "./editor-escalation";
+import { mergePreviousVersion } from "./issue-history";
 import { attachPreviewResendId, persistIssueVersion } from "./issue-versions";
 import {
   extractHaikuBodyRecommendations,
@@ -405,7 +406,7 @@ async function persistIssue(
     ...issue.content,
     ...(issue.meta.imageReferences ? { imageReferences: issue.meta.imageReferences } : {}),
   };
-  const generationMeta = {
+  const generationMeta: Record<string, unknown> = {
     contentType: issue.contentType,
     researchCitations: issue.meta.researchCitations,
     researchCostUsd: issue.meta.researchCostUsd,
@@ -430,6 +431,7 @@ async function persistIssue(
     ...(issue.meta.imagePromptsError ? { imagePromptsError: issue.meta.imagePromptsError } : {}),
     ...(issue.meta.imagesError ? { imagesError: issue.meta.imagesError } : {}),
   };
+  const mergedMeta = await mergePreviousVersion(db, "saturday_latte_issues", issueDate, generationMeta);
   const { error } = await db.from("saturday_latte_issues").upsert(
     {
       issue_date: issueDate,
@@ -460,7 +462,7 @@ async function persistIssue(
         })),
         cooking: issue.research.cooking.map((r) => ({ source: r.source, url: r.url })),
       },
-      generation_meta: generationMeta,
+      generation_meta: mergedMeta,
     },
     { onConflict: "issue_date" },
   );

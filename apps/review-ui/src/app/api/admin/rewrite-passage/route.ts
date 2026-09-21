@@ -29,6 +29,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { SaturdayLatteContent } from "../../../../lib/saturday-latte-html-template";
 import { renderSaturdayLatteHtml } from "../../../../lib/saturday-latte-html-template";
 import { persistIssueVersion } from "../../../../lib/issue-versions";
+import { mergePreviousVersion } from "../../../../lib/issue-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -264,6 +265,10 @@ Rewrite the passage. Return ONLY the rewritten passage — no preamble, no markd
 
   const nextSections: Record<string, unknown> = { ...sections, ...(nextContent as unknown as Record<string, unknown>), passageEdits: editHistory };
 
+  // Snapshot the existing row into generation_meta.previousVersions
+  // before overwriting so the pre-rewrite copy is recoverable.
+  const mergedMeta = await mergePreviousVersion(db, "saturday_latte_issues", issueDate, null);
+
   const { error: upErr } = await db
     .from("saturday_latte_issues")
     .update({
@@ -272,6 +277,7 @@ Rewrite the passage. Return ONLY the rewritten passage — no preamble, no markd
       text_body: rendered.text,
       subject: rendered.subject,
       preheader: rendered.preheader,
+      generation_meta: mergedMeta,
     })
     .eq("issue_date", issueDate);
   if (upErr) return NextResponse.json({ error: `db update: ${upErr.message}` }, { status: 500 });

@@ -21,6 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { SaturdayLatteContent } from "../../../../lib/saturday-latte-html-template";
 import { renderSaturdayLatteHtml } from "../../../../lib/saturday-latte-html-template";
 import { persistIssueVersion } from "../../../../lib/issue-versions";
+import { mergePreviousVersion } from "../../../../lib/issue-history";
 import {
   generateForSlot,
   getStorageClient,
@@ -274,6 +275,10 @@ The output must be a 1:1 square aspect ratio image.`;
 
   const nextSections = { ...sections, images: newImages, slotRegenerations: regenHistory };
 
+  // Snapshot the existing row into generation_meta.previousVersions
+  // before overwriting the image/render fields.
+  const mergedMeta = await mergePreviousVersion(db, "saturday_latte_issues", issueDate, null);
+
   const { error: upErr } = await db
     .from("saturday_latte_issues")
     .update({
@@ -282,6 +287,7 @@ The output must be a 1:1 square aspect ratio image.`;
       text_body: rendered.text,
       subject: rendered.subject,
       preheader: rendered.preheader,
+      generation_meta: mergedMeta,
     })
     .eq("issue_date", issueDate);
   if (upErr) return NextResponse.json({ error: `db update: ${upErr.message}` }, { status: 500 });

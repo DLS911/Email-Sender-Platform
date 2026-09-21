@@ -10,6 +10,7 @@ import {
   renderDailyGrindHtml,
 } from "./daily-grind-html-template";
 import { sendEditorEscalation } from "./editor-escalation";
+import { mergePreviousVersion } from "./issue-history";
 import { attachPreviewResendId, persistIssueVersion } from "./issue-versions";
 import { sendPreviewEmail } from "./preview-email";
 import {
@@ -346,7 +347,7 @@ async function persistIssue(
   const totalInput = issue.meta.researchInputTokens + issue.meta.writerInputTokens;
   const totalOutput = issue.meta.researchOutputTokens + issue.meta.writerOutputTokens;
   const totalLatency = issue.meta.researchLatencyMs + issue.meta.writerLatencyMs;
-  const generationMeta = {
+  const generationMeta: Record<string, unknown> = {
     contentType: issue.content.contentType,
     researchWebSearches: issue.meta.researchWebSearches,
     researchInputTokens: issue.meta.researchInputTokens,
@@ -363,6 +364,7 @@ async function persistIssue(
     qualityGateStatus: issue.meta.qualityGateStatus ?? "passed",
     qualityGateWarnings: issue.meta.qualityGateWarnings ?? [],
   };
+  const mergedMeta = await mergePreviousVersion(db, "daily_grind_issues", issueDate, generationMeta);
   const { error } = await db.from("daily_grind_issues").upsert(
     {
       issue_date: issueDate,
@@ -381,7 +383,7 @@ async function persistIssue(
       // INSERT, so upsert-replace would otherwise leave the old timestamp and
       // defeat the staleness-detection guard in cache_check.
       generated_at: new Date().toISOString(),
-      generation_meta: generationMeta,
+      generation_meta: mergedMeta,
     },
     { onConflict: "issue_date" },
   );
