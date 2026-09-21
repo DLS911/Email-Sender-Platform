@@ -3200,8 +3200,14 @@ export async function generateDailyGrindIssue(opts: {
   // Up to 3 attempts. This is the real dedup — the prior behavior only fed
   // recent-concept TEXT into the prompt as soft advice, which let near-dupes
   // (same cluster, different headline) slip through repeatedly.
-  const MAX_PROPOSER_ATTEMPTS = 3;
-  const SIMILARITY_THRESHOLD = 0.82;
+  // Raised MAX + lowered threshold on 09-21. Prior 0.82/3 let through
+  // "Your service model math..." right after "Your service model stopped
+  // existing 18 months ago" because embeddings for same-topic-different-
+  // angle takes cluster around 0.72-0.80 — below the old 0.82 wall.
+  // 0.72 is closer to how a human reader would perceive rehash. 6 attempts
+  // gives the proposer real budget to walk to fresh territory.
+  const MAX_PROPOSER_ATTEMPTS = 6;
+  const SIMILARITY_THRESHOLD = 0.72;
   const semanticallyBlocked: string[] = [];
   const dedupAttempts: Array<{
     attempt: number;
