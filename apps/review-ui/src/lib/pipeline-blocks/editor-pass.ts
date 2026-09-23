@@ -29,6 +29,12 @@ export type EditorPassInput = {
   styledDraftJson: string;
   iterationNumber: number;
   maxIterations: number;
+  /** High-count phrases from the current draft body (>3 uses). */
+  overusedPhrases?: Array<{ phrase: string; count: number }>;
+  /** Worth-Knowing headlines from the last N prior issues. */
+  recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string }>;
+  /** Main headlines from the last N prior issues. */
+  recentMainHeadlines?: Array<{ issueDate: string; headline: string }>;
 };
 
 function formatSection(label: string, body: string): string {
@@ -104,6 +110,32 @@ export function buildEditorPassPrompt(input: EditorPassInput): string {
 
   sections.push(formatSection("Styled Draft to Review", wrapInTag("draft_json", input.styledDraftJson)));
 
+  const overused = input.overusedPhrases ?? [];
+  const recentWK = input.recentWorthKnowingHeadlines ?? [];
+  const recentMain = input.recentMainHeadlines ?? [];
+  if (overused.length > 0 || recentWK.length > 0 || recentMain.length > 0) {
+    const parts: string[] = [];
+    parts.push(
+      "The reader reads this newsletter alongside recent issues. Two failure modes we've seen repeatedly: (a) the writer names an anchor noun-phrase (service model, planning software, referral source, CPA) 8-18 times in one body — feels like a tic; (b) a Worth Knowing item cites the same research angle as a recent issue's WK item, back-to-back. You need to catch both before ship.",
+    );
+    if (overused.length > 0) {
+      parts.push(
+        `**Anchor-phrase over-use in THIS draft (>3 uses):**\n${overused.map((p) => `- "${p.phrase}" — ${p.count}×`).join("\n")}\n\nIf any of these are content nouns central to the argument (e.g. the topic itself), require a revision that keeps the anchor phrase to at most 3 mentions in the whole body. Vary with pronouns, synonyms, or partial restatements after the third use.`,
+      );
+    }
+    if (recentWK.length > 0) {
+      parts.push(
+        `**Recent Worth Knowing headlines (last ${recentWK.length}):**\n${recentWK.map((h) => `- [${h.issueDate}] ${h.headline}`).join("\n")}\n\nCross-check EVERY current draft Worth Knowing headline against this list. If any current WK item cites the same research angle, same statistic, or the same underlying phenomenon (even with different wording), require revision — swap that WK item for a distinct source or angle.`,
+      );
+    }
+    if (recentMain.length > 0) {
+      parts.push(
+        `**Recent main headlines (last ${recentMain.length}):**\n${recentMain.map((h) => `- [${h.issueDate}] ${h.headline}`).join("\n")}\n\nIf this draft's argument is a restate of a recent main-content thesis with different wording, flag it. The reader will notice.`,
+      );
+    }
+    sections.push(formatSection("Repetition Check Context", parts.join("\n\n")));
+  }
+
   sections.push(
     formatSection(
       "Editorial Review Criteria",
@@ -122,6 +154,9 @@ ${buildContentTypeCriteria(input.edition, input.contentType)}
 
 **Author-credibility check (weekday only):**
 Mark is NOT a practicing financial advisor. Flag any first-person practitioner claims ("when I run discovery calls," "in my client meetings"). Replace with appropriate framing ("the advisors I work with do," "I've watched advisors do").
+
+**Repetition check (weekday only, when the Repetition Check Context section is present):**
+Any anchor phrase used more than 3 times in the body is a fail — verdict must be "revise" with a specific instruction to cap that phrase and vary the rest. Any current Worth Knowing item that repeats a recent WK angle (same statistic, same research finding, same source, even with different phrasing) is a fail — verdict must be "revise" with an instruction to swap that WK item. Repetition failures are NOT stylistic quibbles; they are ship-blockers because the reader sees them across issues.
 
 **Iteration discipline:**
 - If the draft is publication-ready, return verdict "approve" with the approvedDraft attached

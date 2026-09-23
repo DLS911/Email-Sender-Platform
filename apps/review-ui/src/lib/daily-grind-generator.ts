@@ -14,6 +14,11 @@ import {
 import { buildDraftWeekdayPrompt, type FormatStyle } from "./pipeline-blocks/draft-weekday";
 import { buildStylePassPrompt } from "./pipeline-blocks/style-pass";
 import { buildEditorPassPrompt } from "./pipeline-blocks/editor-pass";
+import {
+  collectDraftBodyText,
+  findOverusedPhrases,
+  loadRecentWorthKnowingHeadlines,
+} from "./content-repetition";
 import { buildFactCheckPrompt } from "./pipeline-blocks/fact-check";
 import {
   buildPersonaEvaluatePrompt,
@@ -1262,6 +1267,11 @@ async function runEditorPass(
   issueDate: string,
   iterationNumber: number,
   maxIterations: number,
+  reviewContext?: {
+    overusedPhrases?: Array<{ phrase: string; count: number }>;
+    recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string }>;
+    recentMainHeadlines?: Array<{ issueDate: string; headline: string }>;
+  },
 ): Promise<{
   verdict: "approve" | "revise" | "rewrite_section" | "approve_with_concerns";
   summary: string;
@@ -1282,6 +1292,9 @@ async function runEditorPass(
     styledDraftJson: JSON.stringify(content, null, 2),
     iterationNumber,
     maxIterations,
+    ...(reviewContext?.overusedPhrases ? { overusedPhrases: reviewContext.overusedPhrases } : {}),
+    ...(reviewContext?.recentWorthKnowingHeadlines ? { recentWorthKnowingHeadlines: reviewContext.recentWorthKnowingHeadlines } : {}),
+    ...(reviewContext?.recentMainHeadlines ? { recentMainHeadlines: reviewContext.recentMainHeadlines } : {}),
   });
 
   const start = Date.now();
@@ -2190,6 +2203,7 @@ async function runWriterPhase(
     frameworkReferences: string[];
   },
   formatStyle?: FormatStyle,
+  db?: SupabaseClient,
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
@@ -2544,6 +2558,20 @@ ${availableForNumber})`;
   // loop. Sonnet evaluates voice integrity, framework honesty, earned-line
   // presence, strong close, content-type-specific structural beats.
   // Up to 2 iterations before forced approve_with_concerns.
+  //
+  // The repetition context (recent WK headlines + main headlines + phrase
+  // over-use counts on the CURRENT draft) is loaded ONCE before the loop
+  // and fed to every editor iteration — so revisions see the same "avoid"
+  // list. Phrase counts are recomputed each iteration because the draft
+  // changes between iterations.
+  const recentWKHeadlines = db
+    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 15).catch(() => [])
+    : [];
+  const recentMainHeadlines = recentTopics.slice(0, 12).map((h, i) => ({
+    issueDate: `-${i + 1}`,
+    headline: h,
+  }));
+
   const MAX_EDITOR_ITERATIONS = 2;
   let editorFinalVerdict: string = "no_verdict";
   let editorIterationsUsed = 0;
@@ -2551,6 +2579,7 @@ ${availableForNumber})`;
     editorIterationsUsed = iter;
     const editorStart = Date.now();
     try {
+      const overusedPhrases = findOverusedPhrases(collectDraftBodyText(content), 3);
       const editor = await runEditorPass(
         client,
         content,
@@ -2558,6 +2587,7 @@ ${availableForNumber})`;
         issueDate,
         iter,
         MAX_EDITOR_ITERATIONS,
+        { overusedPhrases, recentWorthKnowingHeadlines: recentWKHeadlines, recentMainHeadlines },
       );
       totalLatency += editor.latencyMs;
       totalInput += editor.inputTokens;
@@ -3710,6 +3740,7 @@ export async function generateDailyGrindIssue(opts: {
     pipeline,
     proposal ?? undefined,
     lockedFormatStyle,
+    opts.db,
   );
   pipeline.push({
     name: "writer",
