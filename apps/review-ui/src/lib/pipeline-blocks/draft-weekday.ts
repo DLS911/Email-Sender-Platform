@@ -36,10 +36,20 @@ export type DraftWeekdayInput = {
   /**
    * The "how" layer (spec 04:451-458) that pairs with the content type "what"
    * layer. The SAME content type reads very differently across these five —
-   * 50+ combinations across the week. Drives the Main Content + First Pull
+   * 50+ combinations across the week. Drives the Main Content + This First Pull
    * structure. Optional for back-compat; defaults to deep_dive.
    */
   formatStyle?: FormatStyle;
+  /**
+   * Worth Knowing headlines from the last N prior issues. When present,
+   * the writer is instructed to skip any research item whose story is
+   * substantively the same as a recent WK — same acquisition, same
+   * regulatory news, same statistic. Fed from the caller via
+   * loadRecentWorthKnowingHeadlines. Without this, research keeps
+   * surfacing the top story of the moment and the writer picks it 5
+   * issues in a row (the Vanguard/Altruist problem).
+   */
+  recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string }>;
 };
 
 /**
@@ -187,6 +197,25 @@ Framework references: ${input.approvedTopic.frameworkReferences.join(", ") || "n
       wrapInTag("research_data", JSON.stringify(input.structuredResearch, null, 2)),
     ),
   );
+
+  // Recent Worth Knowing headlines — the writer picks 3 items for the
+  // WK section from the research bundle. Without this constraint the
+  // model keeps picking the current biggest story (Vanguard/Altruist
+  // ran 5 issues in a row). Do not treat this as advice; treat it as
+  // a hard filter.
+  const recentWK = input.recentWorthKnowingHeadlines ?? [];
+  if (recentWK.length > 0) {
+    sections.push(
+      formatSection(
+        "Recent Worth Knowing — DO NOT REPEAT",
+        `The Worth Knowing items below appeared in the last ${recentWK.length} issues. Every WK item you select from research MUST be about a substantively different story than every headline on this list — different acquisition, different regulatory news, different survey, different statistic, different research paper. If two research items feel equally strong and one is a rehash of anything below, pick the other one.
+
+${recentWK.map((h) => `- [${h.issueDate}] ${h.headline}`).join("\n")}
+
+Rehashing a WK story is the fastest way to make the reader feel this newsletter is on autopilot. Skip it even when it's the "biggest" story — the reader already saw it here.`,
+      ),
+    );
+  }
 
   // Per-content-type structure
   sections.push(

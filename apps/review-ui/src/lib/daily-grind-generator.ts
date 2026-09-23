@@ -2215,6 +2215,13 @@ async function runWriterPhase(
   // draft_weekday prompt (per-type structure + production rules + canonical
   // few-shot examples + structured research with primaryFindings etc).
   // Otherwise fall back to the legacy buildWriterUserPrompt path.
+  // Load recent Worth Knowing headlines so the writer skips items that
+  // rehash a recent WK. Fed to both the draft-weekday prompt (pre-write
+  // filter on WK selection) and the editor pass (post-write catch).
+  const preWriteRecentWK = db
+    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 15).catch(() => [])
+    : [];
+
   const useStructuredDraft = proposal && research.structured;
   const userPrompt = useStructuredDraft
     ? buildDraftWeekdayPrompt({
@@ -2222,6 +2229,7 @@ async function runWriterPhase(
         approvedTopic: proposal,
         structuredResearch: research.structured!,
         ...(formatStyle ? { formatStyle } : {}),
+        ...(preWriteRecentWK.length > 0 ? { recentWorthKnowingHeadlines: preWriteRecentWK } : {}),
       })
     : buildWriterUserPrompt(
         issueDate,
