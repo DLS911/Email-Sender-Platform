@@ -77,6 +77,15 @@ export async function POST(req: Request): Promise<NextResponse> {
   const row = data as unknown as { issue_date: string; subject: string | null; html: string | null; text_body: string | null; approval_status: string | null } & Record<string, string | null>;
   if (!row.html) return NextResponse.json({ error: "no rendered html for this issue" }, { status: 400 });
 
+  // Rewrite the render-time placeholder URL to AC's per-recipient
+  // %UNSUBSCRIBELINK% merge tag. Without this, every recipient sees
+  // the static placeholder and clicking it goes nowhere — the reason
+  // we recorded 0 unsubs on the first four sends. AC substitutes the
+  // merge tag with a real per-contact signed unsubscribe URL at send.
+  const PLACEHOLDER = "https://send.castorabbott.com/unsubscribe?placeholder=1";
+  const rewrittenHtml = (row.html ?? "").split(PLACEHOLDER).join("%UNSUBSCRIBELINK%");
+  const rewrittenText = (row.text_body ?? "").split(PLACEHOLDER).join("%UNSUBSCRIBELINK%");
+
   // Latte (weekend) must be explicitly approved before push. DG
   // (weekday) can push without approval — the send-schedule cron
   // pushes it directly. The pushToAC step is the "send" for AC
@@ -91,7 +100,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   try {
     const message = await createMessage({
-      subject, html: row.html, text: row.text_body ?? "", fromAddress, fromName, listId,
+      subject, html: rewrittenHtml, text: rewrittenText, fromAddress, fromName, listId,
     });
 
     const sendAtISO = body.asDraft ? undefined : body.sendAtISO;
