@@ -26,6 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // they repeat a lot. This is a stop-list, not a complete filter —
 // short and function words are excluded by the length check anyway.
 const STOP_WORDS = new Set<string>([
+  // Domain-common nouns that legitimately recur in an advisor newsletter.
   "advisor", "advisors", "client", "clients", "meeting", "meetings",
   "financial", "planning", "review", "reviews", "firm", "firms",
   "business", "practice", "practices", "work", "working", "worked",
@@ -36,6 +37,24 @@ const STOP_WORDS = new Set<string>([
   "process", "processes", "system", "systems", "model", "models",
   "service", "services", "hour", "hours", "day", "days",
   "number", "numbers", "trend", "trends", "hire", "hires", "hiring",
+  // Pronouns + contractions + common function words. Without these the
+  // detector flagged 'they're' as an anchor-phrase failure and the
+  // editor burned both revision passes chasing the false positive.
+  "there", "their", "they're", "theirs", "these", "those", "them",
+  "you're", "your", "yours", "you've", "you'll", "you'd",
+  "we're", "we've", "we'll", "we'd", "ours",
+  "it's", "its", "that's", "there's", "here's", "what's",
+  "isn't", "aren't", "wasn't", "weren't", "doesn't", "don't", "didn't",
+  "shouldn't", "wouldn't", "couldn't", "hasn't", "haven't", "hadn't",
+  "about", "after", "again", "against", "along", "among", "around",
+  "because", "before", "below", "between", "beyond", "during", "except",
+  "inside", "outside", "through", "under", "until", "while", "within",
+  "already", "always", "often", "sometimes", "never", "rarely",
+  "another", "anything", "anyone", "everyone", "everything", "someone",
+  "something", "nothing", "nobody", "little", "every", "either", "neither",
+  "should", "would", "could", "might", "must",
+  "themselves", "yourself", "yourselves", "himself", "herself", "itself",
+  "which", "where", "whose", "whom",
 ]);
 
 /**
