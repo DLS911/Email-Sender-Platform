@@ -45,7 +45,21 @@ function headlineCol(brand: string): string {
 export async function POST(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { brand?: string; issueDate?: string; listId?: string | number; sendAtISO?: string; asDraft?: boolean };
+  let body: {
+    brand?: string;
+    issueDate?: string;
+    listId?: string | number;
+    sendAtISO?: string;
+    asDraft?: boolean;
+    /**
+     * Optional literal string replacements applied to the HTML + text
+     * before the AC message is created. Used for one-off relabels
+     * (e.g. "Saturday Morning Latte" → "Sunday Morning Latte" when the
+     * Saturday issue is being reused as a Sunday send). Does NOT touch
+     * the DB row — the persisted content stays as-generated.
+     */
+    replacements?: Array<{ from: string; to: string }>;
+  };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const brand = body.brand?.trim();
   const issueDate = body.issueDate?.trim();
@@ -83,8 +97,22 @@ export async function POST(req: Request): Promise<NextResponse> {
   // we recorded 0 unsubs on the first four sends. AC substitutes the
   // merge tag with a real per-contact signed unsubscribe URL at send.
   const PLACEHOLDER = "https://send.castorabbott.com/unsubscribe?placeholder=1";
-  const rewrittenHtml = (row.html ?? "").split(PLACEHOLDER).join("%UNSUBSCRIBELINK%");
-  const rewrittenText = (row.text_body ?? "").split(PLACEHOLDER).join("%UNSUBSCRIBELINK%");
+  let rewrittenHtml = (row.html ?? "").split(PLACEHOLDER).join("%UNSUBSCRIBELINK%");
+  let rewrittenText = (row.text_body ?? "").split(PLACEHOLDER).join("%UNSUBSCRIBELINK%");
+  let rewrittenSubject: string | null = null;
+
+  // Apply caller-supplied literal replacements (relabel for one-off
+  // reuse — e.g. Saturday → Sunday when a Saturday issue ships as a
+  // Sunday send). Also applies to the subject line so the AC campaign
+  // header + inbox subject stay consistent.
+  for (const r of body.replacements ?? []) {
+    if (!r?.from) continue;
+    rewrittenHtml = rewrittenHtml.split(r.from).join(r.to ?? "");
+    rewrittenText = rewrittenText.split(r.from).join(r.to ?? "");
+    if (row.subject) {
+      rewrittenSubject = (rewrittenSubject ?? row.subject).split(r.from).join(r.to ?? "");
+    }
+  }
 
   // Latte (weekend) must be explicitly approved before push. DG
   // (weekday) can push without approval — the send-schedule cron
@@ -95,7 +123,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: `latte issue must be approved before AC push (current: ${row.approval_status ?? "pending"})` }, { status: 400 });
   }
 
-  const subject = row.subject ?? row[hCol] ?? `Issue ${issueDate}`;
+  const subject = rewrittenSubject ?? row.subject ?? row[hCol] ?? `Issue ${issueDate}`;
   const campaignName = `${brand === "latte" ? "Saturday Latte" : "Daily Grind"} — ${issueDate}`;
 
   try {
