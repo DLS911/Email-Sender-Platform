@@ -2219,7 +2219,7 @@ async function runWriterPhase(
   // rehash a recent WK. Fed to both the draft-weekday prompt (pre-write
   // filter on WK selection) and the editor pass (post-write catch).
   const preWriteRecentWK = db
-    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 15).catch(() => [])
+    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 45).catch(() => [])
     : [];
 
   const useStructuredDraft = proposal && research.structured;
@@ -2573,7 +2573,7 @@ ${availableForNumber})`;
   // list. Phrase counts are recomputed each iteration because the draft
   // changes between iterations.
   const recentWKHeadlines = db
-    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 15).catch(() => [])
+    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 45).catch(() => [])
     : [];
   const recentMainHeadlines = recentTopics.slice(0, 12).map((h, i) => ({
     issueDate: `-${i + 1}`,
