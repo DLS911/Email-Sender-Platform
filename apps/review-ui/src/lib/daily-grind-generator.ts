@@ -18,6 +18,7 @@ import {
   collectDraftBodyText,
   findOverusedPhrases,
   loadRecentWorthKnowingHeadlines,
+  loadRecentWorthKnowingItems,
 } from "./content-repetition";
 import { buildFactCheckPrompt } from "./pipeline-blocks/fact-check";
 import {
@@ -455,14 +456,24 @@ async function runStructuredResearchWeekday(
   },
   recentTopics: string[],
   expandQueries: boolean = false,
+  recentWorthKnowingItems?: Array<{ issueDate: string; headline: string; url: string }>,
 ): Promise<ResearchResult> {
+  const bannedUrls = Array.from(
+    new Set((recentWorthKnowingItems ?? []).map((i) => i.url).filter(Boolean)),
+  ).sort();
   let userPrompt = buildResearchWeekdayPrompt({
     brandId: "castor_abbott",
     issueDate,
     approvedTopic: proposal,
-    recentlyUsedSources: [],
+    recentlyUsedSources: bannedUrls,
     factCheckHistory: recentTopics,
   });
+  if (bannedUrls.length > 0) {
+    userPrompt += `\n\n## BANNED URLs — DO NOT RETURN ANY ITEM CITING THESE\n\nThese URLs have been used as Worth Knowing sources in recent issues. If a search returns any of them, skip that item and pick something else. Same URL means same source, regardless of any new framing:\n\n${bannedUrls.map((u) => `- ${u}`).join("\n")}`;
+  }
+  if ((recentWorthKnowingItems ?? []).length > 0) {
+    userPrompt += `\n\n## RECENT WORTH KNOWING HEADLINES — AVOID THE SAME STORY\n\nEven with a different URL, do not return an item that covers the same underlying event, statistic, or study as anything below:\n\n${(recentWorthKnowingItems ?? []).slice(0, 30).map((i) => `- ${i.headline}`).join("\n")}`;
+  }
 
   if (expandQueries) {
     // Second-attempt augmentation: the first attempt returned <5 items. Push
@@ -563,6 +574,7 @@ async function runResearchPhase(
   recentTopics: string[],
   recentConcepts: string[],
   topicHint?: string,
+  recentWorthKnowingItems?: Array<{ issueDate: string; headline: string; url: string }>,
 ): Promise<ResearchResult> {
   const userPromptParts: string[] = [];
   userPromptParts.push(`Today is ${issueDate}.`);
@@ -579,6 +591,23 @@ async function runResearchPhase(
   if (recentConcepts.length > 0) {
     userPromptParts.push(
       `\nConcepts the newsletter has already discussed in recent issues (don't return items that just rehash these):\n${recentConcepts.map((c) => `- ${c}`).join("\n")}`,
+    );
+  }
+  // Banned URLs from prior Worth Knowing slots. Research keeps re-picking
+  // the same press releases (JD Power AI adoption, Vanguard/Altruist) even
+  // when concept/headline lists say don't. URL-level bans are absolute:
+  // don't return an item citing any of these URLs, even if the search
+  // surfaced it. Pick something else from the search results.
+  const wkItems = recentWorthKnowingItems ?? [];
+  if (wkItems.length > 0) {
+    const bannedUrls = Array.from(new Set(wkItems.map((i) => i.url).filter(Boolean))).sort();
+    if (bannedUrls.length > 0) {
+      userPromptParts.push(
+        `\nBANNED URLs (already used as Worth Knowing sources in recent issues — DO NOT return any item citing these URLs, no matter how the framing changes):\n${bannedUrls.map((u) => `- ${u}`).join("\n")}`,
+      );
+    }
+    userPromptParts.push(
+      `\nAlready-covered Worth Knowing angles (skip stories that cite the same underlying event/statistic/study):\n${wkItems.slice(0, 30).map((i) => `- ${i.headline}`).join("\n")}`,
     );
   }
   userPromptParts.push(
@@ -2219,7 +2248,7 @@ async function runWriterPhase(
   // rehash a recent WK. Fed to both the draft-weekday prompt (pre-write
   // filter on WK selection) and the editor pass (post-write catch).
   const preWriteRecentWK = db
-    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 45).catch(() => [])
+    ? await loadRecentWorthKnowingItems(db, issueDate, 45).catch(() => [])
     : [];
 
   const useStructuredDraft = proposal && research.structured;
@@ -2573,7 +2602,7 @@ ${availableForNumber})`;
   // list. Phrase counts are recomputed each iteration because the draft
   // changes between iterations.
   const recentWKHeadlines = db
-    ? await loadRecentWorthKnowingHeadlines(db, issueDate, 45).catch(() => [])
+    ? await loadRecentWorthKnowingItems(db, issueDate, 45).catch(() => [])
     : [];
   const recentMainHeadlines = recentTopics.slice(0, 12).map((h, i) => ({
     issueDate: `-${i + 1}`,
@@ -3197,6 +3226,13 @@ export async function generateDailyGrindIssue(opts: {
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
   const recentIssueSummaries = opts.recentIssueSummaries ?? [];
+  // Load once at the top and thread through research, writer, and editor
+  // stages. All three need to know which Worth Knowing sources have
+  // already been cited so the same JD Power press release can't come
+  // through the pipeline again 3 months later.
+  const recentWKItems = opts.db
+    ? await loadRecentWorthKnowingItems(opts.db, opts.issueDate, 45).catch(() => [])
+    : [];
   const pipeline: PipelineStageRecord[] = [];
 
   // ─── format_style_assign (spec content_type_assigner "how" layer) ─────────
@@ -3428,6 +3464,8 @@ export async function generateDailyGrindIssue(opts: {
               opts.issueDate,
               proposal,
               recentTopics,
+              false,
+              recentWKItems,
             )
           : await runResearchPhase(
               client,
@@ -3435,6 +3473,7 @@ export async function generateDailyGrindIssue(opts: {
               recentTopics,
               recentConcepts,
               researchTopicHint,
+              recentWKItems,
             );
       } catch (anthropicErr) {
         const gemMsg = lastGemErr instanceof Error ? lastGemErr.message : String(lastGemErr);
@@ -3507,6 +3546,7 @@ export async function generateDailyGrindIssue(opts: {
               proposal,
               recentTopics,
               attempt > 1, // expandQueries on retry
+              recentWKItems,
             )
           : await runResearchPhase(
               client,
@@ -3514,6 +3554,7 @@ export async function generateDailyGrindIssue(opts: {
               recentTopics,
               recentConcepts,
               researchTopicHint,
+              recentWKItems,
             );
         // Item-count gate: if research is thin, retry with broader queries.
         const itemCount = research.bundle.items.length;
@@ -3667,6 +3708,7 @@ export async function generateDailyGrindIssue(opts: {
             proposal,
             recentTopics,
             true, // expandQueries
+            recentWKItems,
           );
           // Verify the refill's URLs too, then merge the live ones in.
           const refillResults = await verifyUrls(

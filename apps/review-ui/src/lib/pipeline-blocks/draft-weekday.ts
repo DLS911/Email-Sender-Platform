@@ -41,15 +41,15 @@ export type DraftWeekdayInput = {
    */
   formatStyle?: FormatStyle;
   /**
-   * Worth Knowing headlines from the last N prior issues. When present,
-   * the writer is instructed to skip any research item whose story is
-   * substantively the same as a recent WK — same acquisition, same
-   * regulatory news, same statistic. Fed from the caller via
-   * loadRecentWorthKnowingHeadlines. Without this, research keeps
-   * surfacing the top story of the moment and the writer picks it 5
-   * issues in a row (the Vanguard/Altruist problem).
+   * Worth Knowing items from the last N prior issues (headline + URL).
+   * Two-axis dedup: writer must skip any research item whose URL matches
+   * anything on this list (catches JD Power press release rehashes with
+   * different framings) OR whose headline is substantively the same
+   * story (catches URL drift on the same underlying source). Fed from
+   * loadRecentWorthKnowingItems. Back-compat: if only `headline` fields
+   * are supplied, URL check is skipped but headline check still runs.
    */
-  recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string }>;
+  recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string; url?: string }>;
 };
 
 /**
@@ -205,14 +205,24 @@ Framework references: ${input.approvedTopic.frameworkReferences.join(", ") || "n
   // a hard filter.
   const recentWK = input.recentWorthKnowingHeadlines ?? [];
   if (recentWK.length > 0) {
+    const bannedUrls = new Set(recentWK.map((h) => h.url ?? "").filter(Boolean));
+    const bannedUrlList = Array.from(bannedUrls).sort();
     sections.push(
       formatSection(
         "Recent Worth Knowing — DO NOT REPEAT",
-        `The Worth Knowing items below appeared in the last ${recentWK.length} issues. Every WK item you select from research MUST be about a substantively different story than every headline on this list — different acquisition, different regulatory news, different survey, different statistic, different research paper. If two research items feel equally strong and one is a rehash of anything below, pick the other one.
+        `Every WK item you select must pass BOTH checks:
 
+**Check 1 — URL match (hard fail).** If a research item's URL is on the URL list below, DO NOT pick it. This is the JD Power press release problem — the same underlying source keeps getting re-cited with different headlines. If the URL matches, the story is a rehash by definition, even if the framing is fresh.
+
+**Check 2 — Story match (fuzzy fail).** Even when the URL differs, if a research item covers the SAME underlying event (same acquisition, same regulatory action, same survey, same statistic) as a headline below, it's a rehash. Pick the other item.
+
+**Banned URLs (already cited in the last ${recentWK.length} WK slots):**
+${bannedUrlList.length > 0 ? bannedUrlList.map((u) => `- ${u}`).join("\n") : "- (none)"}
+
+**Recent WK headlines (avoid the same story regardless of source):**
 ${recentWK.map((h) => `- [${h.issueDate}] ${h.headline}`).join("\n")}
 
-Rehashing a WK story is the fastest way to make the reader feel this newsletter is on autopilot. Skip it even when it's the "biggest" story — the reader already saw it here.`,
+Rehashing WK is the fastest way to make the reader feel this newsletter is on autopilot. Skip it even when it's the "biggest" story — the reader already saw it here.`,
       ),
     );
   }

@@ -133,16 +133,19 @@ export function findOverusedPhrases(
 }
 
 /**
- * Pull recent Worth Knowing headlines from prior DG issues. Used by
- * the editor to flag any current-draft WK item that duplicates a
- * recent one — either verbatim or thematically. We over-fetch a bit
- * so the editor has enough context to make a fuzzy call.
+ * Pull recent Worth Knowing items from prior DG issues. Returns
+ * headline + sourceUrl so downstream code can dedup on either axis.
+ * URL-based dedup catches same-story-different-framing rehashes
+ * that headline-substring alone misses (the JD Power AI adoption
+ * press release ran three times with different headlines but the
+ * same URL — 07-17, 07-23, and would have been 09-28 if we hadn't
+ * caught it manually).
  */
-export async function loadRecentWorthKnowingHeadlines(
+export async function loadRecentWorthKnowingItems(
   db: SupabaseClient,
   issueDateExclusive: string,
-  limit = 15,
-): Promise<Array<{ issueDate: string; headline: string }>> {
+  limit = 45,
+): Promise<Array<{ issueDate: string; headline: string; url: string }>> {
   const { data, error } = await db
     .from("daily_grind_issues")
     .select("issue_date, sections")
@@ -150,11 +153,29 @@ export async function loadRecentWorthKnowingHeadlines(
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error || !data) return [];
-  const out: Array<{ issueDate: string; headline: string }> = [];
-  for (const row of data as Array<{ issue_date: string; sections: { worthKnowing?: Array<{ headline?: string }> } | null }>) {
+  const out: Array<{ issueDate: string; headline: string; url: string }> = [];
+  for (const row of data as Array<{ issue_date: string; sections: { worthKnowing?: Array<{ headline?: string; sourceUrl?: string }> } | null }>) {
     for (const w of row.sections?.worthKnowing ?? []) {
-      if (w.headline) out.push({ issueDate: row.issue_date, headline: w.headline });
+      if (!w.headline) continue;
+      out.push({
+        issueDate: row.issue_date,
+        headline: w.headline,
+        url: w.sourceUrl ?? "",
+      });
     }
   }
   return out;
+}
+
+/**
+ * Back-compat alias — returns just headlines. New code should use
+ * loadRecentWorthKnowingItems.
+ */
+export async function loadRecentWorthKnowingHeadlines(
+  db: SupabaseClient,
+  issueDateExclusive: string,
+  limit = 45,
+): Promise<Array<{ issueDate: string; headline: string }>> {
+  const items = await loadRecentWorthKnowingItems(db, issueDateExclusive, limit);
+  return items.map((i) => ({ issueDate: i.issueDate, headline: i.headline }));
 }

@@ -31,8 +31,8 @@ export type EditorPassInput = {
   maxIterations: number;
   /** High-count phrases from the current draft body (>3 uses). */
   overusedPhrases?: Array<{ phrase: string; count: number }>;
-  /** Worth-Knowing headlines from the last N prior issues. */
-  recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string }>;
+  /** Worth-Knowing items from the last N prior issues (headline + URL for two-axis dedup). */
+  recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string; url?: string }>;
   /** Main headlines from the last N prior issues. */
   recentMainHeadlines?: Array<{ issueDate: string; headline: string }>;
 };
@@ -124,8 +124,17 @@ export function buildEditorPassPrompt(input: EditorPassInput): string {
       );
     }
     if (recentWK.length > 0) {
+      const urlList = Array.from(new Set(recentWK.map((h) => h.url ?? "").filter(Boolean))).sort();
       parts.push(
-        `**Recent Worth Knowing headlines (last ${recentWK.length}):**\n${recentWK.map((h) => `- [${h.issueDate}] ${h.headline}`).join("\n")}\n\nCross-check EVERY current draft Worth Knowing headline against this list. If any current WK item cites the same research angle, same statistic, or the same underlying phenomenon (even with different wording), require revision — swap that WK item for a distinct source or angle.`,
+        `**Recent Worth Knowing — DUAL CHECK (last ${recentWK.length} items):**
+
+*URL-match check (hard fail):* if any current draft WK sourceUrl is on this URL list, that's a repeat — verdict must be revise. Same URL means same underlying source, regardless of how the headline reframes it.
+${urlList.length > 0 ? urlList.map((u) => `  - ${u}`).join("\n") : "  (no URLs yet)"}
+
+*Story-match check (fuzzy fail):* even with a different URL, if a current WK item cites the same event, statistic, or research finding as anything below, that's a repeat — verdict must be revise.
+${recentWK.map((h) => `- [${h.issueDate}] ${h.headline}`).join("\n")}
+
+Cross-check EVERY current draft Worth Knowing item against both. Swap any repeats.`,
       );
     }
     if (recentMain.length > 0) {
