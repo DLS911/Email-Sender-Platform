@@ -16,6 +16,32 @@
 import { NextResponse } from "next/server";
 import { addContactToList, createList, listContactsInSegment, type ACContact } from "../../../../lib/activecampaign";
 
+/**
+ * Page through the contacts on an existing AC list (up to hardCap).
+ * Used to build the exclusion set when growing a list — we don't want
+ * to try to add contacts who are already members.
+ */
+async function listContactsOnList(listId: string, hardCap = 2000): Promise<Set<string>> {
+  const out = new Set<string>();
+  const pageSize = 100;
+  let offset = 0;
+  const token = process.env.AC_API_TOKEN;
+  const base = (process.env.AC_API_URL ?? "").replace(/\/$/, "") + "/api/3";
+  if (!token || !base.includes("api-us")) throw new Error("AC env missing");
+  while (out.size < hardCap) {
+    const res = await fetch(`${base}/contacts?listid=${encodeURIComponent(listId)}&limit=${pageSize}&offset=${offset}`, {
+      headers: { "Api-Token": token, Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`listContactsOnList: HTTP ${res.status}`);
+    const data = (await res.json()) as { contacts?: Array<{ email?: string }> };
+    const rows = data.contacts ?? [];
+    for (const r of rows) if (r.email) out.add(r.email.toLowerCase());
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+  return out;
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -36,6 +62,13 @@ export async function POST(req: Request): Promise<NextResponse> {
     segmentIds?: Array<string | number>;
     targetCount?: number;
     listName?: string;
+    /**
+     * When set, ADD the sampled contacts to this existing list rather
+     * than creating a new one. Members already on the list are excluded
+     * from sampling so we don't try to re-enroll them. Use to grow an
+     * engaged list from 200 → 400 without churning the current audience.
+     */
+    existingListId?: string | number;
     senderAddress?: string;
     senderCity?: string;
     senderZip?: string;
@@ -47,6 +80,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   const segmentIds = (body.segmentIds ?? []).map(String).filter(Boolean);
   const targetCount = Math.max(1, Math.min(2000, body.targetCount ?? 200));
   const listName = (body.listName ?? "First 200 launch").trim();
+  const existingListId = body.existingListId ? String(body.existingListId) : null;
   if (segmentIds.length === 0) return NextResponse.json({ error: "segmentIds required" }, { status: 400 });
 
   const senderAddress1 = body.senderAddress ?? "1 Sender St";
@@ -68,8 +102,17 @@ export async function POST(req: Request): Promise<NextResponse> {
     // 2. Compute a per-segment slice count: proportional to segment size
     //    unless a segment is smaller than its share, in which case the
     //    remainder redistributes to others. Deduplicate across segments
-    //    (a contact in multiple segments only counts once).
+    //    (a contact in multiple segments only counts once). Also skip
+    //    anyone already on the existing list (grow-mode).
     const seenEmails = new Set<string>();
+    if (existingListId) {
+      try {
+        const existing = await listContactsOnList(existingListId, 4000);
+        for (const e of existing) seenEmails.add(e);
+      } catch (err) {
+        return NextResponse.json({ error: `failed to load existing list ${existingListId}: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 });
+      }
+    }
     const sampled: Array<ACContact & { segmentId: string }> = [];
 
     const totalAvailable = perSegment.reduce((s, x) => s + x.contacts.length, 0);
@@ -114,16 +157,18 @@ export async function POST(req: Request): Promise<NextResponse> {
       }
     }
 
-    // 3. Create the new list.
-    const newList = await createList({
-      name: listName,
-      senderUrl,
-      senderRemindMe,
-      senderAddress1,
-      senderCity,
-      senderZip,
-      senderCountry,
-    });
+    // 3. Create the new list (or reuse existing when growing).
+    const newList = existingListId
+      ? { id: existingListId, name: `existing list ${existingListId}` }
+      : await createList({
+          name: listName,
+          senderUrl,
+          senderRemindMe,
+          senderAddress1,
+          senderCity,
+          senderZip,
+          senderCountry,
+        });
 
     // 4. Enroll each sampled contact into the new list. Sequential to
     //    keep AC's rate limits happy on a first-time integration.
