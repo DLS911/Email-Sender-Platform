@@ -45,6 +45,13 @@ export type TopicProposerInput = {
   recentIssues: RecentIssue[];
   calendarHint?: EditorialCalendarHint;
   blockedConcepts?: string[];
+  /**
+   * When true, the proposer is instructed that a `chronicle` content type
+   * is DUE this issue — historical advisor-industry drama. Set by the
+   * caller when none of the last 4 issues used chronicle. Keeps the
+   * drip of history-book-reads-like-a-thriller issues at ~1-in-4.
+   */
+  chronicleDue?: boolean;
 };
 
 export type TopicProposerOutput = {
@@ -138,6 +145,21 @@ export function buildTopicProposerPrompt(input: TopicProposerInput): string {
     if (hintLines.length > 0) {
       sections.push(formatSection("Editorial Calendar Guidance", hintLines.join("\n")));
     }
+  }
+
+  if (input.chronicleDue) {
+    sections.push(
+      formatSection(
+        "Content Type Due This Issue — CHRONICLE",
+        `A \`chronicle\` content type is DUE for this issue. None of the last 4 issues used chronicle, and the rotation calls for one now.
+
+A chronicle is a historical advisor-industry drama: a specific past event (SEC enforcement action, FINRA disciplinary case, major RIA / broker-dealer scandal, famous ethical failure, pre-fiduciary-rule bad advice that compounded) told as a story — a history book written like a thriller. Named characters where public record (adjudicated plea / settlement / barring order), "allegedly" where unresolved, anonymized where private.
+
+**Scope**: RIA / broker-dealer / wealth-management ONLY. No banks-as-banks, no non-advisor hedge funds. Candidates to consider (not exhaustive): Allen Stanford ($8B CD fraud), Madoff feeder funds (Fairfield Greenwich, Tremont, Fairfield Sentry), Nicholas Cosmo, Charles Erhart, Scott Rothstein's law-firm-adjacent advising, Edward Jones conflicts of interest settlements, LPL Financial compliance findings, pre-fiduciary-era suitability lapses, Woodbridge Group of Companies ($1.3B Ponzi), GPB Capital.
+
+**Your task for this chronicle**: propose a SPECIFIC historical case + the SPECIFIC angle Mark takes on it + the modern-day pattern it illustrates. Set contentType="chronicle". Topic is the case + angle (e.g. "Allen Stanford's $8B CDs: how the custom-benchmark reporting pattern survived him"). Angle names the historical lens AND the modern parallel.`,
+      ),
+    );
   }
 
   if (input.blockedConcepts && input.blockedConcepts.length > 0) {

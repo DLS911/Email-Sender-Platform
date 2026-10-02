@@ -201,6 +201,29 @@ The howTo callout can be "The math behind the harm" — make the anatomy explici
 
 The howTo callout: 3-4 steps from the implementation section.`;
 
+    case "chronicle":
+      return `**Chronicle structure (Main Content body ~400-650 words):** A HISTORICAL ADVISOR-INDUSTRY story written like a drama novel chapter. The reader is here for the narrative; the lesson rides along inside it. Think "a history book that reads like a thriller."
+
+**Source material** — public record ONLY: SEC v. [Firm/Person] enforcement actions, FINRA disciplinary records, published court filings, major published post-mortems (Stanford Financial, Madoff feeder funds like Fairfield Greenwich, Edward Jones conflict settlements, LPL/Osaic compliance findings, the post-2008 fiduciary-rule drama, pre-fiduciary suitability-era broker-dealer failures). Scope stays inside RIA / broker-dealer / wealth-management — not banking, not hedge funds beyond their RIA-adjacent cases.
+
+**Naming rule**:
+- If the person was adjudicated (plea, settlement, verdict, barring order) and the finding is public, use their real name.
+- If charged but unresolved, use "allegedly" with real name.
+- If internal firm failure never adjudicated, anonymize ("one Midwest RIA," "a Boston team that broke off from a wirehouse in 2014").
+
+**Narrative beats:**
+1. **Opening scene.** Drop the reader into the moment the thing started going wrong, or the day the whistle blew. Named character, specific date or year, one concrete sensory detail (the office, the phone call, the memo). No thesis sentence first.
+2. **Who they thought they were.** Humanize before you indict. The person at the center believed they were building something. What was the ambition? What did their book look like? Why did it work for a while?
+3. **The turn.** The specific moment it stopped being OK. A corner cut. A disclosure skipped. The quarter the real returns stopped matching the statements. One moment, one choice.
+4. **The reckoning.** What the examination revealed. Dollar amounts. Who got hurt. The settlement, the bar, the forced sale.
+5. **The lesson woven in.** Not stapled. Not "here are three takeaways." A paragraph where Mark — as the modern narrator — pulls back and names what this pattern looks like TODAY, in advisors reading this. One sentence of application, not a lecture.
+
+**howTo callout: "The pattern then — and now:"** 3 steps mapping the historical failure to its modern equivalent (e.g. "Then: $8B in fictitious CD returns. Now: performance tables that compare only to the custom benchmark that happens to match the portfolio." / "Then: segregated client funds that weren't. Now: aggregated accounts whose per-client ownership exists only in a spreadsheet.").
+
+**Voice**: Mark as narrator-historian. Patient, dramatic, confident in the storytelling. Not scolding — the person already paid. Not nostalgic. Not voyeuristic. Treat the subject as a human who made a specific choice that compounded badly.
+
+**Closing**: brief return to a specific detail from the opening scene (the office, the memo, the voice on the call), now re-contextualized. The reader leaves holding the picture.`;
+
     default:
       return `**Default structure (Main Content body ~200-400 words):**
 Follow the structure that fits the topic. The howTo callout has 3-4 steps if procedural, otherwise a structured framework callout.`;

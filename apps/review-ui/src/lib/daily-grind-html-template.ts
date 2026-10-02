@@ -10,7 +10,7 @@
  * Styles are inline (email-safe). Table-based layout for client compatibility.
  */
 
-export type DailyGrindContentType = "tactic" | "take" | "story" | "rant" | "special";
+export type DailyGrindContentType = "tactic" | "take" | "story" | "rant" | "special" | "chronicle";
 
 export type WorthKnowingItem = {
   category: string;
@@ -76,6 +76,7 @@ const CONTENT_TYPE_LABEL: Record<DailyGrindContentType, string> = {
   story: "The Story",
   rant: "The Rant",
   special: "The Special",
+  chronicle: "The Chronicle",
 };
 
 function escapeHtml(s: string): string {

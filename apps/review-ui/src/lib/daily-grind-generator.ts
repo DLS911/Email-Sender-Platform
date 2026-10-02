@@ -721,7 +721,7 @@ Return the structured JSON specified in the system prompt. No preamble.`,
 
 // ─── Writer phase ───────────────────────────────────────────────────────────
 
-const VALID_CONTENT_TYPES: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special"];
+const VALID_CONTENT_TYPES: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special", "chronicle"];
 
 function parseContentType(raw: string): DailyGrindContentType {
   const lower = raw.toLowerCase().trim();
@@ -1108,6 +1108,7 @@ async function runTopicProposer(
     freshAfter?: string;
   }> = [],
   formatStyle?: FormatStyle,
+  chronicleDue?: boolean,
 ): Promise<{
   contentType: DailyGrindContentType;
   topic: string;
@@ -1150,6 +1151,7 @@ async function runTopicProposer(
     issueDate,
     recentIssues,
     blockedConcepts,
+    ...(chronicleDue ? { chronicleDue: true } : {}),
   });
 
   // Day-of-week affinity per the spec content_pipeline.spec.md:
@@ -1224,7 +1226,7 @@ async function runTopicProposer(
   } catch {
     // fallback handled below
   }
-  const validTypes: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special"];
+  const validTypes: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special", "chronicle"];
   const raw = typeof parsed?.contentType === "string" ? parsed.contentType.toLowerCase() : "take";
   const contentType: DailyGrindContentType = (validTypes.includes(raw as DailyGrindContentType)
     ? raw
@@ -2947,6 +2949,49 @@ ${availableForNumber})`;
     });
   }
 
+  // STAGE: anchor_surgeon — post-gen fixer that actually brings anchor-phrase
+  // counts under the cap. Editor variant-revision reliably IDENTIFIES overuse
+  // but doesn't reliably FIX it: full-draft rewrites dilute the brief. The
+  // surgeon takes a different kind of call: deterministic counts, then one
+  // narrow Haiku pass per over-used phrase on only the affected paragraphs.
+  // Runs only when the editor shipped with warnings (success case: skip).
+  const surgeonStart = Date.now();
+  try {
+    const { runAnchorSurgeon } = await import("./editor-surgeon");
+    const result = await runAnchorSurgeon(client, content, { maxPhrases: 4 });
+    if (result.skippedReason) {
+      pipeline.push({
+        name: "anchor_surgeon",
+        status: "skipped",
+        latencyMs: Date.now() - surgeonStart,
+        notes: `no phrase exceeded cap (${result.skippedReason})`,
+      });
+    } else {
+      content = result.content;
+      totalInput += result.inputTokens;
+      totalOutput += result.outputTokens;
+      totalLatency += Date.now() - surgeonStart;
+      const brought = result.passes.filter((p) => p.after <= 3).length;
+      const total = result.passes.length;
+      pipeline.push({
+        name: "anchor_surgeon",
+        status: brought === total ? "retried" : "warning",
+        latencyMs: Date.now() - surgeonStart,
+        notes: result.passes
+          .map((p) => `"${p.phrase}" ${p.before}→${p.after} (${p.paragraphsChanged} paragraphs)`)
+          .join("; "),
+        data: { passes: result.passes },
+      });
+    }
+  } catch (err) {
+    pipeline.push({
+      name: "anchor_surgeon",
+      status: "warning",
+      latencyMs: Date.now() - surgeonStart,
+      notes: `surgeon threw, draft unchanged: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   // STAGE: fact_check — verify every factual claim against original research.
   // Catches stat mismatches, cross-contamination, unsourced claims,
   // anonymization failures. Three verdicts:
@@ -3559,6 +3604,11 @@ export async function generateDailyGrindIssue(opts: {
     topMatch: string | null;
     accepted: boolean;
   }> = [];
+  // Chronicle rotation: 1 in every 4 issues. If NONE of the last 4
+  // issues used chronicle (looked up from recentIssueSummaries by
+  // contentType), tell the proposer chronicle is due this issue.
+  const recentContentTypes = recentIssueSummaries.slice(0, 4).map((s) => s.contentType ?? "");
+  const chronicleDue = !recentContentTypes.includes("chronicle");
   try {
     for (let attempt = 1; attempt <= MAX_PROPOSER_ATTEMPTS; attempt++) {
       const candidate = await runTopicProposer(
@@ -3568,6 +3618,7 @@ export async function generateDailyGrindIssue(opts: {
         [...recentConcepts, ...semanticallyBlocked],
         recentIssueSummaries,
         lockedFormatStyle,
+        chronicleDue,
       );
 
       // Semantic similarity check (only when a db is available).
