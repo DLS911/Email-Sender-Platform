@@ -951,6 +951,13 @@ const PERMANENT_BAN_VERSES = [
   "Proverbs 24:27",
   "Proverbs 16:9",
   "Proverbs 16:3",
+  // Grim imagery banned 10-01 after Austin flagged Matt 10:16 "sheep among
+  // wolves" on 09-30. Wolves, swords, realm-of-the-dead, judgment don't
+  // belong next to a Wednesday-morning advisor newsletter.
+  "Matthew 10:16",
+  "Ecclesiastes 9:10", // "realm of the dead" line reads grim out of context
+  // Over-cycled recently — Prov 27:23 ran 09-07, 09-09, AND 09-28.
+  "Proverbs 27:23",
 ];
 
 function verseConflictsWithRecent(picked: string, recent: string[]): boolean {
@@ -2148,13 +2155,21 @@ Return JSON only.`;
 
 const VERSE_SWAP_SYSTEM_PROMPT = `You pick a Bible verse for The Daily Grind, a newsletter for independent financial advisors. The host is Mark at Castor Abbott.
 
-This is **daily standalone wisdom** — the verse does NOT need to relate to the issue's topic. Pick something that teaches general wisdom on living, working, character, integrity, humility, prudence, patience, or counsel. Variety across books is good.
+This is **daily standalone wisdom** — the verse does NOT need to relate to the issue's topic. Pick something that teaches general wisdom on living, working, character, integrity, humility, prudence, patience, counsel, or stewardship. Variety across books is good.
 
-Avoid these AI-default verses: Proverbs 21:5, Proverbs 24:27, Proverbs 16:9, Proverbs 16:3, Proverbs 15:22, Proverbs 22:3.
+**Imagery that is OFF-LIMITS (hard fail — pick a different verse):**
+- Predation / martial / combat imagery: wolves, sheep-among-wolves, swords, battle, enemies, destruction, slaying, judgment-of-the-wicked. Matthew 10:16 "sheep among wolves" is the canonical bad pick here. It reads grim and confrontational in an advisor-newsletter context.
+- End-times / apocalyptic / weeping-and-gnashing-of-teeth imagery (Revelation generally, Matthew 24-25 judgment passages, Jesus-rebukes-Pharisees passages).
+- Fire / brimstone / lake-of-fire / casting-out imagery.
+- Verses that read as scolding the reader (woe-to-you, hypocrite, fools, etc.) — the newsletter already has an argument; Ancient Truth is the counter-rhythm, warmth, not a second confrontation.
 
-Pull from a wide range: less-cited Proverbs (3, 11, 14, 18, 20, 25, 27, 29), Matthew (Sermon on the Mount, parables), James, Ecclesiastes, Psalms, Luke. Rotate books across issues.
+**Favored tone:** steady, grounded, encouraging, reflective. Think "lamp to my feet" more than "sword to divide." The reader is on their third coffee at 8am; the verse should steady them, not alarm them.
 
-The application is 2-3 sentences explaining the verse's PLAIN meaning. Do not tie it to a specific advisor tactic or topic. Direct, not preachy. No "as believers" or "trust in His plan."
+Avoid these AI-default verses: Proverbs 21:5, Proverbs 24:27, Proverbs 16:9, Proverbs 16:3, Proverbs 15:22, Proverbs 22:3, Proverbs 27:23 (used too often), Ecclesiastes 4:9-10, Matthew 10:16.
+
+Pull from a wide range: less-cited Proverbs (3, 11, 14, 18, 20, 25, 29), Matthew (Sermon on the Mount beatitudes, parables), James (early chapters), Ecclesiastes (3, 7, 11), Psalms, Luke (parables of the sower/prodigal/good samaritan), Philippians, Colossians. Rotate books across issues.
+
+The application is 2-3 sentences explaining the verse's PLAIN meaning. Do not tie it to a specific advisor tactic or topic. Direct, not preachy. No "as believers" or "trust in His plan." Match the warm/grounded tone of the verse itself.
 
 Return ONLY this JSON, no preamble:
 {

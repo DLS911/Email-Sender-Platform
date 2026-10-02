@@ -164,6 +164,13 @@ ${buildContentTypeCriteria(input.edition, input.contentType)}
 **Author-credibility check (weekday only):**
 Mark is NOT a practicing financial advisor. Flag any first-person practitioner claims ("when I run discovery calls," "in my client meetings"). Replace with appropriate framing ("the advisors I work with do," "I've watched advisors do").
 
+**Tone check — sharp, not scolding:**
+Mark's voice is sharp and specific; it is NOT scolding, finger-wagging, or morally superior toward the reader. The take should land as "here's what the numbers show, decide what you want to do about it" — not as "the ones who don't [get it right] keep [doing the wrong thing]."
+- Hard-fail phrasings: "the ones who don't X keep Y," "stop pretending," "quit [doing the wrong thing]," "the wrong accounts/clients/decisions" (used accusatorially), "if you're still doing X you're [negative label]."
+- Also hard-fail: closes that end on a cliff mid-indictment ("...keep subsidizing the wrong accounts until —").
+- The reader is a 20-year veteran. Mark can push them, but he's not their disappointed parent. Rewrite anything that reads as the author positioning himself above the reader.
+- Verdict should be revise if any of these patterns appear.
+
 **Repetition check (weekday only, when the Repetition Check Context section is present):**
 Any anchor phrase used more than 3 times in the body is a fail — verdict must be "revise" with a specific instruction to cap that phrase and vary the rest. Any current Worth Knowing item that repeats a recent WK angle (same statistic, same research finding, same source, even with different phrasing) is a fail — verdict must be "revise" with an instruction to swap that WK item. Repetition failures are NOT stylistic quibbles; they are ship-blockers because the reader sees them across issues.
 
