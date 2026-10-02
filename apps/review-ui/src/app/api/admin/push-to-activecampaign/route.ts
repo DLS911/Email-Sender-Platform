@@ -150,10 +150,24 @@ export async function POST(req: Request): Promise<NextResponse> {
       }
     }
 
-    // Record the AC push on the issue row for audit.
-    const nextGenMeta = brand === "latte"
-      ? { ac_campaign_id: campaign.id, ac_message_id: message.id, ac_pushed_at: new Date().toISOString(), ac_send_at: sendAtISO ?? null }
-      : { ac_campaign_id: campaign.id, ac_message_id: message.id, ac_pushed_at: new Date().toISOString(), ac_send_at: sendAtISO ?? null };
+    // Record the AC push on the issue row for audit. MERGE into the
+    // existing generation_meta — don't overwrite it. Prior behaviour
+    // wiped contentType / formatStyle / pipeline / previousVersions /
+    // all the research-stage metadata, destroying the format-rotation
+    // audit trail on every AC push.
+    const { data: existingRow } = await db
+      .from(table)
+      .select("generation_meta")
+      .eq("issue_date", issueDate)
+      .maybeSingle();
+    const existingMeta = (existingRow?.generation_meta ?? {}) as Record<string, unknown>;
+    const nextGenMeta = {
+      ...existingMeta,
+      ac_campaign_id: campaign.id,
+      ac_message_id: message.id,
+      ac_pushed_at: new Date().toISOString(),
+      ac_send_at: sendAtISO ?? null,
+    };
     await db.from(table).update({ generation_meta: nextGenMeta }).eq("issue_date", issueDate);
 
     try {
