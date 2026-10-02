@@ -3112,58 +3112,69 @@ ${panelResult.commonFlags
   // Headline pattern check: if the writer produced a headline matching one of
   // the banned formulas (e.g. "Nobody's X"), rewrite it via Haiku rather than
   // ship a weak/repetitive hook. Up to 3 attempts before we accept whatever
-  // we have to avoid a generation failure on a recoverable issue.
-  const headlineBan = headlineBanMatch(content.headline);
-  if (!headlineBan) {
+  // we have to avoid a generation failure on a recoverable issue. Wrapped
+  // so a Haiku timeout here doesn't torch the whole generation — we'd
+  // rather ship a slightly-weaker headline than drop the issue.
+  try {
+    const headlineBan = headlineBanMatch(content.headline);
+    if (!headlineBan) {
+      pipeline.push({
+        name: "headline_check",
+        status: "success",
+        notes: `headline does not match any banned pattern: "${content.headline}"`,
+      });
+    }
+    if (headlineBan) {
+      const contextSummary = content.firstPull.paragraphs[0] ?? content.headline;
+      const originalHeadline = content.headline;
+      let rewritten: string | null = null;
+      let bannedPattern = headlineBan;
+      let headlineAttempts = 0;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        headlineAttempts++;
+        const result = await rewriteBannedHeadline(
+          client,
+          issueDate,
+          content.headline,
+          bannedPattern.name,
+          recentTopics,
+          contextSummary,
+        );
+        totalInput += result.inputTokens;
+        totalOutput += result.outputTokens;
+        totalLatency += result.latencyMs;
+        const newMatch = headlineBanMatch(result.headline);
+        if (!newMatch) {
+          rewritten = result.headline;
+          break;
+        }
+        bannedPattern = newMatch;
+      }
+      if (rewritten) {
+        content = deepStripDashes({ ...content, headline: rewritten });
+        pipeline.push({
+          name: "headline_check",
+          status: "retried",
+          notes: `original "${originalHeadline}" matched ${headlineBan.name}; Haiku rewrite (${headlineAttempts} attempts) → "${rewritten}"`,
+        });
+      } else {
+        pipeline.push({
+          name: "headline_check",
+          status: "warning",
+          notes: `original "${originalHeadline}" matched ${headlineBan.name}; ${headlineAttempts} rewrites also matched, shipping original`,
+        });
+      }
+    }
+  } catch (err) {
     pipeline.push({
       name: "headline_check",
-      status: "success",
-      notes: `headline does not match any banned pattern: "${content.headline}"`,
+      status: "warning",
+      notes: `headline_check threw, shipping original "${content.headline}": ${err instanceof Error ? err.message : String(err)}`,
     });
   }
-  if (headlineBan) {
-    const contextSummary = content.firstPull.paragraphs[0] ?? content.headline;
-    const originalHeadline = content.headline;
-    let rewritten: string | null = null;
-    let bannedPattern = headlineBan;
-    let headlineAttempts = 0;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      headlineAttempts++;
-      const result = await rewriteBannedHeadline(
-        client,
-        issueDate,
-        content.headline,
-        bannedPattern.name,
-        recentTopics,
-        contextSummary,
-      );
-      totalInput += result.inputTokens;
-      totalOutput += result.outputTokens;
-      totalLatency += result.latencyMs;
-      const newMatch = headlineBanMatch(result.headline);
-      if (!newMatch) {
-        rewritten = result.headline;
-        break;
-      }
-      bannedPattern = newMatch;
-    }
-    if (rewritten) {
-      content = deepStripDashes({ ...content, headline: rewritten });
-      pipeline.push({
-        name: "headline_check",
-        status: "retried",
-        notes: `original "${originalHeadline}" matched ${headlineBan.name}; Haiku rewrite (${headlineAttempts} attempts) → "${rewritten}"`,
-      });
-    } else {
-      pipeline.push({
-        name: "headline_check",
-        status: "warning",
-        notes: `original "${originalHeadline}" matched ${headlineBan.name}; ${headlineAttempts} rewrites also matched, shipping original`,
-      });
-    }
-    // If all 3 rewrites still matched a banned pattern, ship the original
-    // rather than fail the issue — at least the rest of the content is good.
-  }
+  // If all 3 rewrites still matched a banned pattern (or the whole check
+  // threw), we fall through here with the original headline — at least the
+  // rest of the content ships.
 
   if (
     recentVerses.length === 0 ||
@@ -3187,24 +3198,35 @@ ${panelResult.commonFlags
     // verse repeatedly when bumping temperature alone doesn't help.
     const temps = [0.6, 0.8, 0.9, 1.0, 1.0];
     let swap: Awaited<ReturnType<typeof swapBannedVerse>> | null = null;
-    for (let attempt = 0; attempt < temps.length; attempt++) {
-      const result = await swapBannedVerse(
-        client,
-        issueDate,
-        content.headline,
-        content.firstPull.paragraphs[0] ?? content.headline,
-        banned,
-        temps[attempt],
-        attempt >= 2, // forceNonProverbs from attempt 3 onward
-      );
-      totalInput += result.inputTokens;
-      totalOutput += result.outputTokens;
-      totalLatency += result.latencyMs;
-      if (!verseConflictsWithRecent(result.reference, banned)) {
-        swap = result;
-        break;
+    try {
+      for (let attempt = 0; attempt < temps.length; attempt++) {
+        const result = await swapBannedVerse(
+          client,
+          issueDate,
+          content.headline,
+          content.firstPull.paragraphs[0] ?? content.headline,
+          banned,
+          temps[attempt],
+          attempt >= 2, // forceNonProverbs from attempt 3 onward
+        );
+        totalInput += result.inputTokens;
+        totalOutput += result.outputTokens;
+        totalLatency += result.latencyMs;
+        if (!verseConflictsWithRecent(result.reference, banned)) {
+          swap = result;
+          break;
+        }
+        banned.push(result.reference);
       }
-      banned.push(result.reference);
+    } catch (err) {
+      // Haiku swap errored past the retry loop — ship the writer's
+      // original verse rather than fail the issue. One repeat verse in
+      // 125 is better than no issue going out.
+      pipeline.push({
+        name: "verse_swap",
+        status: "warning",
+        notes: `verse_swap threw, shipping original "${originalVerse}": ${err instanceof Error ? err.message : String(err)}`,
+      });
     }
 
     // If all 5 retries still picked a banned verse, ship the writer's original
@@ -3305,29 +3327,54 @@ export async function generateDailyGrindIssue(opts: {
   // audit topic paired with format=story produces a procedural piece dressed
   // as story; we want the proposer to pick a SCENE-shaped topic when format is
   // story, a CHECKLIST-shaped topic when format is quick_hits, etc.
-  const lockedFormatStyle: FormatStyle =
-    opts.formatStyleOverride ?? pickFormatStyle(opts.recentFormatStyles ?? [], opts.issueDate);
-  pipeline.push({
-    name: "format_style_assign",
-    status: "success",
-    notes: opts.formatStyleOverride
-      ? `formatStyle=${lockedFormatStyle} (OVERRIDDEN via test param; rotation bypassed)`
-      : `formatStyle=${lockedFormatStyle} (rotated against last ${(opts.recentFormatStyles ?? []).length} issues: [${(opts.recentFormatStyles ?? []).slice(0, 6).join(", ")}])`,
-    input: { recentFormatStyles: (opts.recentFormatStyles ?? []).slice(0, 10), override: opts.formatStyleOverride ?? null },
-    output: { formatStyle: lockedFormatStyle },
-  });
+  // Both assigners are deterministic (seeded rotation, no LLM), but wrap
+  // defensively so a malformed input list can't bring the whole generator
+  // down. Fallback is the canonical first entry — safe, trivial to debug.
+  let lockedFormatStyle: FormatStyle;
+  try {
+    lockedFormatStyle =
+      opts.formatStyleOverride ?? pickFormatStyle(opts.recentFormatStyles ?? [], opts.issueDate);
+    pipeline.push({
+      name: "format_style_assign",
+      status: "success",
+      notes: opts.formatStyleOverride
+        ? `formatStyle=${lockedFormatStyle} (OVERRIDDEN via test param; rotation bypassed)`
+        : `formatStyle=${lockedFormatStyle} (rotated against last ${(opts.recentFormatStyles ?? []).length} issues: [${(opts.recentFormatStyles ?? []).slice(0, 6).join(", ")}])`,
+      input: { recentFormatStyles: (opts.recentFormatStyles ?? []).slice(0, 10), override: opts.formatStyleOverride ?? null },
+      output: { formatStyle: lockedFormatStyle },
+    });
+  } catch (err) {
+    lockedFormatStyle = FORMAT_STYLES[0]!;
+    pipeline.push({
+      name: "format_style_assign",
+      status: "warning",
+      notes: `assigner threw, defaulted to ${lockedFormatStyle}: ${err instanceof Error ? err.message : String(err)}`,
+      output: { formatStyle: lockedFormatStyle, fallback: true },
+    });
+  }
 
   // ─── tonal_register_assign (added 10-02) ─────────────────────────────────
   // Rotates diagnostic / affirming / instructive / reflective so the reader
   // isn't on a 7-issue "something is broken, fix it" streak.
-  const lockedTonalRegister = pickTonalRegister(opts.recentTonalRegisters ?? [], opts.issueDate);
-  pipeline.push({
-    name: "tonal_register_assign",
-    status: "success",
-    notes: `tonalRegister=${lockedTonalRegister} (rotated against last ${(opts.recentTonalRegisters ?? []).length} issues: [${(opts.recentTonalRegisters ?? []).slice(0, 6).join(", ")}])`,
-    input: { recentTonalRegisters: (opts.recentTonalRegisters ?? []).slice(0, 10) },
-    output: { tonalRegister: lockedTonalRegister },
-  });
+  let lockedTonalRegister: TonalRegister;
+  try {
+    lockedTonalRegister = pickTonalRegister(opts.recentTonalRegisters ?? [], opts.issueDate);
+    pipeline.push({
+      name: "tonal_register_assign",
+      status: "success",
+      notes: `tonalRegister=${lockedTonalRegister} (rotated against last ${(opts.recentTonalRegisters ?? []).length} issues: [${(opts.recentTonalRegisters ?? []).slice(0, 6).join(", ")}])`,
+      input: { recentTonalRegisters: (opts.recentTonalRegisters ?? []).slice(0, 10) },
+      output: { tonalRegister: lockedTonalRegister },
+    });
+  } catch (err) {
+    lockedTonalRegister = "diagnostic";
+    pipeline.push({
+      name: "tonal_register_assign",
+      status: "warning",
+      notes: `assigner threw, defaulted to diagnostic: ${err instanceof Error ? err.message : String(err)}`,
+      output: { tonalRegister: lockedTonalRegister, fallback: true },
+    });
+  }
 
   // STAGE: topic_proposer — picks contentType + topic + angle + framework
   // BEFORE research, and now AWARE of the locked formatStyle so the topic
@@ -3402,10 +3449,21 @@ export async function generateDailyGrindIssue(opts: {
             topMatch = top.conceptSummary;
           }
         } catch (simErr) {
-          // Similarity check is best-effort; never fail generation on it.
-          console.warn(
-            `[daily-grind][dedup] similarity check failed: ${simErr instanceof Error ? simErr.message : String(simErr)}`,
-          );
+          // Previously the similarity check swallowed errors silently and
+          // continued with topSimilarity=null, which read as "topic is
+          // fresh" when it was actually "we couldn't check." That is how
+          // the 09-21 "sim=None match=None accepted=True" bug shipped
+          // same-cluster rehashes. Now we PUSH a visible pipeline warning
+          // so the trace surfaces the check-failed state, but we still
+          // continue generation — the fallback is accept-and-flag, not
+          // crash. The editor-stage URL+story dedup is the backup catcher.
+          const simMsg = simErr instanceof Error ? simErr.message : String(simErr);
+          console.warn(`[daily-grind][dedup] similarity check failed: ${simMsg}`);
+          pipeline.push({
+            name: "topic_dedup_similarity_error",
+            status: "warning",
+            notes: `attempt ${attempt}: embedding/RPC call failed — ${simMsg.slice(0, 200)}. Topic accepted without semantic check; editor dedup is the backup.`,
+          });
         }
       }
 
@@ -3860,20 +3918,42 @@ export async function generateDailyGrindIssue(opts: {
   const contentTypePickerCost = { input: 0, output: 0, latency: 0 };
 
   const writerStart = Date.now();
-  const writer = await runWriterPhase(
-    client,
-    opts.issueDate,
-    research.bundle,
-    recentTopics,
-    recentVerses,
-    recentConcepts,
-    lockedContentType,
-    pipeline,
-    proposal ?? undefined,
-    lockedFormatStyle,
-    opts.db,
-    lockedTonalRegister,
-  );
+  let writer: Awaited<ReturnType<typeof runWriterPhase>>;
+  try {
+    writer = await runWriterPhase(
+      client,
+      opts.issueDate,
+      research.bundle,
+      recentTopics,
+      recentVerses,
+      recentConcepts,
+      lockedContentType,
+      pipeline,
+      proposal ?? undefined,
+      lockedFormatStyle,
+      opts.db,
+      lockedTonalRegister,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    pipeline.push({
+      name: "writer",
+      status: "failed",
+      latencyMs: Date.now() - writerStart,
+      notes: `writer_phase_failed: ${msg.slice(0, 400)}`,
+      input: {
+        lockedContentType,
+        formatStyle: lockedFormatStyle,
+        tonalRegister: lockedTonalRegister,
+        proposerTopic: proposal?.topic ?? null,
+      },
+    });
+    // Writer is the single point of failure that produces the issue
+    // content. If it dies past its internal retries, there is nothing to
+    // continue with. Re-throw with context so the cron can log + fall
+    // back / escalate. The DB will NOT get a partially-written row.
+    throw new Error(`writer_phase_failed after retries: ${msg}`);
+  }
   pipeline.push({
     name: "writer",
     status: "success",
@@ -4250,27 +4330,36 @@ export async function generateDailyGrindIssue(opts: {
   // STAGE: pipeline_drift_check — compare what each stage was TOLD to do
   // against what downstream stages produced. Flag breaks so we can debug
   // "the proposer wanted X but the writer shipped Y" without rereading
-  // the whole trace.
-  const drift = computePipelineDrift({
-    proposerCluster: detectClusterFromString(proposal?.topic ?? null),
-    proposerContentType: proposal?.contentType ?? null,
-    proposerTopic: proposal?.topic ?? null,
-    summaryCluster: issueSummaryResult?.cluster ?? null,
-    finalContentType: lockedContentType,
-    finalHeadline: finalContent.headline,
-    researchSources: Array.from(new Set(research.bundle.items.map((r) => r.source))),
-  });
-  pipeline.push({
-    name: "pipeline_drift_check",
-    status: drift.flags.length === 0 ? "success" : "warning",
-    notes:
-      drift.flags.length === 0
-        ? "no drift detected"
-        : `drift detected: ${drift.flags.map((f) => f.code).join(", ")}`,
-    input: drift.handoffs,
-    output: { flags: drift.flags },
-    data: { flags: drift.flags, handoffs: drift.handoffs },
-  });
+  // the whole trace. Wrapped so a malformed handoff doesn't crash the
+  // whole generation — the issue can still ship.
+  try {
+    const drift = computePipelineDrift({
+      proposerCluster: detectClusterFromString(proposal?.topic ?? null),
+      proposerContentType: proposal?.contentType ?? null,
+      proposerTopic: proposal?.topic ?? null,
+      summaryCluster: issueSummaryResult?.cluster ?? null,
+      finalContentType: lockedContentType,
+      finalHeadline: finalContent.headline,
+      researchSources: Array.from(new Set(research.bundle.items.map((r) => r.source))),
+    });
+    pipeline.push({
+      name: "pipeline_drift_check",
+      status: drift.flags.length === 0 ? "success" : "warning",
+      notes:
+        drift.flags.length === 0
+          ? "no drift detected"
+          : `drift detected: ${drift.flags.map((f) => f.code).join(", ")}`,
+      input: drift.handoffs,
+      output: { flags: drift.flags },
+      data: { flags: drift.flags, handoffs: drift.handoffs },
+    });
+  } catch (err) {
+    pipeline.push({
+      name: "pipeline_drift_check",
+      status: "failed",
+      notes: `drift check threw: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
 
   // ─── final_quality_gate ────────────────────────────────────────────────────
   // Roll up every gate's decision into ONE top-level pass/warning verdict
