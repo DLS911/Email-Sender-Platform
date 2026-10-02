@@ -1522,22 +1522,120 @@ Preserve facts, sources, URLs, verse, schema. Everything else is on the table.`;
  * with the editor's specific revision instructions. Same shape as voice
  * sharpen but with editor-level feedback (substantive, not surface).
  */
-async function runEditorRevision(
-  client: Anthropic,
+type RevisionVariant = "general" | "anchor_focus" | "tone_focus" | "section_rewrite";
+
+/**
+ * Infer the best revision variant to try based on what the editor
+ * flagged. Iter 1 of the editor loop always runs "general" — the
+ * standard apply-editor-feedback pass. If iter 1 fails and iter 2 is
+ * about to run, we DON'T just repeat the same prompt. Instead we
+ * inspect the editor's flags for signatures (anchor-phrase counts
+ * mentioned, "scolding" wording, repetition) and pick a focused
+ * variant whose prompt is purpose-built to attack that failure mode.
+ * This is why iter 2 wasn't fixing anchor repetition — same prompt as
+ * iter 1 only told the model to "apply the revisions," which it
+ * already tried and failed. A phrase-count rewriter needs a
+ * phrase-count prompt.
+ */
+export function pickRevisionVariant(
+  revisionRequest: string,
+  flags: Array<{ section?: string; issue?: string; instruction?: string }>,
+): RevisionVariant {
+  const corpus = [revisionRequest, ...flags.map((f) => `${f.issue ?? ""} ${f.instruction ?? ""}`)]
+    .join(" ")
+    .toLowerCase();
+  // Anchor-phrase overuse signals: counts, "appears Nx", "cap at 3",
+  // "repetition", "overuse."
+  if (
+    /\b\d+×|\bappears\s+\d+|\bcap at|\brepetition|\bovertag|\banchor\s+(?:phrase|noun)|\bover ?use/.test(corpus)
+  ) {
+    return "anchor_focus";
+  }
+  // Tone signals: scolding, finger-wagging, cliff-close, accusatory.
+  if (/scold|finger[- ]wag|accus|cliff[- ]close|preach|hector|stop pretending|the ones who don't/.test(corpus)) {
+    return "tone_focus";
+  }
+  // Section-level rewrite signals.
+  if (/rewrite\s+(the\s+)?(section|paragraph|close|opening|first pull|main)/.test(corpus)) {
+    return "section_rewrite";
+  }
+  return "general";
+}
+
+function revisionPromptForVariant(
+  variant: RevisionVariant,
   content: DailyGrindContent,
   revisionRequest: string,
-  flags: Array<{ section: string; issue: string; instruction: string }>,
-): Promise<{
-  content: DailyGrindContent | null;
-  inputTokens: number;
-  outputTokens: number;
-  latencyMs: number;
-}> {
-  const flagsText = flags
-    .map((f) => `- [${f.section}] ${f.issue} — ${f.instruction}`)
-    .join("\n");
+  flagsText: string,
+): { user: string; system: string } {
+  const common = `Preserve facts, sources, URLs, the ancientTruth verse, the contentType, and the JSON schema EXACTLY. Return a complete revised draft as a JSON object with the same schema. No preamble, no fences.`;
+  const baseSystem = `You are revising a Daily Grind draft in Mark's voice. Mark talks like a sharp colleague who has watched 1000+ advisors fail or succeed. Direct, opinionated, contrarian. Do NOT change facts, source URLs, or the ancientTruth verse. Do NOT add em dashes. Do NOT hedge.`;
+  switch (variant) {
+    case "anchor_focus":
+      return {
+        system: `${baseSystem} This pass is SPECIFICALLY targeting anchor-phrase overuse. The prior revision failed to bring high-frequency nouns under the 3-use cap. You are a sentence surgeon, not a rewriter.`,
+        user: `A prior editor pass flagged specific anchor phrases that exceed the 3-use cap. Your ONLY job this pass is to cut those counts down.
 
-  const userPrompt = `You are revising a Daily Grind draft per editor feedback. Preserve facts, sources, URLs, the ancientTruth verse, the contentType, and the JSON schema EXACTLY. Apply the editor's specific revisions:
+Editor's note:
+${revisionRequest}
+
+Specific flags:
+${flagsText}
+
+**Technique**: for each over-used phrase, go through the body paragraph by paragraph. For the first 3 occurrences, keep as-is. For every occurrence after the third, replace with ONE of: (a) a pronoun ("it," "that," "this," "the practice"), (b) a close synonym appropriate to that sentence ("framework," "arrangement," "model," "offer," "setup," "approach," "cadence"), or (c) a partial restatement ("what you promised her you'd do"). Vary — don't use the same substitute twice in a row.
+
+Do NOT rewrite the argument. Do NOT add new paragraphs. Do NOT remove paragraphs. ONLY change nouns and pronouns to bring counts under the cap.
+
+Original draft:
+${JSON.stringify(content, null, 2)}
+
+${common}`,
+      };
+    case "tone_focus":
+      return {
+        system: `${baseSystem} This pass is SPECIFICALLY targeting scolding/finger-wagging tone. Mark pushes the reader. He does NOT position himself above them.`,
+        user: `A prior editor pass flagged scolding or accusatory tone. Your ONLY job this pass is to rewrite those specific moments into observations.
+
+Editor's note:
+${revisionRequest}
+
+Specific flags:
+${flagsText}
+
+**Technique**: find phrasings like "the ones who don't X keep Y," "stop pretending," "you're still doing X" and rewrite as observations without accusing. Replacements:
+- "The ones who don't..." → "The pattern that doesn't scale here is..."
+- "Stop pretending it scales" → "At that size, the math stops working."
+- "You're still doing X" → "The common move here is X. It made sense when..."
+- Cliff-close ("...keep subsidizing the wrong accounts until —") → finish the sentence, name the actual consequence calmly.
+
+Preserve the argument. Change ONLY the moments where the author positions himself above the reader.
+
+Original draft:
+${JSON.stringify(content, null, 2)}
+
+${common}`,
+      };
+    case "section_rewrite":
+      return {
+        system: `${baseSystem} The prior pass left a specific section too weak or off. Rewrite that section only.`,
+        user: `A prior editor pass flagged a specific section for rewrite. Rewrite ONLY that section; leave every other field verbatim.
+
+Editor's note:
+${revisionRequest}
+
+Specific flags:
+${flagsText}
+
+Original draft:
+${JSON.stringify(content, null, 2)}
+
+${common}`,
+      };
+    case "general":
+    default:
+      return {
+        system: baseSystem,
+        user: `Apply the editor's specific revisions.
 
 Editor revision request:
 ${revisionRequest}
@@ -1548,9 +1646,34 @@ ${flagsText}
 Original draft:
 ${JSON.stringify(content, null, 2)}
 
-Return the revised draft as a JSON object with the same schema. No preamble, no fences.`;
+${common}`,
+      };
+  }
+}
 
-  const editorRevisionSystem = `You are revising a Daily Grind draft in Mark's voice. Mark talks like a sharp colleague who has watched 1000+ advisors fail or succeed. Direct, opinionated, contrarian. Apply ONLY the editor's specific revisions. Do NOT rewrite for substance beyond what the editor flagged. Do NOT change facts, source URLs, or the ancientTruth verse. Do NOT add em dashes. Do NOT hedge.`;
+async function runEditorRevision(
+  client: Anthropic,
+  content: DailyGrindContent,
+  revisionRequest: string,
+  flags: Array<{ section: string; issue: string; instruction: string }>,
+  variant: RevisionVariant = "general",
+): Promise<{
+  content: DailyGrindContent | null;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  variant: RevisionVariant;
+}> {
+  const flagsText = flags
+    .map((f) => `- [${f.section}] ${f.issue} — ${f.instruction}`)
+    .join("\n");
+
+  const { user: userPrompt, system: editorRevisionSystem } = revisionPromptForVariant(
+    variant,
+    content,
+    revisionRequest,
+    flagsText,
+  );
 
   const start = Date.now();
   const response = await client.messages.create({
@@ -1568,6 +1691,7 @@ Return the revised draft as a JSON object with the same schema. No preamble, no 
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
       latencyMs,
+      variant,
     };
   }
   try {
@@ -1577,6 +1701,7 @@ Return the revised draft as a JSON object with the same schema. No preamble, no 
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
       latencyMs,
+      variant,
     };
   } catch {
     return {
@@ -1584,6 +1709,7 @@ Return the revised draft as a JSON object with the same schema. No preamble, no 
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
       latencyMs,
+      variant,
     };
   }
 }
@@ -2671,7 +2797,11 @@ ${availableForNumber})`;
     headline: h,
   }));
 
-  const MAX_EDITOR_ITERATIONS = 2;
+  // 3 iters so we get: general revision (iter 1), focused variant (iter 2),
+  // and one more pass with any remaining focused flag (iter 3). 2 iters
+  // meant anchor-repetition issues shipped with warning because the second
+  // iter ran the same general prompt that failed on iter 1.
+  const MAX_EDITOR_ITERATIONS = 3;
   let editorFinalVerdict: string = "no_verdict";
   let editorIterationsUsed = 0;
   for (let iter = 1; iter <= MAX_EDITOR_ITERATIONS; iter++) {
@@ -2725,11 +2855,20 @@ ${availableForNumber})`;
         break;
       }
 
+      // Iter 1 uses the general-purpose revision prompt. Iter 2 inspects
+      // what the editor flagged and switches to a FOCUSED variant whose
+      // prompt is tuned for that specific failure mode. Previously iter 2
+      // was just a replay of iter 1's prompt, which is why anchor-repetition
+      // kept slipping through — the "apply the revisions" prompt the model
+      // already tried isn't going to produce a different result.
+      const variant: RevisionVariant =
+        iter === 1 ? "general" : pickRevisionVariant(revisionRequest, editor.specificFlags);
+
       pipeline.push({
         name: "editor_pass",
         status: "retried",
         latencyMs: Date.now() - editorStart,
-        notes: `iter ${iter}/${MAX_EDITOR_ITERATIONS} verdict=${editor.verdict}: ${editor.summary}. Running revision.`,
+        notes: `iter ${iter}/${MAX_EDITOR_ITERATIONS} verdict=${editor.verdict}: ${editor.summary}. Running revision (variant=${variant}).`,
       });
 
       const revStart = Date.now();
@@ -2738,6 +2877,7 @@ ${availableForNumber})`;
         content,
         revisionRequest,
         editor.specificFlags,
+        variant,
       );
       totalLatency += revised.latencyMs;
       totalInput += revised.inputTokens;
@@ -2745,12 +2885,12 @@ ${availableForNumber})`;
 
       if (revised.content) {
         content = revised.content;
-        editorFinalVerdict = `${editor.verdict}_revised_iter${iter}`;
+        editorFinalVerdict = `${editor.verdict}_revised_iter${iter}_${variant}`;
         pipeline.push({
           name: "editor_revision",
           status: "retried",
           latencyMs: Date.now() - revStart,
-          notes: `applied editor's revision instructions`,
+          notes: `applied editor's revision instructions (variant=${variant})`,
         });
       } else {
         pipeline.push({
