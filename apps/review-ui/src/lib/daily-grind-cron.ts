@@ -317,6 +317,24 @@ async function loadRecentFormatStyles(db: SupabaseClient, limit = 10): Promise<s
   return out;
 }
 
+async function loadRecentTonalRegisters(db: SupabaseClient, limit = 10): Promise<string[]> {
+  const { data, error } = await db
+    .from("daily_grind_issues")
+    .select("generation_meta")
+    .order("issue_date", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  const out: string[] = [];
+  for (const row of (data ?? []) as Array<{ generation_meta: unknown }>) {
+    const meta = row.generation_meta;
+    if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+      const tr = (meta as Record<string, unknown>).tonalRegister;
+      if (typeof tr === "string") out.push(tr);
+    }
+  }
+  return out;
+}
+
 async function loadRecentVerses(db: SupabaseClient, limit = 125): Promise<string[]> {
   const { data, error } = await db
     .from("daily_grind_issues")
@@ -360,6 +378,7 @@ async function persistIssue(
     researchSources: issue.research.items.map((r) => ({ source: r.source, url: r.url })),
     ...(issue.meta.issueSummary ? { issueSummary: issue.meta.issueSummary } : {}),
     ...(issue.meta.formatStyle ? { formatStyle: issue.meta.formatStyle } : {}),
+    ...(issue.meta.tonalRegister ? { tonalRegister: issue.meta.tonalRegister } : {}),
     pipeline: issue.pipeline,
     qualityGateStatus: issue.meta.qualityGateStatus ?? "passed",
     qualityGateWarnings: issue.meta.qualityGateWarnings ?? [],
@@ -543,19 +562,20 @@ export async function runDailyGrindGenerate(
 
     // Stage: memory_load
     const memStart = Date.now();
-    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries, recentFormatStyles] = await Promise.all([
+    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries, recentFormatStyles, recentTonalRegisters] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
       loadRecentConceptSummaries(db, 80),
       loadRecentIssueSummaries(db, 15),
       loadRecentFormatStyles(db, 10),
+      loadRecentTonalRegisters(db, 10),
     ]);
     const summariesWithData = recentIssueSummaries.filter((s) => s.cluster || s.mainAngle).length;
     pipeline.push({
       name: "memory_load",
       status: "success",
       latencyMs: Date.now() - memStart,
-      notes: `headlines=${recentHeadlines.length}, verses=${recentVerses.length}, concepts=${recentConcepts.length}, issueSummaries=${summariesWithData}/${recentIssueSummaries.length}`,
+      notes: `headlines=${recentHeadlines.length}, verses=${recentVerses.length}, concepts=${recentConcepts.length}, issueSummaries=${summariesWithData}/${recentIssueSummaries.length}, tonalRegisters=${recentTonalRegisters.length}`,
     });
 
     const fmtOverride: { formatStyleOverride?: "deep_dive" | "quick_hits" | "contrarian" | "story" | "data" } =
@@ -576,6 +596,7 @@ export async function runDailyGrindGenerate(
             recentConcepts,
             recentIssueSummaries,
             recentFormatStyles,
+            recentTonalRegisters,
             topicHint: opts.topicHint,
             db,
             ...fmtOverride,
@@ -587,6 +608,7 @@ export async function runDailyGrindGenerate(
             recentConcepts,
             recentIssueSummaries,
             recentFormatStyles,
+            recentTonalRegisters,
             db,
             ...fmtOverride,
           },
@@ -955,12 +977,13 @@ export async function runDailyGrindCron(
       preheader: cached.preheader,
     };
   } else {
-    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries, recentFormatStyles] = await Promise.all([
+    const [recentHeadlines, recentVerses, recentConcepts, recentIssueSummaries, recentFormatStyles, recentTonalRegisters] = await Promise.all([
       loadRecentHeadlines(db),
       loadRecentVerses(db),
       loadRecentConceptSummaries(db, 80),
       loadRecentIssueSummaries(db, 15),
       loadRecentFormatStyles(db, 10),
+      loadRecentTonalRegisters(db, 10),
     ]);
     const issue = await generateDailyGrindIssue(
       opts.topicHint
@@ -971,6 +994,7 @@ export async function runDailyGrindCron(
             recentConcepts,
             recentIssueSummaries,
             recentFormatStyles,
+            recentTonalRegisters,
             topicHint: opts.topicHint,
             db,
           }
@@ -981,6 +1005,7 @@ export async function runDailyGrindCron(
             recentConcepts,
             recentIssueSummaries,
             recentFormatStyles,
+            recentTonalRegisters,
             db,
           },
     );

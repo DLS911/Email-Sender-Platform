@@ -41,6 +41,15 @@ export type DraftWeekdayInput = {
    */
   formatStyle?: FormatStyle;
   /**
+   * The "feel" of this specific issue. Rotated across diagnostic / affirming /
+   * instructive / reflective so the reader isn't on a diagnostic streak. The
+   * writer must honor this register — if affirming, no "stop pretending" or
+   * "you're doing it wrong" framing; if instructive, teach without implying
+   * the reader has been failing; if reflective, question-oriented rather than
+   * procedure-oriented.
+   */
+  tonalRegister?: "diagnostic" | "affirming" | "instructive" | "reflective";
+  /**
    * Worth Knowing items from the last N prior issues (headline + URL).
    * Two-axis dedup: writer must skip any research item whose URL matches
    * anything on this list (catches JD Power press release rehashes with
@@ -58,6 +67,21 @@ export type DraftWeekdayInput = {
  * The fixed sections (Opening Trifecta, Worth Knowing, Ancient Truth) are
  * unchanged; the format style reshapes the body's reading experience.
  */
+function tonalRegisterRules(
+  register: "diagnostic" | "affirming" | "instructive" | "reflective",
+): string {
+  switch (register) {
+    case "diagnostic":
+      return `**Tonal register: DIAGNOSTIC.** Name a gap, show its mechanism, deliver the fix. The default advisor-newsletter mode. Still Mark's voice — sharp, specific, no scolding — but the issue is organized around a problem the reader is probably experiencing.`;
+    case "affirming":
+      return `**Tonal register: AFFIRMING.** This issue CELEBRATES a pattern that works. The reader finishes feeling they're on the right track (or that someone they respect is), and gets to see WHY the pattern wins. No pathologizing the status quo. No "most advisors get this wrong" framing. Pick an advisor-practice behavior that genuinely works — a specific habit, a specific framing, a specific small discipline — and show it in action. The reader should feel seen for what they already do well, not corrected for what they do wrong. Example headlines in this register: "The 10-minute habit that quietly compounds," "Why the advisors who ask the dumb question keep more clients," "What steady beats clever at (and why it's underrated)."`;
+    case "instructive":
+      return `**Tonal register: INSTRUCTIVE.** Teach a specific skill or practice without the problem framing. The reader comes away with something they can USE, not a reminder of what they should fix. Think "here's how this works" rather than "here's what you're doing wrong." Perfectly fine for the content to be new to many readers; just don't pathologize the ones who didn't already know. The implicit stance is "here's a tool, take it," not "you're broken, fix yourself."`;
+    case "reflective":
+      return `**Tonal register: REFLECTIVE.** Step back from tactics. A question worth sitting with. The issue surfaces a tension or a perspective rather than prescribing a move. May end on a question, not a directive. Does NOT need a howTo callout in the usual sense — if it has one, it's a prompt-set the reader can carry into their week ("Three questions I'd sit with this week:"). The reader is a 20-year veteran; sometimes they need a prompt, not a procedure.`;
+  }
+}
+
 function formatStyleRules(formatStyle: FormatStyle): string {
   switch (formatStyle) {
     case "deep_dive":
@@ -82,12 +106,24 @@ function formatStyleRules(formatStyle: FormatStyle): string {
 - The reader should feel a belief get dismantled, not receive a procedure.`;
 
     case "story":
-      return `**Format: STORY.** Narrative prose, not a procedure. THIS IS NON-NEGOTIABLE.
-- howTo.steps: EXACTLY 2 entries. They are STORY BEATS, not procedure steps. Each label names a moment ("The call that changed it" / "The follow-up they didn't expect"); each body is 3-5 sentences of NARRATION about what the advisor saw/did/learned, in past tense. NEVER write "do this" or "first/next/then" or numbered instructions. If you find yourself writing a procedure, you've broken the format — collapse it back into two narrative beats.
-- howTo.title: "What happened:" or "The turn:". Never "How to:" / "Steps:" / "The checklist:".
-- intro: open mid-scene with a SPECIFIC anonymized advisor and ONE moment (a meeting, a phone call, a number on a screen). No thesis sentence first. Past tense. The reader meets a person doing a thing, not an argument.
-- mainContent.closing: return to the scene or its aftermath. The reader remembers the PERSON; the lesson rides along.
-- If the topic seems intrinsically procedural (a compliance audit, a multi-item checklist), find the SINGLE advisor whose experience surfaces the lesson and tell THEIR story — do not list the procedure.`;
+      return `**Format: STORY.** A REAL story, not a thesis in prose. The user feedback that triggered this rewrite: "it's more like when someone has a beat behind them and they are just talking. talking in third person. there is no intrigue." Fix that.
+
+**Required voice: FIRST PERSON — Mark narrating a scene.** Not third-person "the advisor." Open with "I was on a call last week with a friend of mine," or "A guy I've known for years called about something," or "Jim called me on a Tuesday — he's run his practice for eighteen years, forty-two clients, mostly surgeons." Named characters, specific details, Mark's actual voice as a witness or interlocutor. NEVER "the advisor saw..." or "the advisor realized..." — that's third-person documentary distance.
+
+**Required structure (classic narrative):**
+1. **Setup / mid-scene open.** Drop the reader into the middle of a moment: a phone call, a text, a conversation at a conference bar. Name the character ("Jim," "a friend I'll call David"). Give one visual anchor — the number on his screen, the way he said it, the pause before he answered.
+2. **The turn.** Something happens or gets said that makes everything shift. A client sentence Jim misread. A number he realized he'd been missing. The thing he thought was fine wasn't. Use DIALOGUE where it fits — put the client's actual words in quotes, put Jim's reaction in quotes. "He said, 'I just wanted to think about this for a while.' Jim told me later he almost missed it."
+3. **The payoff — what Mark took away.** Not "the lesson for advisors is..." but "what I took away from that call was..." or "the thing I keep coming back to is...". The lesson rides inside Mark's reflection, not stapled on.
+
+**howTo.steps: EXACTLY 2 entries.** They are story BEATS, not procedure steps. Each label names a moment ("The call" / "The pause"); each body is 3-5 sentences continuing the narration in Mark's voice. NEVER "do this" / "first/next/then" / numbered instructions. If you write a procedure, you've broken the format.
+
+**howTo.title**: "What happened" / "The turn" / "How it played out". Never "How to:" / "Steps:" / "The checklist:".
+
+**mainContent.intro**: open mid-scene with a NAMED character and Mark as narrator. No thesis sentence first. The reader meets a person doing a thing, not an argument.
+
+**mainContent.closing**: Mark's own reflection on what the scene taught him. First person. Return to the character — where they are now, what they changed. The reader remembers Jim; the lesson rides along.
+
+**Hallmarks of success**: a reader could retell this story to someone else over coffee. There's a protagonist with a name. There's a moment of discovery. There's at least one quoted line. There's a stake. There's a turn. If you can't find those, you're writing a thesis in past tense, not a story — rewrite.`;
 
     case "data":
       return `**Format: DATA.** Evidence-forward. Numbers lead and carry every claim.
@@ -234,6 +270,17 @@ Rehashing WK is the fastest way to make the reader feel this newsletter is on au
       contentTypeStructureRules(input.approvedTopic.contentType),
     ),
   );
+
+  // Tonal register — the "feel" layer. Rotates so the newsletter doesn't
+  // land as 7 consecutive problem-and-fix emails.
+  if (input.tonalRegister) {
+    sections.push(
+      formatSection(
+        `Tonal Register: ${input.tonalRegister.toUpperCase()} — this governs feel`,
+        tonalRegisterRules(input.tonalRegister),
+      ),
+    );
+  }
 
   // Format style — the "how" layer on top of the content-type "what" layer.
   // The same content type must read very differently across the 5 styles.

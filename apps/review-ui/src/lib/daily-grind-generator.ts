@@ -123,6 +123,8 @@ export type DailyGrindIssue = {
     issueSummary?: IssueSummary;
     /** The format style this issue was written in (spec "how" layer). */
     formatStyle?: FormatStyle;
+    /** The tonal register this issue was written in (added 10-02). */
+    tonalRegister?: TonalRegister;
     /**
      * Final quality-gate status per spec `04_content_pipeline.spec.md:728`.
      *  - "passed": all gates clean, ship normally
@@ -266,6 +268,48 @@ function computePipelineDrift(input: DriftInput): {
     });
   }
   return { flags, handoffs };
+}
+
+// ─── Tonal register (added 10-02 after feedback) ──────────────────────────────
+//
+// Austin flagged that every issue reads diagnostic: "something is wrong, fix
+// it." A healthy newsletter rotates registers — some issues affirm, some teach
+// without a problem framing, some reflect. We assign one tonalRegister per
+// issue, rotated against the recent N registers so advisors don't get seven
+// consecutive problem-and-fix emails.
+export type TonalRegister =
+  | "diagnostic"   // name a gap, deliver the fix (dominant mode — ~55% weight)
+  | "affirming"    // celebrate a pattern that works; what the top ~5% do well
+  | "instructive"  // teach a skill without pathologizing the status quo
+  | "reflective";  // step back; perspective; a question worth sitting with
+
+const TONAL_REGISTERS: TonalRegister[] = ["diagnostic", "affirming", "instructive", "reflective"];
+
+/**
+ * Pick a tonal register with explicit weighting + recency rotation.
+ * diagnostic is dominant (every ~2nd issue) but each cycle must include at
+ * least one affirming and one instructive. Reflective is rarer.
+ */
+export function pickTonalRegister(recentRegisters: string[], issueDate: string): TonalRegister {
+  const recent = recentRegisters.filter((r): r is TonalRegister =>
+    (TONAL_REGISTERS as string[]).includes(r),
+  );
+  const last5 = recent.slice(0, 5);
+  // Hard rule: if last 4 issues were all diagnostic, force non-diagnostic.
+  if (last5.length >= 4 && last5.slice(0, 4).every((r) => r === "diagnostic")) {
+    const seed = Number(issueDate.replace(/-/g, "")) % 3;
+    return (["affirming", "instructive", "reflective"] as const)[seed]!;
+  }
+  // Seeded rotation: ~55% diagnostic, ~20% affirming, ~15% instructive, ~10% reflective.
+  const seed = Number(issueDate.replace(/-/g, "")) % 20;
+  const target: TonalRegister =
+    seed < 11 ? "diagnostic" : seed < 15 ? "affirming" : seed < 18 ? "instructive" : "reflective";
+  // If the target would make it 3-in-a-row of the same non-diagnostic register,
+  // bump to diagnostic to avoid the opposite problem.
+  if (target !== "diagnostic" && last5.length >= 2 && last5[0] === target && last5[1] === target) {
+    return "diagnostic";
+  }
+  return target;
 }
 
 // ─── Format style assignment (spec 04 content_type_assigner) ─────────────────
@@ -2249,6 +2293,7 @@ async function runWriterPhase(
   },
   formatStyle?: FormatStyle,
   db?: SupabaseClient,
+  tonalRegister?: TonalRegister,
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
@@ -2274,6 +2319,7 @@ async function runWriterPhase(
         approvedTopic: proposal,
         structuredResearch: research.structured!,
         ...(formatStyle ? { formatStyle } : {}),
+        ...(tonalRegister ? { tonalRegister } : {}),
         ...(preWriteRecentWK.length > 0 ? { recentWorthKnowingHeadlines: preWriteRecentWK } : {}),
       })
     : buildWriterUserPrompt(
@@ -3225,6 +3271,8 @@ export async function generateDailyGrindIssue(opts: {
   recentFormatStyles?: string[];
   /** TESTING: bypass rotation and force a specific format style. */
   formatStyleOverride?: FormatStyle;
+  /** Recent issues' tonal registers (most-recent-first) for rotation. */
+  recentTonalRegisters?: string[];
   /**
    * Supabase client (service role). When provided, the topic_proposer's
    * chosen topic is embedded and checked against past content_concepts via
@@ -3269,6 +3317,18 @@ export async function generateDailyGrindIssue(opts: {
     output: { formatStyle: lockedFormatStyle },
   });
 
+  // ─── tonal_register_assign (added 10-02) ─────────────────────────────────
+  // Rotates diagnostic / affirming / instructive / reflective so the reader
+  // isn't on a 7-issue "something is broken, fix it" streak.
+  const lockedTonalRegister = pickTonalRegister(opts.recentTonalRegisters ?? [], opts.issueDate);
+  pipeline.push({
+    name: "tonal_register_assign",
+    status: "success",
+    notes: `tonalRegister=${lockedTonalRegister} (rotated against last ${(opts.recentTonalRegisters ?? []).length} issues: [${(opts.recentTonalRegisters ?? []).slice(0, 6).join(", ")}])`,
+    input: { recentTonalRegisters: (opts.recentTonalRegisters ?? []).slice(0, 10) },
+    output: { tonalRegister: lockedTonalRegister },
+  });
+
   // STAGE: topic_proposer — picks contentType + topic + angle + framework
   // BEFORE research, and now AWARE of the locked formatStyle so the topic
   // shape matches what the writer will be asked to produce.
@@ -3290,14 +3350,19 @@ export async function generateDailyGrindIssue(opts: {
   // Up to 3 attempts. This is the real dedup — the prior behavior only fed
   // recent-concept TEXT into the prompt as soft advice, which let near-dupes
   // (same cluster, different headline) slip through repeatedly.
-  // Raised MAX + lowered threshold on 09-21. Prior 0.82/3 let through
-  // "Your service model math..." right after "Your service model stopped
-  // existing 18 months ago" because embeddings for same-topic-different-
-  // angle takes cluster around 0.72-0.80 — below the old 0.82 wall.
-  // 0.72 is closer to how a human reader would perceive rehash. 6 attempts
-  // gives the proposer real budget to walk to fresh territory.
+  // Threshold history:
+  // - 0.82 original — let through "service model math" right after "service
+  //   model stopped existing" (09-21).
+  // - 0.72 (09-21) — still let "They stopped calling 18 months ago" (10-02)
+  //   and "She hired your replacement 18 months ago" (10-05) ship as
+  //   back-to-back story-shaped thesis repeats. Same thesis, different
+  //   nouns, embedding similarity sat around 0.68.
+  // - 0.65 (10-02) — the "same thesis different frames" boundary. Pairs
+  //   like calling/hired, documented/actual, cadence/communication cluster
+  //   in the 0.65-0.72 band. Setting the wall below that forces the
+  //   proposer out of the gravitational pull.
   const MAX_PROPOSER_ATTEMPTS = 6;
-  const SIMILARITY_THRESHOLD = 0.72;
+  const SIMILARITY_THRESHOLD = 0.65;
   const semanticallyBlocked: string[] = [];
   const dedupAttempts: Array<{
     attempt: number;
@@ -3807,12 +3872,13 @@ export async function generateDailyGrindIssue(opts: {
     proposal ?? undefined,
     lockedFormatStyle,
     opts.db,
+    lockedTonalRegister,
   );
   pipeline.push({
     name: "writer",
     status: "success",
     latencyMs: Date.now() - writerStart,
-    notes: `headline="${writer.content.headline}", contentType=${lockedContentType}, formatStyle=${lockedFormatStyle}`,
+    notes: `headline="${writer.content.headline}", contentType=${lockedContentType}, formatStyle=${lockedFormatStyle}, tonalRegister=${lockedTonalRegister}`,
     input: {
       lockedContentType,
       formatStyle: lockedFormatStyle,
@@ -4345,6 +4411,7 @@ export async function generateDailyGrindIssue(opts: {
         writer.latencyMs + contentTypePickerCost.latency + voiceReviewCost.latency + sharpenCost.latency + assembleCost.latency + summaryCost.latency,
       issueDate: opts.issueDate,
       formatStyle: lockedFormatStyle,
+      tonalRegister: lockedTonalRegister,
       ...("funnel" in research && research.funnel ? { researchFunnel: research.funnel } : {}),
       ...(issueSummaryResult ? { issueSummary: issueSummaryResult } : {}),
       qualityGateStatus,
