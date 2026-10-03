@@ -23,6 +23,11 @@ import { renderSaturdayLatteHtml } from "../../../../lib/saturday-latte-html-tem
 import { persistIssueVersion } from "../../../../lib/issue-versions";
 import { mergePreviousVersion } from "../../../../lib/issue-history";
 import {
+  extractHaikuBodyRecommendations,
+  extractStructuredRecommendations,
+  recordRecommendations,
+} from "../../../../lib/saturday-latte-recommendations";
+import {
   generateForSlot,
   getStorageClient,
   uploadToStorage,
@@ -308,6 +313,24 @@ The output must be a 1:1 square aspect ratio image.`;
     });
   } catch (err) {
     logger.warn("regenerate_slot.version_persist_failed", { issueDate, slot, error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // Re-extract recommendations: a slot regen only swaps an image, but
+  // keep the extractor idempotent on this path too so any mutation
+  // reconciles memory. Negligible cost; big insurance against drift.
+  try {
+    const structured = extractStructuredRecommendations(updatedContent, issueDate);
+    const haikuRows = await extractHaikuBodyRecommendations(updatedContent, issueDate);
+    const combined = [...structured, ...haikuRows];
+    const rec = await recordRecommendations(db, combined);
+    if (rec.error) {
+      logger.warn("regenerate_slot.reextract_failed", { issueDate, error: rec.error });
+    }
+  } catch (err) {
+    logger.warn("regenerate_slot.reextract_threw", {
+      issueDate,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   logger.info("regenerate_slot.success", { issueDate, slot, prevUrl, newUrl: publicUrl, latencyMs: Date.now() - start });

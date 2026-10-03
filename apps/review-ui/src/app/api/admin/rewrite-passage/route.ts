@@ -30,6 +30,11 @@ import type { SaturdayLatteContent } from "../../../../lib/saturday-latte-html-t
 import { renderSaturdayLatteHtml } from "../../../../lib/saturday-latte-html-template";
 import { persistIssueVersion } from "../../../../lib/issue-versions";
 import { mergePreviousVersion } from "../../../../lib/issue-history";
+import {
+  extractHaikuBodyRecommendations,
+  extractStructuredRecommendations,
+  recordRecommendations,
+} from "../../../../lib/saturday-latte-recommendations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -298,6 +303,26 @@ Rewrite the passage. Return ONLY the rewritten passage — no preamble, no markd
     });
   } catch (err) {
     logger.warn("rewrite_passage.version_persist_failed", { issueDate, fieldPath, error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // Re-extract recommendations so latte_recommendations reflects the
+  // post-rewrite picks. Without this, memory diverges from reality and
+  // the writer picks the same book 3 Saturdays running (10-03 bug).
+  try {
+    const structured = extractStructuredRecommendations(nextContent, issueDate);
+    const haikuRows = await extractHaikuBodyRecommendations(nextContent, issueDate);
+    const combined = [...structured, ...haikuRows];
+    const rec = await recordRecommendations(db, combined);
+    if (rec.error) {
+      logger.warn("rewrite_passage.reextract_failed", { issueDate, error: rec.error });
+    } else {
+      logger.info("rewrite_passage.reextract_ok", { issueDate, inserted: rec.inserted });
+    }
+  } catch (err) {
+    logger.warn("rewrite_passage.reextract_threw", {
+      issueDate,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   logger.info("rewrite_passage.success", { issueDate, fieldPath, latencyMs: Date.now() - start });
