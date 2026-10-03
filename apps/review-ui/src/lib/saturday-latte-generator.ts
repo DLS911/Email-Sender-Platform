@@ -486,7 +486,13 @@ If the current season genuinely IS the pick (e.g., the show is having a critical
 
 Same rule for book series (recommend book 1 of a trilogy, not book 3) and for podcasts (name a specific episode ONLY if it stands alone; otherwise recommend the podcast from its first season/episode).
 
-**BOOK SHELF (curated) — for Worth Reading picks, pick from this shelf by default.** These are the books Mark actually recommends. Skew toward classics and well-established modern works, not this-month's-new-release. If the destination or research turns up a compelling region-specific book off-shelf (a Cormac McCarthy book for a West Texas story, an actual specific Bryson for a UK story), that's fine — otherwise pull from here. Respect the one-week creator spacing rule.
+**BOOK SHELF (curated) — for Worth Reading picks, pick from this shelf by default.** These are the books Mark actually recommends. If the destination or research turns up a compelling region-specific book off-shelf (a Cormac McCarthy book for a West Texas story, an actual specific Bryson for a UK story), that's fine — otherwise pull from here. Respect the one-week creator spacing rule.
+
+**TWO HARD BOOK RULES (added 10-03 after The Moviegoer shipped 3 Saturdays running):**
+
+1. **The book does NOT need an advisor / business / productivity angle.** A good novel is a good novel. A great memoir is a great memoir. Pick what Mark would actually read on a Saturday morning — fiction, poetry, nature writing, essays, biography — regardless of whether it maps to the practice-management world. Resist the pull toward "literary-advisor-friendly" picks (The Moviegoer, Shoe Dog, Deep Work, Essentialism, Atomic Habits). The Latte reader signed up for a lifestyle read, not for Monday's reading list.
+
+2. **OLDER BOOKS ONLY — published 10+ years before this issue date.** No this-year or recent-year releases. No "just-published" titles from the research bundle. If the book was published in the last decade, pick something else. Books earn their place by surviving — a 1962 novel still being read in 2026 is a different signal than a 2024 book that got a NYT review. Range: Melville, Hemingway, Didion, Baldwin, McCarthy, Robinson, Baldwin, Munro, Ishiguro, Carver, Hughes, Berry, Dillard, Oliver, Yates, McPhee's older stuff, Kerouac, Steinbeck, Bellow, Updike, Welty, O'Connor, Woolf, Chekhov translations, Camus, Kafka, Borges, Calvino, Marquez. Classics of all stripes.
 
 {{LATTE_BOOK_SHELF}}
 
