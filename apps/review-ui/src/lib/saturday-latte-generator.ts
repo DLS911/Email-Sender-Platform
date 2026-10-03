@@ -1643,6 +1643,99 @@ function findRepeatedTastingRecOffenses(
 }
 
 /**
+ * Validator for Host's Corner — the week's cooking "move." Checks the
+ * writer's moveTitle against allRecommendations.cooking_move so moves
+ * like "The Reverse Sear" or "The Cold-Oven Bacon Method" can't repeat
+ * across issues even though they're a different section than tasting.
+ */
+function findHostsCornerRepeatOffenses(
+  content: SaturdayLatteContent,
+  ctx: LatteRecentContext | undefined,
+): RepeatOffense[] {
+  if (!ctx?.allRecommendations) return [];
+  const move = content.hostsCorner?.moveTitle ?? "";
+  const pickedNorm = normalizeTitleForRepeat(move);
+  if (!pickedNorm) return [];
+  const list = ctx.allRecommendations.cooking_move ?? [];
+  const hit = list.find((prev) => {
+    const prevNorm = normalizeTitleForRepeat(prev);
+    return prevNorm && (prevNorm === pickedNorm || prevNorm.includes(pickedNorm) || pickedNorm.includes(prevNorm));
+  });
+  if (!hit) return [];
+  return [{
+    slot: "hostsCorner",
+    picked: move,
+    matched: `ALREADY RECOMMENDED. The cooking move "${move}" was previously featured (recorded as cooking_move: "${hit}"). Pick a different technique — a different cut, different browning method, different pantry trick.`,
+  }];
+}
+
+/**
+ * Validator for Sunday Reset — the week's quote author. We don't repeat
+ * authors; the roster is wide enough (Palmer, Oliver, Berry, Dillard,
+ * Marcus Aurelius, Chesterton, Whyte, Iyer, etc.) that reusing one is
+ * a signal the writer took the lazy path.
+ */
+function findSundayResetAuthorOffenses(
+  content: SaturdayLatteContent,
+  ctx: LatteRecentContext | undefined,
+): RepeatOffense[] {
+  if (!ctx?.allRecommendations) return [];
+  const author = content.sundayReset?.author ?? "";
+  const pickedNorm = normalizeTitleForRepeat(author);
+  if (!pickedNorm) return [];
+  const list = ctx.allRecommendations.sunday_reset_author ?? [];
+  const hit = list.find((prev) => {
+    const prevNorm = normalizeTitleForRepeat(prev);
+    return prevNorm && (prevNorm === pickedNorm || prevNorm.includes(pickedNorm) || pickedNorm.includes(prevNorm));
+  });
+  if (!hit) return [];
+  return [{
+    slot: "sundayReset",
+    picked: author,
+    matched: `ALREADY RECOMMENDED. The Sunday Reset author "${author}" has been featured before (recorded as sunday_reset_author: "${hit}"). Pick a different voice.`,
+  }];
+}
+
+/**
+ * Validator for Cover Story restaurants / spots / landmarks. Writer
+ * occasionally names a restaurant or landmark that was already featured
+ * in a prior destination story. Flags if any Cover Story spot (parsed
+ * from the body) matches an allRecommendations entry.
+ */
+function findCoverStorySpotOffenses(
+  content: SaturdayLatteContent,
+  ctx: LatteRecentContext | undefined,
+): RepeatOffense[] {
+  if (!ctx?.allRecommendations) return [];
+  const spots = Array.isArray(content.coverStoryLinks)
+    ? content.coverStoryLinks.map((l) => l.text).filter(Boolean)
+    : [];
+  if (spots.length === 0) return [];
+  const buckets = ["restaurant", "hotel_or_lodging", "landmark", "shop", "dish"];
+  const offenses: RepeatOffense[] = [];
+  for (const spot of spots) {
+    const pickedNorm = normalizeTitleForRepeat(spot);
+    if (!pickedNorm || pickedNorm.length < 5) continue; // skip tiny tokens
+    for (const kind of buckets) {
+      const list = ctx.allRecommendations[kind] ?? [];
+      const hit = list.find((prev) => {
+        const prevNorm = normalizeTitleForRepeat(prev);
+        return prevNorm && prevNorm === pickedNorm; // exact-only here — substring is noisy for proper nouns like "Casa"
+      });
+      if (hit) {
+        offenses.push({
+          slot: "coverStory",
+          picked: spot,
+          matched: `Cover Story spot "${spot}" was previously featured as ${kind}: "${hit}". Pick a different spot for this destination's story.`,
+        });
+        break;
+      }
+    }
+  }
+  return offenses;
+}
+
+/**
  * Force every Worth Reading URL to a guaranteed-live Google Books search
  * URL for that book's title (and author if we can extract it). The writer
  * has repeatedly emitted plausible-looking but 404-ing publisher/Amazon
@@ -2406,6 +2499,9 @@ export async function generateSaturdayLatteIssue(opts: {
         ...findTastingUrlMismatchOffenses(writer.content),
         ...findCarEraOffenses(writer.content, recentContext),
         ...findRepeatedTastingRecOffenses(writer.content, recentContext),
+        ...findHostsCornerRepeatOffenses(writer.content, recentContext),
+        ...findSundayResetAuthorOffenses(writer.content, recentContext),
+        ...findCoverStorySpotOffenses(writer.content, recentContext),
         ...editorOffenses,
       ]
     : [
@@ -2448,6 +2544,9 @@ export async function generateSaturdayLatteIssue(opts: {
       const secondOffenses = [
         ...findCarEraOffenses(writer.content, recentContext),
         ...findRepeatedTastingRecOffenses(writer.content, recentContext),
+        ...findHostsCornerRepeatOffenses(writer.content, recentContext),
+        ...findSundayResetAuthorOffenses(writer.content, recentContext),
+        ...findCoverStorySpotOffenses(writer.content, recentContext),
       ];
       if (secondOffenses.length > 0) {
         const secondMsg = secondOffenses
