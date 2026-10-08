@@ -491,7 +491,7 @@ async function markSent(
  * are handled by runDailyGrindSend on a separate cron schedule.
  */
 export async function runDailyGrindGenerate(
-  opts: { targetDate?: string; topicHint?: string; regenerate?: boolean; forceFormatStyle?: string } = {},
+  opts: { targetDate?: string; topicHint?: string; regenerate?: boolean; forceFormatStyle?: string; forceContentType?: string } = {},
 ): Promise<GenerateResult> {
   const nowUtc = new Date();
   const targetDate =
@@ -586,6 +586,15 @@ export async function runDailyGrindGenerate(
       opts.forceFormatStyle === "data"
         ? { formatStyleOverride: opts.forceFormatStyle }
         : {};
+    const ctOverride: { contentTypeOverride?: "tactic" | "take" | "story" | "rant" | "special" | "chronicle" } =
+      opts.forceContentType === "tactic" ||
+      opts.forceContentType === "take" ||
+      opts.forceContentType === "story" ||
+      opts.forceContentType === "rant" ||
+      opts.forceContentType === "special" ||
+      opts.forceContentType === "chronicle"
+        ? { contentTypeOverride: opts.forceContentType }
+        : {};
     const start = Date.now();
     const issue = await generateDailyGrindIssue(
       opts.topicHint
@@ -600,6 +609,7 @@ export async function runDailyGrindGenerate(
             topicHint: opts.topicHint,
             db,
             ...fmtOverride,
+            ...ctOverride,
           }
         : {
             issueDate: targetDate,
@@ -611,6 +621,7 @@ export async function runDailyGrindGenerate(
             recentTonalRegisters,
             db,
             ...fmtOverride,
+            ...ctOverride,
           },
     );
     // Merge inner-pipeline records (research, writer, validators, retries)

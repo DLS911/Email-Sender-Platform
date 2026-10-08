@@ -1109,6 +1109,7 @@ async function runTopicProposer(
   }> = [],
   formatStyle?: FormatStyle,
   chronicleDue?: boolean,
+  contentTypeOverride?: DailyGrindContentType,
 ): Promise<{
   contentType: DailyGrindContentType;
   topic: string;
@@ -1152,6 +1153,7 @@ async function runTopicProposer(
     recentIssues,
     blockedConcepts,
     ...(chronicleDue ? { chronicleDue: true } : {}),
+    ...(contentTypeOverride ? { contentTypeOverride } : {}),
   });
 
   // Day-of-week affinity per the spec content_pipeline.spec.md:
@@ -1228,9 +1230,21 @@ async function runTopicProposer(
   }
   const validTypes: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special", "chronicle"];
   const raw = typeof parsed?.contentType === "string" ? parsed.contentType.toLowerCase() : "take";
-  const contentType: DailyGrindContentType = (validTypes.includes(raw as DailyGrindContentType)
+  let contentType: DailyGrindContentType = (validTypes.includes(raw as DailyGrindContentType)
     ? raw
     : "take") as DailyGrindContentType;
+  // Hard-override enforcement: if the caller locked a contentType, the
+  // proposer's output is overwritten to match. The prompt tells the model
+  // the lock is non-negotiable, but even if the model defies, we clamp
+  // here so downstream stages (writer prompt, writer structure rules,
+  // content_type_assigner persist) all see the correct type.
+  if (contentTypeOverride && contentType !== contentTypeOverride) {
+    console.warn("topic_proposer.content_type_override_enforced", {
+      modelReturned: contentType,
+      forcedTo: contentTypeOverride,
+    });
+    contentType = contentTypeOverride;
+  }
   const topic = typeof parsed?.topic === "string" ? parsed.topic : "Advisor practice operations";
   const angle = typeof parsed?.angle === "string" ? parsed.angle : "Operational discipline drives outcomes";
   const frameworkReferences = Array.isArray(parsed?.frameworkReferences)
@@ -3478,6 +3492,8 @@ export async function generateDailyGrindIssue(opts: {
   recentFormatStyles?: string[];
   /** TESTING: bypass rotation and force a specific format style. */
   formatStyleOverride?: FormatStyle;
+  /** HARD LOCK on contentType — passed through to proposer + enforced at parse. */
+  contentTypeOverride?: DailyGrindContentType;
   /** Recent issues' tonal registers (most-recent-first) for rotation. */
   recentTonalRegisters?: string[];
   /**
@@ -3619,6 +3635,7 @@ export async function generateDailyGrindIssue(opts: {
         recentIssueSummaries,
         lockedFormatStyle,
         chronicleDue,
+        opts.contentTypeOverride,
       );
 
       // Semantic similarity check (only when a db is available).

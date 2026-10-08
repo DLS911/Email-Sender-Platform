@@ -52,6 +52,14 @@ export type TopicProposerInput = {
    * drip of history-book-reads-like-a-thriller issues at ~1-in-4.
    */
   chronicleDue?: boolean;
+  /**
+   * HARD LOCK on contentType. When set, the proposer MUST use this
+   * contentType — no model freedom to pick something else. Mirrors
+   * formatStyleOverride. Previously `chronicleDue` was a soft hint
+   * that the writer ignored (10-08 came back as a tactic when we asked
+   * for chronicle). This is the enforcement layer.
+   */
+  contentTypeOverride?: "tactic" | "take" | "story" | "rant" | "special" | "chronicle";
 };
 
 export type TopicProposerOutput = {
@@ -147,7 +155,27 @@ export function buildTopicProposerPrompt(input: TopicProposerInput): string {
     }
   }
 
-  if (input.chronicleDue) {
+  // HARD LOCK — put at the very front of the task area so it shadows every
+  // soft hint below. The proposer treats this as absolute, no interpretation.
+  if (input.contentTypeOverride) {
+    const ct = input.contentTypeOverride;
+    sections.push(
+      formatSection(
+        `⚠️ MANDATORY CONTENT TYPE — ${ct.toUpperCase()} (LOCKED, NOT NEGOTIABLE)`,
+        `This issue's contentType has been EXPLICITLY LOCKED to "${ct}" by the caller. You MUST set contentType="${ct}" in your output. You do NOT have discretion to pick a different contentType — not tactic, not take, not story, not anything else. Your job is to find the best SPECIFIC topic + angle within the ${ct} content type.
+
+${
+  ct === "chronicle"
+    ? "A chronicle is a historical advisor-industry drama: SEC adjudication, FINRA bar, settled RIA/broker-dealer scandal, written as a drama novel chapter. Scope stays RIA/broker-dealer/wealth-management. Candidates (not exhaustive): Allen Stanford ($8B CDs), Madoff feeder funds (Fairfield Greenwich, Tremont, Fairfield Sentry), Nicholas Cosmo, Scott Rothstein, Edward Jones conflicts, LPL compliance findings, Woodbridge Group ($1.3B Ponzi), GPB Capital, pre-fiduciary-era suitability lapses. Topic = case + angle. Angle names the historical lens AND the modern parallel. Set contentType=\"chronicle\" and formatStyle=\"story\" (narrative fits chronicles)."
+    : ""
+}
+
+If you return a different contentType, your output will be REJECTED and regenerated.`,
+      ),
+    );
+  }
+
+  if (input.chronicleDue && !input.contentTypeOverride) {
     sections.push(
       formatSection(
         "Content Type Due This Issue — CHRONICLE",

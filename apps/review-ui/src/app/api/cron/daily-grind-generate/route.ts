@@ -30,6 +30,7 @@ async function handle(req: Request): Promise<NextResponse> {
   const topicHint = url.searchParams.get("topicHint") ?? undefined;
   const regenerate = url.searchParams.get("regenerate") === "1";
   const forceFormatStyle = url.searchParams.get("formatStyle") ?? undefined;
+  const forceContentType = url.searchParams.get("contentType") ?? undefined;
   const mode = url.searchParams.get("mode");
   if (!targetDate && mode) {
     const now = new Date();
@@ -52,6 +53,7 @@ async function handle(req: Request): Promise<NextResponse> {
       ...(targetDate ? { targetDate } : {}),
       ...(topicHint ? { topicHint } : {}),
       ...(forceFormatStyle ? { forceFormatStyle } : {}),
+      ...(forceContentType ? { forceContentType } : {}),
       regenerate,
     });
     logger.info("cron.daily_grind_generate.complete", {
