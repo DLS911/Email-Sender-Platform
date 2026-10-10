@@ -473,7 +473,9 @@ The label determines what KIND of thing the title MUST be. There is no interpret
 - **Worth Reading** → a BOOK (novel, memoir, non-fiction, essay collection, poetry). Never a film. Never an article. Never a podcast episode.
 - **Worth Drinking** → a specific BEVERAGE — a bourbon, whisky, wine, beer, coffee bean, tea, cocktail, non-alcoholic spirit, kombucha, drinking-vinegar. Never a coffee maker (that's Worth Trying). Never a food item. **ROTATE THE DRINK CATEGORY.** Do NOT default to bourbon every issue. If the recent-picks list has 2+ bourbons already, this week is wine / beer / coffee / tea / mezcal / rye / gin / natural wine / cider / amaro / NA-spirit / kombucha instead. Bourbon is one category among many; do not treat it as the safe default.
 - **Worth Listening** → an ALBUM, PODCAST, or specific audio series. Never a book. Never a film.
-- **Worth Trying** → a PHYSICAL PRODUCT — kitchen tool, coffee gear, outdoor gear, tech accessory, apparel, home item. Never a food/drink (those go under Worth Drinking or Worth Eating if we add that). Never a book/film/album.
+- **Worth Trying** → a PHYSICAL PRODUCT — kitchen tool, coffee gear, outdoor gear, tech accessory, apparel, home item, workshop tool, car-care gear, grill gear, winter gear, writing tool, audio gear, lighting, grooming, luggage, EDC. Never a food/drink (those go under Worth Drinking or Worth Eating if we add that). Never a book/film/album.
+
+  **ROTATE THE CATEGORY — HARD RULE (added 10-10 after Austin flagged "it doesn't need to always be cooking stuff or coffee stuff").** Worth Trying defaults to kitchen or coffee gear every issue and that gets stale fast. If the last 2 Worth Trying picks were kitchen OR coffee, this issue's Worth Trying MUST come from a DIFFERENT category. Think: outdoor (headlamp, trail-run shoe, backpack, hammock, binoculars, fire starter), tech (desk mic, noise-canceling headphones, ergonomic mouse, mechanical keyboard, laptop stand), apparel (overshirt, boots, wool crewneck, denim, raincoat), home (lamp, candle, record player, wall clock, throw blanket, air purifier), workshop (hand plane, chisel set, work gloves, bench vise), car-care (ceramic coating, detail brush, torque wrench, pressure washer), grill / outdoor-cook (chimney starter, Vortex, pizza oven, firepit, cast-iron grate), audio (bookshelf speakers, DAC, powered monitors), writing (fountain pen, Rhodia, Field Notes, writing lamp), grooming (safety razor, hair clipper, boar brush), EDC (knife, pen, flashlight, wallet, keychain multitool). The Latte is a lifestyle read, not a kitchen catalog.
 
 If you find yourself picking "Worth Watching: The Overstory" (a book), STOP — that's a category error, either change the label to Worth Reading or pick a different film. The image pipeline routes off the label; a mismatched pick will render with the wrong asset (book cover in a film slot, poster in a book slot). Get it right on the first pass.
 
@@ -510,10 +512,26 @@ A specific cooking technique or hosting move. Format:
 - learnMoreUrl: optional URL to an authoritative source for the technique (Serious Eats, King Arthur Baking, NYT Cooking, etc.). Use a research URL when available.
 - learnMoreLabel: optional override for the link text. Default "Learn more →" — only set if you want different text like "Read the full guide →"
 
+**MOVE VARIETY — HARD RULE (added 10-10 after Austin flagged "pan again").** The Host's Corner move must ROTATE across kitchen categories, not default to cast-iron / skillet / pan techniques every week. The reader notices when it's always a pan.
+
+Allowed move families — pick a DIFFERENT family than the last 2 issues' Host's Corner moves:
+1. **Sear / cast-iron / pan technique** (reverse sear, cold-start sear, forward sear) — the default; cap at 1 in every 4 issues
+2. **Seasoning / brine / rub** (overnight dry brine, wet brine, rub tempering) — technique, not equipment
+3. **Rest / temp management** (resting a roast, carryover, pre-cook temp, finishing temp)
+4. **Smoke / grill / live-fire** (two-zone grilling, kettle setup, smoke-ring science, bark formation)
+5. **Dough / bake** (hydration, cold ferment, autolyse, scoring)
+6. **Stock / braise / confit** (long low-temp cooks, fat preservation, reductions)
+7. **Knife / prep / mise-en-place** (slicing, de-boning, salting-cured-and-sliced)
+8. **Service / plating / family-style** (how to set a shared table, warming plates, carving at the table)
+9. **Preserve / ferment / pickle** (quick pickles, kraut, lacto-ferments)
+10. **Egg / dairy / sauce** (emulsions, hollandaise, custards, cultured butter)
+
+Do NOT reference "cast iron" or "skillet" or "the pan" in the moveTitle unless this issue is specifically about a pan technique AND the last 3 Host's Corners weren't. Mark cooks over fire, in a dutch oven, on a cutting board, with a sheet pan, on a wire rack, over coals — not only in a cast-iron skillet.
+
 ### 4. The Drive
 A specific car. 100-200 words.
 - car: full year/make/model (e.g. "2024 Lexus LC 500", "1995 Porsche 993 Carrera", "1988 BMW E30 M3", "1990 Mazda Miata NA", "1985 Ford Bronco II restomod with Coyote V8", "1972 Datsun 240Z LS-swap"). Include the era clearly for older/vintage picks so the reader knows the exact car.
-- url: manufacturer page, Car and Driver / MotorTrend review, Bring a Trailer auction of a comparable example, or Wikipedia article for older cars. Use a research URL when available.
+- url: REQUIRED (added 10-10 after a Drive shipped with no link). Pick, in this order of preference: (1) a research-cited URL that passed subject-aware verification, (2) the Bring A Trailer landing page for the make/model — format https://bringatrailer.com/<make>/<model>/ — e.g. https://bringatrailer.com/jaguar/f-type/ or https://bringatrailer.com/porsche/993-911/ (both evergreen and always resolve), (3) a Car and Driver / MotorTrend review page, (4) the Wikipedia article for the generation. Never leave the URL blank — the car card renders without a clickable link if you do.
 - specs: "5.0L V8 • 471 HP • Naturally aspirated, 7,300 RPM redline" — three short specs separated by " • "
 - body: Why this car, in Mark's voice. Surface what the marketing misses (or for classics, what the enthusiast community knows) — but **do NOT literally write "the unexpected variable"** or "the hidden variable" or any variant. Show the insight without naming the frame. For older cars, include acquisition context ("Clean examples run $35-45k on Bring a Trailer"), maintenance context ("You can wrench on this yourself or find one shop in your city that can"), and the "hidden in plain sight" angle when relevant. End with a single line of conviction.
 

@@ -848,6 +848,8 @@ export async function generateTastingImageWithReference(
 
 The subject "${subject}" is a bottle (bourbon / whisky / wine / beer / spirit / non-alcoholic drink). Render THE ACTUAL BOTTLE — brand-correct label, proportions, and cap. Do NOT render a poster, a portrait, a distillery building, or a person. Do NOT include any framed art in the frame.
 
+**SPECIFIC-BOTTLE RULE — HARD (added 10-10 after a Larceny Barrel Proof image shipped as a generic Heaven Hill promo photo).** The image must show THE EXACT PRODUCT NAMED in "${subject}". Not another product by the same distillery. Not a sibling expression (e.g. "Larceny Small Batch" when the pick is "Larceny Barrel Proof"). Not a lineup. Not a brand marketing photo of multiple bottles. ONE bottle, and that bottle's label must read as the full product name in "${subject}" would be seen on a store shelf: the brand mark, the specific expression / proof / age statement, the vintage if applicable. If the label can be read, it reads as THIS product. If you cannot reliably render the specific label, prefer a composition where the label is partially visible / angled rather than invented — fidelity beats clarity when they conflict.
+
 Composition: the bottle sits upright at rest on a real surface (wooden bar top, marble counter, oak side table, whiskey shelf). A single companion object is optional and only if it makes sense — a rocks glass with an ice cube, an empty coupe, a tasting glass, a cork on the counter. NO food debris. NO random herbs. NO "flavor cue" props like a stray grain of barley or coffee bean. Bottle-forward, editorial still life.
 
 Lighting: warm directional side light from a window or a bar lamp, natural falloff. NO glossy studio product-shot look, NO ring-light AI glow.
@@ -1033,6 +1035,8 @@ You have been given the poster as REFERENCE input only. It is a color/subject/ch
 - Warm side-window light rakes across the cover from one edge, natural falloff, real book-cover material texture (matte paperback, glossy hardcover with dust jacket, or cloth-bound).
 - The wooden surface has visible grain and warmth (oak / walnut / reclaimed pine).
 - **NOTHING ELSE ON THE TABLE OR ON THE BOOK.** No coffee cup, no glasses, no bookmark, no leaf, no petals, no herb sprig, no rolled paper, no scroll, no cylinder of paper, no cassette, no pen, no napkin, no crumb, no food particle, no plate, no candle, no plant. Nothing. Just the closed book on wood.
+
+**TEXT ON THE COVER — ZERO-MISSPELLING RULE (added 10-10 after "DESERT SOLITAIRE" shipped as "SOLITARE").** If the reference cover shows the title as text, you MUST render it with the EXACT SAME SPELLING, letter-for-letter. Count the letters. "SOLITAIRE" has 9 letters: S-O-L-I-T-A-I-R-E. Not SOLITARE (8). Not SOLATAIRE. Not SOLITARYE. If you cannot confidently render multi-syllable title text letter-perfect, PREFER a cover design where the title is small or minimal, or lean on reference-image fidelity so hard the title comes from the source. A misspelled title on a book cover is an automatic FAIL — it goes out to thousands of readers who will all see it.
 
 The point of this frame is to reproduce the cover cleanly on a real surface, not to build an editorial scene. Fidelity to the reference cover is the ONLY thing that matters, and the book is CLOSED.`
         : kind === "product"
