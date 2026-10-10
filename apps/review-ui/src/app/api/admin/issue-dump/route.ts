@@ -25,25 +25,30 @@ export async function GET(req: Request): Promise<NextResponse> {
   const tm = Array.isArray(sections.tastingMenu) ? (sections.tastingMenu as Array<Record<string, unknown>>) : [];
   const hc = (sections.hostsCorner ?? {}) as Record<string, unknown>;
   const dr = (sections.theDrive ?? {}) as Record<string, unknown>;
+  const images = (sections.images ?? {}) as Record<string, unknown>;
+  const imgTasting = Array.isArray(images.tastingMenu) ? (images.tastingMenu as string[]) : [];
   return NextResponse.json({
     issue_date: data.issue_date,
     generated_at: data.generated_at,
     headline: data.cover_story_headline,
-    tastingMenu: tm.map((t) => ({
+    tastingMenu: tm.map((t, i) => ({
       label: t.label,
       title: t.title,
-      imageUrl: t.imageUrl ?? null,
-      body_preview: typeof t.body === "string" ? (t.body as string).slice(0, 400) : null,
+      imageUrl: imgTasting[i] ?? null,
+      body_preview: typeof t.body === "string" ? (t.body as string).slice(0, 300) : null,
     })),
     hostsCorner: {
       moveTitle: hc.moveTitle ?? null,
-      body_preview: typeof hc.body === "string" ? (hc.body as string).slice(0, 300) : null,
+      imageUrl: images.hostsCorner ?? null,
+      body_preview: typeof hc.moveBody === "string" ? (hc.moveBody as string).slice(0, 300) : null,
     },
     theDrive: {
       car: dr.car ?? null,
       url: dr.url ?? null,
       specs: dr.specs ?? null,
+      imageUrl: images.theDrive ?? null,
     },
+    heroImage: images.hero ?? null,
     slotRegenerations: Array.isArray(sections.slotRegenerations) ? (sections.slotRegenerations as unknown[]).length : 0,
   });
 }
