@@ -270,6 +270,21 @@ export async function getCampaign(id: string | number): Promise<Record<string, u
 }
 
 /**
+ * Delete a campaign. Used when we need to re-push updated HTML — AC
+ * caches the message HTML at push time, so updating a Supabase row
+ * after push doesn't change what AC will send; we delete and re-push
+ * instead. Returns true on 200, false on anything else.
+ */
+export async function deleteCampaign(id: string | number): Promise<boolean> {
+  try {
+    const res = await acFetch(`/campaigns/${id}`, { method: "DELETE" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Second-step scheduling. AC's /campaigns POST silently drops the
  * sdate + status=1 combo — the campaign gets created as a draft
  * regardless of what you send. Reliable path: create as draft first,
