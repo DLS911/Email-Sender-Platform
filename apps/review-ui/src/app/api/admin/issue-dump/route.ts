@@ -23,6 +23,8 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
   const sections = (data.sections ?? {}) as Record<string, unknown>;
   const tm = Array.isArray(sections.tastingMenu) ? (sections.tastingMenu as Array<Record<string, unknown>>) : [];
+  const hc = (sections.hostsCorner ?? {}) as Record<string, unknown>;
+  const dr = (sections.theDrive ?? {}) as Record<string, unknown>;
   return NextResponse.json({
     issue_date: data.issue_date,
     generated_at: data.generated_at,
@@ -30,8 +32,18 @@ export async function GET(req: Request): Promise<NextResponse> {
     tastingMenu: tm.map((t) => ({
       label: t.label,
       title: t.title,
+      imageUrl: t.imageUrl ?? null,
       body_preview: typeof t.body === "string" ? (t.body as string).slice(0, 400) : null,
     })),
+    hostsCorner: {
+      moveTitle: hc.moveTitle ?? null,
+      body_preview: typeof hc.body === "string" ? (hc.body as string).slice(0, 300) : null,
+    },
+    theDrive: {
+      car: dr.car ?? null,
+      url: dr.url ?? null,
+      specs: dr.specs ?? null,
+    },
     slotRegenerations: Array.isArray(sections.slotRegenerations) ? (sections.slotRegenerations as unknown[]).length : 0,
   });
 }
