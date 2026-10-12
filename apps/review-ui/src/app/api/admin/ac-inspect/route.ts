@@ -40,12 +40,53 @@ function isAuthorized(req: Request): boolean {
   return authHeader === `Bearer ${cronSecret}` || q === cronSecret;
 }
 
+async function acGet<T = Record<string, unknown>>(path: string): Promise<T | null> {
+  const token = process.env.AC_API_TOKEN ?? "";
+  const base = (process.env.AC_API_URL ?? "").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/api/3${path}`, { headers: { "Api-Token": token, "Accept": "application/json" } });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch { return null; }
+}
+
 export async function GET(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = new URL(req.url);
   const listId = url.searchParams.get("listId");
   const campaignId = url.searchParams.get("campaignId");
-  if (!listId && !campaignId) return NextResponse.json({ error: "listId or campaignId required" }, { status: 400 });
+  const recent = url.searchParams.get("recent");
+  if (!listId && !campaignId && !recent) return NextResponse.json({ error: "listId, campaignId, or recent required" }, { status: 400 });
+
+  if (recent) {
+    const limit = Math.min(100, Math.max(1, Number(recent)));
+    // AC embeds campaign-list links; use include=lists to fetch the list ids inline.
+    const r = await acGet<{ campaigns?: Array<Record<string, unknown>>; included?: Array<Record<string, unknown>> }>(
+      `/campaigns?limit=${limit}&orders[sdate]=DESC&include=lists`,
+    );
+    const campaigns = r?.campaigns ?? [];
+    // Build id→listIds map from included or from each campaign's links/relationships.
+    const out = await Promise.all(campaigns.map(async (c) => {
+      // Try to pull listid directly from campaign record; otherwise fetch /campaigns/:id/lists.
+      let listIds: string[] = [];
+      const links = (c as { links?: { lists?: string } }).links;
+      if (links?.lists) {
+        const sub = await acGet<{ lists?: Array<{ id: string }> }>(links.lists.replace(/^.*\/api\/3/, ""));
+        listIds = (sub?.lists ?? []).map((l) => String(l.id));
+      }
+      return {
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        sdate: c.sdate,
+        ldate: c.ldate,
+        send_amt: c.send_amt,
+        opens: c.opens,
+        listIds,
+      };
+    }));
+    return NextResponse.json({ recent: out });
+  }
 
   const out: Record<string, unknown> = {};
   if (listId) {
