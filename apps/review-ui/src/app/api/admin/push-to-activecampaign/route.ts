@@ -59,6 +59,10 @@ export async function POST(req: Request): Promise<NextResponse> {
      * the DB row — the persisted content stays as-generated.
      */
     replacements?: Array<{ from: string; to: string }>;
+    /** Override env AC_FROM_NAME for this push (e.g. "Mark F."). */
+    fromName?: string;
+    /** Override env AC_FROM_ADDRESS for this push. */
+    fromAddress?: string;
   };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const brand = body.brand?.trim();
@@ -69,9 +73,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   const listId = String(body.listId ?? process.env.AC_LIST_ID ?? "").trim();
   if (!listId) return NextResponse.json({ error: "listId required (pass in body or set AC_LIST_ID env)" }, { status: 400 });
 
-  const fromAddress = process.env.AC_FROM_ADDRESS;
-  const fromName = process.env.AC_FROM_NAME;
-  if (!fromAddress || !fromName) return NextResponse.json({ error: "AC_FROM_ADDRESS / AC_FROM_NAME env missing" }, { status: 500 });
+  const fromAddress = body.fromAddress?.trim() || process.env.AC_FROM_ADDRESS;
+  const fromName = body.fromName?.trim() || process.env.AC_FROM_NAME;
+  if (!fromAddress || !fromName) return NextResponse.json({ error: "AC_FROM_ADDRESS / AC_FROM_NAME env missing (or pass fromAddress/fromName in body)" }, { status: 500 });
 
   const supaUrl = process.env.SUPABASE_URL;
   const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
