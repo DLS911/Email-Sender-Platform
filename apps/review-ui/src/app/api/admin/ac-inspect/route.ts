@@ -11,6 +11,23 @@
 import { NextResponse } from "next/server";
 import { getCampaign, getList } from "../../../../lib/activecampaign";
 
+async function acGetMetaTotal(path: string): Promise<number | null> {
+  const token = process.env.AC_API_TOKEN ?? "";
+  const base = (process.env.AC_API_URL ?? "").replace(/\/$/, "");
+  const url = `${base}/api/3${path}`;
+  try {
+    const res = await fetch(url, { headers: { "Api-Token": token, "Accept": "application/json" } });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { meta?: { total?: string | number } };
+    const t = j.meta?.total;
+    if (t == null) return null;
+    const n = typeof t === "string" ? Number(t) : t;
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -32,17 +49,21 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const out: Record<string, unknown> = {};
   if (listId) {
-    const l = await getList(listId);
+    const [l, activeCount, unsubCount, allCount] = await Promise.all([
+      getList(listId),
+      acGetMetaTotal(`/contacts?listid=${encodeURIComponent(listId)}&status=1&limit=1`),
+      acGetMetaTotal(`/contacts?listid=${encodeURIComponent(listId)}&status=2&limit=1`),
+      acGetMetaTotal(`/contacts?listid=${encodeURIComponent(listId)}&limit=1`),
+    ]);
     if (!l) {
       out.list = { id: listId, error: "not found" };
     } else {
       out.list = {
         id: l.id,
         name: l.name,
-        subscriber_count: l.subscriber_count,
-        active_subscribers: l.subscriber_count,
-        unconfirmed_subscribers: l.unconfirmed_subscribers_count,
-        unsubscribed: l.unsubscribed_count,
+        active_subscribers: activeCount,
+        unsubscribed: unsubCount,
+        total_on_list_any_status: allCount,
         sender_addr1: l.sender_addr1,
         stringid: l.stringid,
       };
