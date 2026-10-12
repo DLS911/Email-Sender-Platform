@@ -111,33 +111,36 @@ export async function GET(req: Request): Promise<NextResponse> {
     // Walk contactLists on this list where status=2 (unsubscribed),
     // oldest page returned first; collect those whose sdate > the floor.
     let totalAfter = 0;
-    const sample: Array<{ email: string | undefined; sdate: string | undefined }> = [];
+    let scanned = 0;
+    const sample: Array<{ email: string | undefined; udate: string | undefined; sdate: string | undefined }> = [];
     const pageSize = 100;
     const floor = new Date(unsubsSince).getTime();
-    for (let offset = 0; offset < 5000; offset += pageSize) {
+    // No short-circuit: AC's contactLists ordering is unreliable, so
+    // walk every row for this list+status, filter by udate client-side.
+    for (let offset = 0; offset < 10000; offset += pageSize) {
       const r = await acGet<{ contactLists?: Array<Record<string, unknown>>; contacts?: Array<Record<string, unknown>> }>(
-        `/contactLists?filters[listid]=${encodeURIComponent(listId)}&filters[status]=2&orders[sdate]=DESC&limit=${pageSize}&offset=${offset}&include=contact`,
+        `/contactLists?filters[listid]=${encodeURIComponent(listId)}&filters[status]=2&limit=${pageSize}&offset=${offset}&include=contact`,
       );
       const rows = r?.contactLists ?? [];
       if (rows.length === 0) break;
+      scanned += rows.length;
       const contacts = r?.contacts ?? [];
-      let hitFloor = false;
       for (const row of rows) {
-        const sd = String(row.sdate ?? row.cdate ?? row.udate ?? "");
-        const t = Date.parse(sd);
+        const udate = String(row.udate ?? "");
+        const sdate = String(row.sdate ?? "");
+        const t = Date.parse(udate || sdate);
         if (!Number.isFinite(t)) continue;
-        if (t < floor) { hitFloor = true; break; }
+        if (t < floor) continue;
         totalAfter++;
         if (sample.length < 10) {
           const cid = String(row.contact ?? "");
           const c = contacts.find((x) => String(x.id) === cid) as { email?: string } | undefined;
-          sample.push({ email: c?.email, sdate: sd });
+          sample.push({ email: c?.email, udate: udate || undefined, sdate: sdate || undefined });
         }
       }
-      if (hitFloor) break;
       if (rows.length < pageSize) break;
     }
-    return NextResponse.json({ listId, unsubsSince, unsubscribes_after_date: totalAfter, sample });
+    return NextResponse.json({ listId, unsubsSince, scanned, unsubscribes_after_date: totalAfter, sample });
   }
 
   if (listId) {
