@@ -63,6 +63,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     fromName?: string;
     /** Override env AC_FROM_ADDRESS for this push. */
     fromAddress?: string;
+    /**
+     * Explicit opt-in to push to a list that isn't in the newsletter
+     * safelist (NEWSLETTER_LIST_IDS below). Required to prevent the
+     * Sat 10-10 class of bug: forgetting a listId override and silently
+     * routing a newsletter to a stale/legacy sales list via env default.
+     */
+    confirmListChange?: boolean;
+    /** Human-readable reason, required when confirmListChange is true. */
+    reason?: string;
   };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const brand = body.brand?.trim();
@@ -72,6 +81,30 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const listId = String(body.listId ?? process.env.AC_LIST_ID ?? "").trim();
   if (!listId) return NextResponse.json({ error: "listId required (pass in body or set AC_LIST_ID env)" }, { status: 400 });
+
+  // Safelist of list IDs that newsletter sends are allowed to go to.
+  // Overridable via NEWSLETTER_LIST_IDS env (comma-separated) in case a
+  // second newsletter list ever gets added; default locks to list 43
+  // "First 400 launch" after Sat 10-10 Latte accidentally shipped to
+  // list 13 (legacy sales/workshop list, 6,985 recipients) because a
+  // body.listId override was forgotten and env default was still at
+  // the stale initial value of 13.
+  const safelist = (process.env.NEWSLETTER_LIST_IDS ?? "43")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!safelist.includes(listId)) {
+    if (body.confirmListChange !== true || !body.reason?.trim()) {
+      return NextResponse.json({
+        error: `listId ${listId} is NOT in the newsletter safelist (${safelist.join(", ")}). Refusing push to prevent accidental delivery to a non-newsletter list. To override intentionally, pass {confirmListChange: true, reason: "<why>"} in the body.`,
+        safelist,
+        attemptedListId: listId,
+      }, { status: 400 });
+    }
+    logger.warn("ac_push.list_safelist_override", {
+      brand, issueDate, listId, safelist, reason: body.reason.trim(),
+    });
+  }
 
   const fromAddress = body.fromAddress?.trim() || process.env.AC_FROM_ADDRESS;
   const fromName = body.fromName?.trim() || process.env.AC_FROM_NAME;
