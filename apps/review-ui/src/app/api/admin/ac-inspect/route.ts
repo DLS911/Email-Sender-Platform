@@ -106,6 +106,40 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   const out: Record<string, unknown> = {};
+  const unsubsSince = url.searchParams.get("unsubsSince"); // "2026-10-09" → counts list13 unsubs after that date
+  if (listId && unsubsSince) {
+    // Walk contactLists on this list where status=2 (unsubscribed),
+    // oldest page returned first; collect those whose sdate > the floor.
+    let totalAfter = 0;
+    const sample: Array<{ email: string | undefined; sdate: string | undefined }> = [];
+    const pageSize = 100;
+    const floor = new Date(unsubsSince).getTime();
+    for (let offset = 0; offset < 5000; offset += pageSize) {
+      const r = await acGet<{ contactLists?: Array<Record<string, unknown>>; contacts?: Array<Record<string, unknown>> }>(
+        `/contactLists?filters[listid]=${encodeURIComponent(listId)}&filters[status]=2&orders[sdate]=DESC&limit=${pageSize}&offset=${offset}&include=contact`,
+      );
+      const rows = r?.contactLists ?? [];
+      if (rows.length === 0) break;
+      const contacts = r?.contacts ?? [];
+      let hitFloor = false;
+      for (const row of rows) {
+        const sd = String(row.sdate ?? row.cdate ?? row.udate ?? "");
+        const t = Date.parse(sd);
+        if (!Number.isFinite(t)) continue;
+        if (t < floor) { hitFloor = true; break; }
+        totalAfter++;
+        if (sample.length < 10) {
+          const cid = String(row.contact ?? "");
+          const c = contacts.find((x) => String(x.id) === cid) as { email?: string } | undefined;
+          sample.push({ email: c?.email, sdate: sd });
+        }
+      }
+      if (hitFloor) break;
+      if (rows.length < pageSize) break;
+    }
+    return NextResponse.json({ listId, unsubsSince, unsubscribes_after_date: totalAfter, sample });
+  }
+
   if (listId) {
     const [l, activeCount, unsubCount, allCount] = await Promise.all([
       getList(listId),
