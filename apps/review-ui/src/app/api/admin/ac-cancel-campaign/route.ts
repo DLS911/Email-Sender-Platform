@@ -38,10 +38,15 @@ async function acPut(path: string, bodyObj: Record<string, unknown>): Promise<{ 
 
 export async function POST(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  let body: { campaignId?: string | number };
+  let body: { campaignId?: string | number; confirmCancel?: boolean };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const id = body.campaignId;
   if (!id) return NextResponse.json({ error: "campaignId required" }, { status: 400 });
+  if (body.confirmCancel !== true) {
+    return NextResponse.json({
+      error: "destructive: pass confirmCancel:true to proceed. Use /api/admin/ac-inspect?campaignId=... for a read-only status check.",
+    }, { status: 400 });
+  }
 
   const unschedule = await acPut(`/campaigns/${id}`, { campaign: { status: 0, sdate: null } });
   const del = await deleteCampaign(id);

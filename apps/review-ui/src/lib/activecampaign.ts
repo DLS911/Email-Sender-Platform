@@ -270,6 +270,20 @@ export async function getCampaign(id: string | number): Promise<Record<string, u
 }
 
 /**
+ * Fetch a list by id — used to verify a campaign is pointed at the
+ * right list and to show the live subscriber count. Returns the raw
+ * AC list record or null.
+ */
+export async function getList(id: string | number): Promise<Record<string, unknown> | null> {
+  try {
+    const data = await acJson<{ list?: Record<string, unknown> }>(`/lists/${id}`);
+    return data.list ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Delete a campaign. Used when we need to re-push updated HTML — AC
  * caches the message HTML at push time, so updating a Supabase row
  * after push doesn't change what AC will send; we delete and re-push
