@@ -67,12 +67,19 @@ export async function GET(req: Request): Promise<NextResponse> {
     const campaigns = r?.campaigns ?? [];
     // Build id→listIds map from included or from each campaign's links/relationships.
     const out = await Promise.all(campaigns.map(async (c) => {
-      // Try to pull listid directly from campaign record; otherwise fetch /campaigns/:id/lists.
+      // AC's canonical path: /campaigns/:id/campaignListss (yes with
+      // the trailing 's') or /campaigns/:id/lists. Try lists first.
       let listIds: string[] = [];
-      const links = (c as { links?: { lists?: string } }).links;
-      if (links?.lists) {
-        const sub = await acGet<{ lists?: Array<{ id: string }> }>(links.lists.replace(/^.*\/api\/3/, ""));
-        listIds = (sub?.lists ?? []).map((l) => String(l.id));
+      const cid = String(c.id);
+      const direct = await acGet<{ lists?: Array<{ id: string }> }>(`/campaigns/${cid}/lists`);
+      if (direct?.lists) {
+        listIds = direct.lists.map((l) => String(l.id));
+      }
+      if (listIds.length === 0) {
+        const alt = await acGet<{ campaignLists?: Array<{ listid: string }> }>(`/campaigns/${cid}/campaignLists`);
+        if (alt?.campaignLists) {
+          listIds = alt.campaignLists.map((l) => String(l.listid));
+        }
       }
       return {
         id: c.id,
