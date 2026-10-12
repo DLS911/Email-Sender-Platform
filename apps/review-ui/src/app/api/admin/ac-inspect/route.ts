@@ -60,11 +60,20 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   if (recent) {
     const limit = Math.min(100, Math.max(1, Number(recent)));
+    const filterListId = url.searchParams.get("filterListId");
     // AC embeds campaign-list links; use include=lists to fetch the list ids inline.
-    const r = await acGet<{ campaigns?: Array<Record<string, unknown>>; included?: Array<Record<string, unknown>> }>(
-      `/campaigns?limit=${limit}&orders[sdate]=DESC&include=lists`,
-    );
-    const campaigns = r?.campaigns ?? [];
+    const pages: Array<Record<string, unknown>> = [];
+    const pageSize = 100;
+    for (let offset = 0; offset < limit; offset += pageSize) {
+      const take = Math.min(pageSize, limit - offset);
+      const r = await acGet<{ campaigns?: Array<Record<string, unknown>>; included?: Array<Record<string, unknown>> }>(
+        `/campaigns?limit=${take}&offset=${offset}&orders[sdate]=DESC&include=lists`,
+      );
+      if (!r?.campaigns || r.campaigns.length === 0) break;
+      pages.push(...r.campaigns);
+      if (r.campaigns.length < take) break;
+    }
+    const campaigns = pages;
     // Build id→listIds map from included or from each campaign's links/relationships.
     const out = await Promise.all(campaigns.map(async (c) => {
       // AC's canonical path: /campaigns/:id/campaignListss (yes with
@@ -92,7 +101,8 @@ export async function GET(req: Request): Promise<NextResponse> {
         listIds,
       };
     }));
-    return NextResponse.json({ recent: out });
+    const filtered = filterListId ? out.filter((c) => c.listIds.includes(filterListId)) : out;
+    return NextResponse.json({ recent: filtered, scannedTotal: out.length });
   }
 
   const out: Record<string, unknown> = {};
