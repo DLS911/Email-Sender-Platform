@@ -164,6 +164,24 @@ export async function GET(req: Request): Promise<NextResponse> {
       };
     }
   }
+  const messageId = url.searchParams.get("messageId");
+  if (messageId) {
+    const m = await acGet<{ message?: Record<string, unknown> }>(`/messages/${messageId}`);
+    const htmlSnip = typeof m?.message?.html === "string" ? (m.message.html as string) : "";
+    return NextResponse.json({
+      message: m?.message ? {
+        id: m.message.id,
+        name: m.message.name,
+        subject: m.message.subject,
+        preheader_text: m.message.preheader_text,
+        fromname: m.message.fromname,
+        fromemail: m.message.fromemail,
+        html_len: htmlSnip.length,
+        html_contains_headline_your_best: htmlSnip.includes("best clients stopped showing up"),
+        html_contains_headline_ask_one: htmlSnip.includes("Ask one question"),
+      } : { id: messageId, error: "not found" },
+    });
+  }
   if (campaignId) {
     const c = await getCampaign(campaignId);
     if (!c) {
