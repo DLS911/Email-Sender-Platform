@@ -56,7 +56,8 @@ export async function GET(req: Request): Promise<NextResponse> {
   const listId = url.searchParams.get("listId");
   const campaignId = url.searchParams.get("campaignId");
   const recent = url.searchParams.get("recent");
-  if (!listId && !campaignId && !recent) return NextResponse.json({ error: "listId, campaignId, or recent required" }, { status: 400 });
+  const messageIdEarly = url.searchParams.get("messageId");
+  if (!listId && !campaignId && !recent && !messageIdEarly) return NextResponse.json({ error: "listId, campaignId, recent, or messageId required" }, { status: 400 });
 
   if (recent) {
     const limit = Math.min(100, Math.max(1, Number(recent)));
