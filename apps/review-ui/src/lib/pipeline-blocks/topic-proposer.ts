@@ -212,13 +212,48 @@ A chronicle is a historical advisor-industry drama: a specific past event (SEC e
 
 ## Topic Variety — read carefully
 
-Variety matters at THREE levels, not just one:
+Variety matters at FOUR levels, not just one:
 
 **Level 1: Same exact topic.** Obviously don't repeat. (Easy.)
 
 **Level 2: Adjacent topic in the same theme cluster.** If yesterday was about "discovery call preparation," today should NOT be about "research before client meetings." Both are in the same prospecting-prep cluster. Pick a DIFFERENT cluster (compliance / pricing / team / tax / M&A / referral mechanics / fee structure / client communication / etc.).
 
 **Level 3: Same content-type sequence.** If the last three issues were all Tactics, lean toward Take / Story / Special / Rant for variety.
+
+**Level 4 — DOMAIN ROTATION (added 10-16 after 11 consecutive DGs all converged on client-attrition/silence/engagement — different "clusters" by narrow definition, one theme by reader perception).** The advisor practice spans ~16 DOMAINS. If any of the last 5 issues touched a given DOMAIN, this issue MUST come from a DIFFERENT DOMAIN. Treat this as a HARD RULE on top of cluster rotation.
+
+The DOMAINS:
+1. **Client retention / attrition / engagement / "silence"** — reader-perceived as "clients leaving"
+2. **Investment management** — portfolio construction, factor investing, asset allocation, rebalancing, direct indexing, alternatives
+3. **Tax strategy** — RMDs, Roth conversions, tax-loss harvesting, QCDs, state-residency games, trust taxation
+4. **Estate planning** — SLATs, GRATs, dynasty trusts, generation-skipping, beneficiary design, step-up basis, charitable
+5. **Insurance** — whole life, LTC, DI, annuities (SPIAs, DIAs, QLACs), premium financing
+6. **Behavioral finance / client psychology** — loss aversion, present bias, status, narrative identity
+7. **Operations / tech stack** — CRM, planning software (RightCapital, eMoney, MoneyGuide), AI tools, workflow automation, outsourced CIO
+8. **Growth / marketing** (NOT just referrals) — SEO, content, podcast, speaking, PR, LinkedIn, email list building
+9. **Compliance / regulatory** — SEC exam, FINRA, Reg BI, DOL fiduciary rule, custody rule, marketing rule
+10. **Fee models / pricing** — AUM vs flat vs retainer, flat-fee for high-net-worth, planning-only fees
+11. **Succession / M&A / buy-sell** — valuation, earnouts, continuity plans, buyer vetting, aggregator deals
+12. **Next-gen / wealth transfer** — bringing adult children into relationship, educating heirs, inheritance timing
+13. **Macro / markets / cycles** — rate expectations, duration, credit spreads, currency, geopolitical risk framing
+14. **Firm building / team** — hiring associate advisors, operations hires, equity for partners, culture, physician model
+15. **Fiduciary ethics / stance** — contrarian positions, standing against industry defaults
+16. **Client experience / service model** — ONE domain, do not sub-divide into "touchpoints" vs "annual review" vs "service tiers" to escape the rotation rule
+
+**Domain rotation example of what BREAKS the rule:** Last 3 issues were "service model works for 15% of your book" (Domain 1 or 16), "advisors show up to advise decisions clients already made" (Domain 1 or 16), "annual review surfaces what silence broke" (Domain 1 or 16). This issue proposing "Ask one question before you lose them" (Domain 1) is a VIOLATION — four in a row from the same reader-perceived domain. Pick Domain 3 (tax) or Domain 7 (ops/tech) or Domain 13 (macro) instead.
+
+## Framing / Tone rotation — read carefully
+
+Separate from topic, every issue has an EMOTIONAL REGISTER. If the last 3 issues were all PROBLEM-IDENTIFICATION framings (something is wrong / clients are leaving / you're missing a signal), this issue MUST pick a different framing:
+
+- **Problem-identification** (default, overused) — "here's what you're missing / losing / breaking"
+- **Opportunity** — "here's an edge most advisors are ignoring"
+- **Celebration / win-story** — "here's an advisor who built something unusual, and how"
+- **Observation / insight** — "here's a pattern that showed up in the data — draw your own conclusion"
+- **Instruction / craft** — "here's exactly how to execute the thing"
+- **Contrarian** — "the industry says X; here's why the opposite is defensible"
+
+If the last 3 headlines use words like "silence," "leaving," "stopped," "lose," "missing," "went silent," "pick one" — that's the problem-identification register three in a row. Pick opportunity / instruction / celebration / observation this time. Mark's voice CAN be direct and challenging in any register — it does not require a negative frame to feel like Mark.
 
 ## Adjacent-cluster examples to AVOID
 
@@ -247,7 +282,11 @@ Return your proposal as JSON with this exact shape:
   "frameworkReferences": ["<framework module slugs that this topic engages>"],
   "rationale": "<1-2 sentences on why this topic now, given recent context>",
   "recentClusters": "<1 sentence naming the clusters the last 3-5 issues covered>",
-  "thisIssueCluster": "<1 sentence naming the cluster this proposal belongs to — must be DIFFERENT from any in recentClusters>"
+  "thisIssueCluster": "<1 sentence naming the cluster this proposal belongs to — must be DIFFERENT from any in recentClusters>",
+  "recentDomains": "<comma-separated DOMAIN numbers (1-16 from the DOMAIN list above) covered by each of the last 5 issues, oldest→newest>",
+  "thisIssueDomain": "<the DOMAIN number (1-16) this proposal belongs to — must NOT appear in recentDomains>",
+  "recentFramings": "<comma-separated framings (problem-identification | opportunity | celebration | observation | instruction | contrarian) used by each of the last 3 issues, oldest→newest>",
+  "thisIssueFraming": "<the framing this proposal uses — if the last 3 were all problem-identification, this one MUST be opportunity | celebration | observation | instruction | contrarian>"
 }
 
 Return ONLY the JSON object. No preamble, no commentary, no markdown fences.`,

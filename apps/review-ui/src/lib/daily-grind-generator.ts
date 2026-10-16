@@ -1228,6 +1228,91 @@ async function runTopicProposer(
   } catch {
     // fallback handled below
   }
+
+  // Deterministic post-check: catch when the proposer stays in the
+  // client-attrition / silence / engagement rut even though the prompt
+  // tells it to rotate domains. Scans the proposed topic + angle for
+  // "rut words" and if the last 3 issues also contain them, re-rolls
+  // the proposer with a hard "do NOT propose this domain" instruction.
+  // Added 10-16 after 11 consecutive DGs all converged on this one theme.
+  const RUT_WORDS = [
+    "silent", "silence", "quiet", "stopped", "left", "leaving", "lose", "lost",
+    "missing", "gone", "drift", "drifted", "disengag", "engag", "retention",
+    "attrition", "churn", "ghost", "ghosting", "showing up", "show up",
+    "already left", "didn't show", "didnt show", "unseen", "ignored",
+    "forgotten", "stayed quiet", "went dark", "went silent",
+  ];
+  function hasRutWord(text: string): boolean {
+    const low = text.toLowerCase();
+    return RUT_WORDS.some((w) => low.includes(w));
+  }
+  const proposalText = `${typeof parsed?.topic === "string" ? parsed.topic : ""} ${typeof parsed?.angle === "string" ? parsed.angle : ""}`;
+  const recent3 = recentIssues.slice(0, 3).map((r) => r.topic).join(" | ");
+  const proposalInRut = hasRutWord(proposalText);
+  const recentInRut = hasRutWord(recent3);
+  if (proposalInRut && recentInRut && !contentTypeOverride) {
+    console.warn("topic_proposer.rut_detected_rerolling", {
+      proposalTopic: parsed?.topic,
+      recent3: recent3.slice(0, 200),
+    });
+    const rerollPrompt = `${fullPrompt}
+
+## ⛔ RE-ROLL REQUIRED — your previous proposal was in the rut
+
+Your previous proposal was: "${parsed?.topic ?? ""}" (${parsed?.angle ?? ""}).
+
+That topic is in the client-attrition / silence / engagement DOMAIN — the SAME domain as the last 3 issues. The last 3 topics were: ${recent3}.
+
+Propose a DIFFERENT topic from a DIFFERENT DOMAIN. Specifically BANNED for this re-roll:
+- Any topic about clients leaving, going silent, disengaging, being lost, or being missed
+- Any topic framed around what the advisor is MISSING or NOT seeing
+- Any topic about "touchpoints," "service model gaps," "annual review," "listening"
+
+Pick from one of these domains instead:
+- Investment management (portfolio construction, factor investing, direct indexing, alternatives)
+- Tax strategy (Roth conversions, tax-loss harvesting, QCDs, state-residency)
+- Estate planning (SLATs, dynasty trusts, beneficiary design, step-up basis)
+- Operations / tech stack (CRM, planning software, AI tools, outsourced CIO)
+- Growth / marketing (SEO, podcast, content, speaking, PR)
+- Compliance / regulatory (Reg BI, marketing rule, custody rule)
+- Fee models / pricing (flat fee for HNW, planning-only fees)
+- Succession / M&A (valuation, earnouts, aggregator deals)
+- Macro / markets (rate expectations, credit spreads, currency, geopolitical)
+- Firm building / team (hiring, equity, physician model)
+
+Also use a DIFFERENT framing than problem-identification. Try: opportunity, celebration, observation, instruction, or contrarian.
+
+Return the SAME JSON schema as before.`;
+    const rerollResponse = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 600,
+      temperature: 0.5,
+      messages: [{ role: "user", content: rerollPrompt }],
+    });
+    const rerollBlock = rerollResponse.content[0];
+    if (rerollBlock && rerollBlock.type === "text") {
+      try {
+        const json = extractJsonObject(rerollBlock.text);
+        const reparsed = JSON.parse(json) as Record<string, unknown>;
+        const reparsedText = `${typeof reparsed?.topic === "string" ? reparsed.topic : ""} ${typeof reparsed?.angle === "string" ? reparsed.angle : ""}`;
+        if (!hasRutWord(reparsedText)) {
+          parsed = reparsed;
+          console.info("topic_proposer.rut_rerolled_success", {
+            newTopic: reparsed?.topic,
+          });
+        } else {
+          console.warn("topic_proposer.rut_reroll_still_in_rut_keeping_original", {
+            rerollTopic: reparsed?.topic,
+          });
+        }
+      } catch (err) {
+        console.warn("topic_proposer.rut_reroll_parse_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+
   const validTypes: DailyGrindContentType[] = ["tactic", "take", "story", "rant", "special", "chronicle"];
   const raw = typeof parsed?.contentType === "string" ? parsed.contentType.toLowerCase() : "take";
   let contentType: DailyGrindContentType = (validTypes.includes(raw as DailyGrindContentType)
