@@ -3240,7 +3240,14 @@ ${availableForNumber})`;
       //   2. Apply persona-driven revision
       //   3. Re-run persona panel
       //   4. If pass, exit; otherwise loop.
-      const MAX_REVISION_CYCLES = 3;
+      // Capped from 3 → 1 on 10-16 because the full pipeline hit Vercel's
+      // ~300s serverless timeout on regen calls. Each revision cycle is
+      // one Sonnet revision + a 10-Haiku persona panel re-run → 25-45s.
+      // Three cycles in series ate up to 2+ minutes of a 5-minute budget.
+      // Cap at 1 cycle: still allows one correction pass; if that doesn't
+      // reach "pass" the issue ships as "pending_review_with_warnings"
+      // (same spec terminal state as exhausting 3 cycles would have given).
+      const MAX_REVISION_CYCLES = 1;
       pipeline.push({
         name: "persona_gate",
         status: "retried",
@@ -3594,6 +3601,16 @@ export async function generateDailyGrindIssue(opts: {
   const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY missing");
   const client = new Anthropic({ apiKey });
+  // Wall-clock timing anchor so stage markers below can show elapsed-s
+  // in Vercel runtime logs even when the serverless function is killed
+  // mid-pipeline (the pipeline[] array only persists if we reach the DB
+  // write at the end; console.log lands in Vercel logs immediately).
+  const genStart = Date.now();
+  const timeLog = (stage: string, extra: string = "") => {
+    const elapsed = ((Date.now() - genStart) / 1000).toFixed(1);
+    console.log(`[dg-timing] stage=${stage} t=${elapsed}s${extra ? " " + extra : ""}`);
+  };
+  timeLog("pipeline.start");
   const recentTopics = opts.recentTopics ?? [];
   const recentVerses = opts.recentVerses ?? [];
   const recentConcepts = opts.recentConcepts ?? [];
@@ -3666,6 +3683,7 @@ export async function generateDailyGrindIssue(opts: {
   // BEFORE research, and now AWARE of the locked formatStyle so the topic
   // shape matches what the writer will be asked to produce.
   const proposerStart = Date.now();
+  timeLog("topic_proposer.loop.start");
   let proposal: Awaited<ReturnType<typeof runTopicProposer>> | null = null;
   const proposerInput = {
     recentHeadlines: recentTopics.slice(0, 10),
@@ -4092,6 +4110,7 @@ export async function generateDailyGrindIssue(opts: {
   // link to the relevant info."
   {
     const verifyStart = Date.now();
+    timeLog("url_verify.start");
     const candidates = research.bundle.items.map((r) => ({ url: r.url, title: r.title }));
     let results: Awaited<ReturnType<typeof verifyUrls>> = [];
     try {
@@ -4211,6 +4230,7 @@ export async function generateDailyGrindIssue(opts: {
   const contentTypePickerCost = { input: 0, output: 0, latency: 0 };
 
   const writerStart = Date.now();
+  timeLog("writer_phase.start");
   let writer: Awaited<ReturnType<typeof runWriterPhase>>;
   try {
     writer = await runWriterPhase(
@@ -4287,9 +4307,11 @@ export async function generateDailyGrindIssue(opts: {
   // The writer produced all three openings (Number/Unspoken/Flip); pick the
   // ONE that ships. Losers preserved in JSON for trace/learning. When
   // selectedType is set on openingTrifecta, the renderer ships only that one.
+  timeLog("writer_phase.done");
   let trifectaPassed: boolean | null = null;
   try {
     const trifStart = Date.now();
+    timeLog("opening_trifecta.start");
     const trifResult = await scoreTrifecta(client, finalContent);
     finalContent = {
       ...finalContent,
@@ -4512,6 +4534,7 @@ export async function generateDailyGrindIssue(opts: {
   // the writer produces headline + preheader directly; this stage replaces
   // them with versions tuned for inbox open rates.
   const assembleStart = Date.now();
+  timeLog("assemble_html.start");
   let assembleCost = { input: 0, output: 0, latency: 0 };
   try {
     const assembleResult = await runAssembleHtml(
@@ -4580,6 +4603,7 @@ export async function generateDailyGrindIssue(opts: {
   // for future topic_proposer calls to read. This is the "brain reads its
   // own work" mechanism — the system actually knows what's been covered.
   const summaryStart = Date.now();
+  timeLog("issue_summary.start");
   let issueSummaryResult: IssueSummary | null = null;
   let summaryCost = { input: 0, output: 0, latency: 0 };
   try {
