@@ -30,6 +30,7 @@ import {
 } from "./saturday-latte-image-validator";
 import { fetchProductReferenceImage } from "./saturday-latte-product-image";
 import { fetchSubjectReferenceImage } from "./saturday-latte-subject-reference";
+import { fetchBookCoverImage } from "./saturday-latte-book-cover";
 
 const STORAGE_BUCKET = "Latte Images";
 const GEMINI_MODEL = "gemini-2.5-flash-image";
@@ -914,9 +915,33 @@ REMINDER: the subject "${subject}" must be recognizable as this specific bottle 
       );
     }
   }
-  // Everything else (books, films, drinks) still uses the Wikipedia
-  // reference lookup — those categories work fine with Wikipedia's
-  // canonical infobox images (book covers, movie posters).
+  // Books: route through OpenLibrary → Google Books before Wikipedia.
+  // Added 10-17 after Wikipedia returned a Russian-language interior
+  // scan for "The Death of Ivan Ilyich" (Austin: "the book used a wiki
+  // image and it sucks, it needs to use a book cover image from google
+  // or an actual cover image"). Same ship-the-raw-reference pattern as
+  // products — the actual Penguin / Vintage / Bantam cover beats
+  // whatever Gemini would compose around a Wikipedia infobox hit.
+  if (kind === "book") {
+    try {
+      const bookRef = await fetchBookCoverImage(subject);
+      if (bookRef) {
+        console.info("latte.book_shipped_raw_cover", { subject, source: bookRef.source, sourceUrl: bookRef.sourceUrl });
+        return { bytes: bookRef.bytes, mimeType: bookRef.mimeType, usedReference: true, referenceUrl: bookRef.sourceUrl };
+      }
+    } catch (err) {
+      console.warn(
+        "latte.book_cover_fetch_failed",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    // If OpenLibrary + Google Books both missed, fall through to the
+    // Wikipedia path below — same subject-reference pipeline the other
+    // kinds use. Wikipedia is the exception now, not the default.
+  }
+  // Everything else (films, drinks that didn't resolve above) still
+  // uses the Wikipedia reference lookup — those categories work fine
+  // with Wikipedia's canonical infobox images (movie posters).
   //
   // Strip "by [author]" tail before Wikipedia search. "The Fire Next
   // Time by James Baldwin" as a Wikipedia query returns wrong articles
