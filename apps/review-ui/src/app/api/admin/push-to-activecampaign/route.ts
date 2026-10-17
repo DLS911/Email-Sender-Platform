@@ -19,6 +19,7 @@ import { logger } from "@platform/observability";
 import { createClient } from "@supabase/supabase-js";
 import { createCampaign, createMessage, getCampaign, scheduleCampaign } from "../../../../lib/activecampaign";
 import { attachAcIds } from "../../../../lib/issue-versions";
+import { computeContentHash } from "../../../../lib/content-hash";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +73,14 @@ export async function POST(req: Request): Promise<NextResponse> {
     confirmListChange?: boolean;
     /** Human-readable reason, required when confirmListChange is true. */
     reason?: string;
+    /**
+     * Content hash from the last preview/inspection. Push refuses with
+     * HTTP 409 if the current DB content hash doesn't match — meaning a
+     * late-arriving regen has overwritten what the user approved. See
+     * lib/content-hash.ts for the Sat 10-16 incident. Omit on an
+     * approval-free one-off push.
+     */
+    approvedContentHash?: string;
   };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const brand = body.brand?.trim();
@@ -127,6 +136,30 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const row = data as unknown as { issue_date: string; subject: string | null; html: string | null; text_body: string | null; approval_status: string | null } & Record<string, string | null>;
   if (!row.html) return NextResponse.json({ error: "no rendered html for this issue" }, { status: 400 });
+
+  // Content-hash gate — the Sat 10-16 incident: user approved content X
+  // in preview; a late-arriving background regen overwrote the DB with Y;
+  // push shipped Y. If caller passes approvedContentHash from the last
+  // preview response, compare it to current DB content. Mismatch = refuse
+  // and tell the caller to re-preview and re-approve.
+  const currentHash = computeContentHash({
+    subject: row.subject ?? row[hCol] ?? null,
+    html: row.html,
+  });
+  if (body.approvedContentHash && body.approvedContentHash !== currentHash) {
+    logger.warn("ac_push.content_changed_since_approval", {
+      brand, issueDate,
+      approvedHash: body.approvedContentHash,
+      currentHash,
+      currentSubject: row.subject ?? row[hCol] ?? null,
+    });
+    return NextResponse.json({
+      error: `content changed since approval. Approved hash was ${body.approvedContentHash}, current DB hash is ${currentHash}. Re-preview to see the new content, then push again with the new hash. (Current subject: "${row.subject ?? row[hCol] ?? "unknown"}")`,
+      approvedContentHash: body.approvedContentHash,
+      currentContentHash: currentHash,
+      currentSubject: row.subject ?? row[hCol] ?? null,
+    }, { status: 409 });
+  }
 
   // Rewrite the render-time placeholder URL to AC's per-recipient
   // %UNSUBSCRIBELINK% merge tag. Without this, every recipient sees
@@ -240,6 +273,8 @@ export async function POST(req: Request): Promise<NextResponse> {
       sendAtISO: sendAtISO ?? null,
       listId,
       dashboardUrl,
+      shippedSubject: subject,
+      shippedContentHash: currentHash,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { logger } from "@platform/observability";
 import { createClient } from "@supabase/supabase-js";
 import { sendPreviewEmail } from "../../../../lib/preview-email";
+import { computeContentHash } from "../../../../lib/content-hash";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,12 +86,18 @@ export async function POST(req: Request): Promise<NextResponse> {
     logger.warn("resend_preview.failed", { brand, issueDate, error: result.error });
     return NextResponse.json({ ok: false, error: result.error }, { status: 502 });
   }
-  logger.info("resend_preview.sent", { brand, issueDate, resendId: result.resendId });
+  // Content hash — the exact snapshot that was just previewed. Caller
+  // passes this back to push-to-ac as approvedContentHash; push refuses
+  // if a late regen has changed the content since this preview went
+  // out. See lib/content-hash.ts for the Sat 10-16 incident context.
+  const contentHash = computeContentHash({ subject, html: row.html });
+  logger.info("resend_preview.sent", { brand, issueDate, resendId: result.resendId, contentHash });
   return NextResponse.json({
     ok: true,
     resendId: result.resendId,
     to: process.env.PREVIEW_APPROVER_EMAIL || "mark@castorabbott.com",
     cc: process.env.EDITOR_ESCALATION_EMAIL || "austin@castorabbott.com",
     subject,
+    contentHash,
   });
 }
