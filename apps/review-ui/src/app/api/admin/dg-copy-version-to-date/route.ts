@@ -101,6 +101,10 @@ export async function POST(req: Request): Promise<NextResponse> {
     text_body: rendered.text,
     sections,
     model: "claude-sonnet-4-5-20250929",
+    input_tokens: 0,
+    output_tokens: 0,
+    cost_usd: 0,
+    latency_ms: 0,
     generation_meta: {
       copiedFrom: {
         sourceDate,
