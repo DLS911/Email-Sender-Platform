@@ -57,6 +57,14 @@ export async function GET(req: Request): Promise<NextResponse> {
   const campaignId = url.searchParams.get("campaignId");
   const recent = url.searchParams.get("recent");
   const messageIdEarly = url.searchParams.get("messageId");
+  const rawPath = url.searchParams.get("rawPath");
+  if (rawPath) {
+    // Read-only passthrough to any AC /api/3/* path for diagnostics.
+    // Returns the raw JSON response. Caller passes the path *after*
+    // /api/3 (e.g. ?rawPath=/campaigns/509/links).
+    const data = await acGet(rawPath.startsWith("/") ? rawPath : `/${rawPath}`);
+    return NextResponse.json({ rawPath, data });
+  }
   if (!listId && !campaignId && !recent && !messageIdEarly) return NextResponse.json({ error: "listId, campaignId, recent, or messageId required" }, { status: 400 });
 
   if (recent) {
