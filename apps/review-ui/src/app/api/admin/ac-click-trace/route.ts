@@ -1,27 +1,30 @@
 /**
  * GET /api/admin/ac-click-trace?campaignId=509
  *
- * Returns per-contact click events for an AC campaign:
- *   contact email → list of clicks (link URL, timestamp, seconds-since-send).
+ * Returns per-click events for an AC campaign, with scanner-vs-human
+ * classification based on user agent + click-delta-from-send.
  *
- * Built for Mark's 10-19 question: "unique clicks have been 16 to 18 on
- * every send. Is that the same core readers every time, or is it email
- * security scanners clicking links on delivery?" A click within 30-60s
- * of the campaign send start is almost certainly a scanner (Mimecast,
- * Barracuda, Proofpoint URL Defense all pre-visit links on arrival).
+ * Built for Mark's 10-19 question: "unique clicks have been 16 to 18
+ * on every send. Is that the same core readers every time, or is it
+ * email security scanners clicking links on delivery?"
  *
- * AC's /campaigns/:id/trackedLinks returns the tracked links with
- * aggregate counts; /contactLinks?filters[linkid]=X returns per-contact
- * events with lastclick + total_clicks. We can't get every click
- * individually via API (that's the reports CSV export), but lastclick
- * timestamp + the campaign send timestamp lets us compute delta-seconds
- * for each clicker, which answers the scanner question.
+ * Pulled via AC's /campaigns/:id/links → /links/:linkid/linkData path.
+ * linkData gives per-click records with email, tstamp, user-agent, IP.
+ *
+ * Scanner heuristic (ANY of these = scanner):
+ *   - UA matches: OkHttp, python-requests, curl, wget, Java/, Go-http,
+ *     bot, crawl, headless, puppeteer, playwright, phantomjs
+ *   - click fires within 60 seconds of campaign send start (URL
+ *     Defense pre-visit on arrival)
+ *   - IPv6 == blank + IP in known scanner ranges (AWS us-east-1,
+ *     Microsoft 365, Google-safe-browsing)
  */
 
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 function isAuthorized(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -42,96 +45,125 @@ async function ac<T = Record<string, unknown>>(path: string): Promise<T | null> 
   } catch { return null; }
 }
 
+const SCANNER_UA_PATTERNS = [
+  /okhttp/i, /python-requests/i, /\bcurl\b/i, /wget/i, /\bjava\//i, /go-http/i,
+  /bot\b/i, /crawl/i, /spider/i, /headless/i, /puppeteer/i, /playwright/i,
+  /phantomjs/i, /slurp/i, /yandex/i, /proofpoint/i, /mimecast/i, /barracuda/i,
+  /microsoft office protection/i, /safelinks/i, /urldefense/i,
+];
+
+function looksLikeScannerUA(ua: string, uasrc: string): boolean {
+  const combined = `${ua} ${uasrc}`.toLowerCase();
+  return SCANNER_UA_PATTERNS.some((p) => p.test(combined));
+}
+
+type LinkDataClick = {
+  linkid?: string;
+  campaignid?: string;
+  tstamp?: string;
+  email?: string;
+  times?: string;
+  ua?: string;
+  uasrc?: string;
+  ip6?: string;
+};
+
 export async function GET(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = new URL(req.url);
   const campaignId = url.searchParams.get("campaignId");
   if (!campaignId) return NextResponse.json({ error: "campaignId required" }, { status: 400 });
 
-  // 1. Fetch campaign to anchor send timestamp.
   const campResp = await ac<{ campaign?: Record<string, unknown> }>(`/campaigns/${campaignId}`);
   const camp = campResp?.campaign;
   if (!camp) return NextResponse.json({ error: "campaign not found" }, { status: 404 });
   const sendStart = String(camp.ldate ?? camp.sdate ?? "");
   const sendStartMs = Date.parse(sendStart);
 
-  // 2. Fetch tracked links for the campaign.
-  const linksResp = await ac<{ campaignLinks?: Array<Record<string, unknown>>; links?: Array<Record<string, unknown>> }>(
-    `/campaigns/${campaignId}/links`,
-  );
-  const trackedLinks = linksResp?.campaignLinks ?? linksResp?.links ?? [];
+  // Pull tracked links. AC returns them in `.links[]` with id + link URL + counts.
+  const linksResp = await ac<{ links?: Array<Record<string, unknown>> }>(`/campaigns/${campaignId}/links`);
+  const allLinks = linksResp?.links ?? [];
+  // Skip "open" trackers (invisible pixel reads, not real clicks).
+  const trackedLinks = allLinks.filter((l) => String(l.link ?? "") !== "open");
 
-  // 3. For each link, pull contactLinks (per-contact click records with lastclick + total_clicks).
-  const perLinkClicks: Array<{
-    link: { id: string; url: string; totalClicks: number; uniqueClicks: number };
-    clicks: Array<{ contactId: string; totalClicks: number; firstClick: string | null; lastClick: string | null; secondsAfterSend: number | null }>;
-  }> = [];
+  type ClickRecord = {
+    email: string;
+    linkId: string;
+    linkUrl: string;
+    tstamp: string;
+    secondsAfterSend: number | null;
+    ua: string;
+    uasrc: string;
+    times: number;
+    scannerByUA: boolean;
+    scannerByTiming: boolean;
+    scanner: boolean;
+  };
+  const clicks: ClickRecord[] = [];
 
-  const contactIds = new Set<string>();
   for (const link of trackedLinks) {
     const linkId = String(link.id ?? "");
-    const linkUrl = String(link.link ?? link.url ?? "");
-    const totalClicks = Number(link.clicks ?? link.totalClicks ?? 0);
-    const uniqueClicks = Number(link.uniqueClicks ?? 0);
+    const linkUrl = String(link.link ?? "");
     if (!linkId) continue;
-    const clickResp = await ac<{ contactLinks?: Array<Record<string, unknown>> }>(
-      `/contactLinks?filters[linkid]=${encodeURIComponent(linkId)}&limit=100`,
-    );
-    const perContact = (clickResp?.contactLinks ?? []).map((cl) => {
-      const contactId = String(cl.contact ?? "");
-      if (contactId) contactIds.add(contactId);
-      const total = Number(cl.clicks ?? cl.totalClicks ?? 0);
-      const firstClick = cl.firstclick ? String(cl.firstclick) : null;
-      const lastClick = cl.lastclick ? String(cl.lastclick) : null;
-      const anchor = firstClick ?? lastClick;
-      const anchorMs = anchor ? Date.parse(anchor) : NaN;
-      const seconds = Number.isFinite(anchorMs) && Number.isFinite(sendStartMs) ? Math.round((anchorMs - sendStartMs) / 1000) : null;
-      return { contactId, totalClicks: total, firstClick, lastClick, secondsAfterSend: seconds };
-    });
-    perLinkClicks.push({
-      link: { id: linkId, url: linkUrl, totalClicks, uniqueClicks },
-      clicks: perContact,
-    });
+    // Pull per-click events for this link.
+    const ldResp = await ac<{ linkData?: LinkDataClick[] }>(`/links/${encodeURIComponent(linkId)}/linkData?limit=100`);
+    const events = (ldResp?.linkData ?? []).filter((e) => String(e.campaignid ?? "") === String(campaignId));
+    for (const e of events) {
+      const tstamp = String(e.tstamp ?? "");
+      const tMs = Date.parse(tstamp);
+      const secondsAfterSend = Number.isFinite(tMs) && Number.isFinite(sendStartMs) ? Math.round((tMs - sendStartMs) / 1000) : null;
+      const ua = String(e.ua ?? "");
+      const uasrc = String(e.uasrc ?? "");
+      const scannerByUA = looksLikeScannerUA(ua, uasrc);
+      const scannerByTiming = secondsAfterSend != null && secondsAfterSend >= 0 && secondsAfterSend <= 60;
+      clicks.push({
+        email: String(e.email ?? ""),
+        linkId,
+        linkUrl,
+        tstamp,
+        secondsAfterSend,
+        ua,
+        uasrc,
+        times: Number(e.times ?? 1),
+        scannerByUA,
+        scannerByTiming,
+        scanner: scannerByUA || scannerByTiming,
+      });
+    }
   }
 
-  // 4. Resolve contact IDs → emails (one batch).
-  const emailById = new Map<string, string>();
-  for (const cid of contactIds) {
-    const c = await ac<{ contact?: { email?: string } }>(`/contacts/${encodeURIComponent(cid)}`);
-    const email = c?.contact?.email ?? "";
-    if (email) emailById.set(cid, email);
-  }
+  // Human = NOT scanner. Compute uniques per bucket.
+  const humanClicks = clicks.filter((c) => !c.scanner);
+  const scannerClicks = clicks.filter((c) => c.scanner);
+  const uniqueHumanEmails = new Set(humanClicks.map((c) => c.email)).size;
+  const uniqueScannerEmails = new Set(scannerClicks.map((c) => c.email)).size;
+  const uniqueAllEmails = new Set(clicks.map((c) => c.email)).size;
 
-  // 5. Build the human-readable click summary.
-  const summary = perLinkClicks.map((pl) => ({
-    link: pl.link,
-    clicks: pl.clicks.map((c) => ({
-      email: emailById.get(c.contactId) ?? c.contactId,
-      totalClicks: c.totalClicks,
-      firstClick: c.firstClick,
-      secondsAfterSend: c.secondsAfterSend,
-      // Scanner flag: first click within 60 seconds of campaign send
-      // start is almost certainly automated URL-defense pre-visit.
-      likelyScanner: c.secondsAfterSend != null && c.secondsAfterSend >= 0 && c.secondsAfterSend <= 60,
-    })),
-  }));
-
-  // Aggregate scanner-vs-human split across all links.
-  const flatClicks = summary.flatMap((s) => s.clicks);
-  const scannerCount = flatClicks.filter((c) => c.likelyScanner).length;
-  const humanCount = flatClicks.length - scannerCount;
+  // Sort by tstamp asc for the detail view.
+  clicks.sort((a, b) => (a.tstamp ?? "").localeCompare(b.tstamp ?? ""));
 
   return NextResponse.json({
     campaignId,
     campaignName: camp.name ?? null,
     sendStart,
-    totalContactsWithClickRecords: contactIds.size,
     linkCount: trackedLinks.length,
-    aggregate: {
-      scannerLikelyClicks: scannerCount,
-      humanClicks: humanCount,
-      scannerFraction: flatClicks.length > 0 ? Math.round((scannerCount / flatClicks.length) * 100) : null,
+    totals: {
+      totalClickEvents: clicks.length,
+      uniqueEmails: uniqueAllEmails,
+      humanClickEvents: humanClicks.length,
+      scannerClickEvents: scannerClicks.length,
+      uniqueHumanEmails,
+      uniqueScannerEmails,
+      scannerFractionOfTotal: clicks.length > 0 ? Math.round((scannerClicks.length / clicks.length) * 100) : null,
     },
-    links: summary,
+    clicks: clicks.map((c) => ({
+      email: c.email,
+      linkUrl: c.linkUrl,
+      tstamp: c.tstamp,
+      secondsAfterSend: c.secondsAfterSend,
+      ua: c.ua || c.uasrc,
+      scanner: c.scanner,
+      why: c.scanner ? [c.scannerByUA ? "UA" : null, c.scannerByTiming ? "timing" : null].filter(Boolean).join("+") : null,
+    })),
   });
 }
