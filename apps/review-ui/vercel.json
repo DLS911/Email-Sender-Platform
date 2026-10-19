@@ -30,6 +30,10 @@
       "schedule": "0 9 * * 6"
     },
     {
+      "path": "/api/cron/weekly-engagement-prune",
+      "schedule": "0 15 * * 0"
+    },
+    {
       "path": "/api/cron/saturday-latte",
       "schedule": "0 * * * 6"
     }
