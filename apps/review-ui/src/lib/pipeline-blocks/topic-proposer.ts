@@ -274,6 +274,18 @@ HEADLINE patterns PREFERRED for this window:
 
 Mark's voice stays sharp, specific, opinionated. Direct ≠ negative. "Here is the exact move" is sharp AND positive. "The three CRM fields that predict closes" is specific AND positive. If you can't propose a positive-framed topic in a given domain, pick a different domain — don't fall back to problem-identification.
 
+## HARD CHECK before you submit — read this twice
+
+Your LLM training biases you STRONGLY toward problem-identification because that framing wins engagement on generic internet copy (newsletters, blogs, social). This audience is DIFFERENT. They already open at 30%+ and have the context to recognize fluff. Three framings they REJECT, confirmed from reader feedback:
+
+1. **"The X that proves/reveals/shows you Y"** — compliance-threat / exposure frames dressed as revelation. BANNED. Example of what Mark explicitly flagged on 2026-10-21: "The file that proves you knew" was rejected as too negative.
+2. **"X isn't Y, it's Z"** — deflating comparison. BANNED. Example of what Mark flagged: "Your book isn't 150 clients. It's 60."
+3. **"The hidden cost/price/tax of X"** — reveals-a-threat frames. BANNED.
+
+If your proposal's headline matches ANY of these shapes, PICK A DIFFERENT TOPIC. Do not try to repackage the same topic with a slightly less negative headline — the underlying angle IS the problem. Pick a genuinely positive topic: a specific move an advisor can MAKE that produces a specific GAIN (dollars, time, closed clients, better hires, a repositioning win).
+
+If the proposer's natural instinct is pulling toward a diagnostic/compliance/exposure topic, STOP and ask: "What's an UPSIDE topic in a totally different domain?" Pick that instead. Tax, investment management, growth/marketing, operations, insurance, estate — pick a domain where "here's the move that unlocks dollars" is the natural frame, not "here's the trap you didn't see."
+
 ## Adjacent-cluster examples to AVOID
 
 If recent issues touched ANY of these, pick a different cluster:

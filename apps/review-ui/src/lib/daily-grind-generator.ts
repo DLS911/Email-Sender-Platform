@@ -2391,6 +2391,16 @@ const HEADLINE_BAN_PATTERNS: Array<{ name: string; rx: RegExp }> = [
   { name: "The gap between X and Y (always diagnostic)", rx: /^the\s+gap\s+between\b/i },
   { name: "Stop/Quit/Don't directive (negative command)", rx: /^(stop|quit|don'?t|never|avoid)\s+/i },
   { name: "Why your X is wrong/broken", rx: /^why\s+your\s+[\w\s]+\s+(is|are)\s+(wrong|broken|failing|dead|dying)\b/i },
+  // Second pass of negative-framing bans — added 2026-10-21 after
+  // regen produced "The file that proves you knew" (compliance-threat
+  // frame). The headline wasn't technically "X isn't Y" but was still
+  // problem-identification/threat framing dressed as revelation.
+  { name: "The X that proves/reveals/shows you Y (threat frame)", rx: /\bthat\s+(proves?|reveals?|shows?|exposes?|catches?|betrays?)\s+(you|what)\b/i },
+  { name: "The X that becomes evidence/trap/liability", rx: /\bthat\s+(becomes?|is\s+now)\s+(evidence|the\s+trap|the\s+case|a\s+liability|a\s+weapon|the\s+weapon)\b/i },
+  { name: "The X you knew / should have known", rx: /\b(you\s+knew|should\s+have\s+known|didn'?t\s+(know|see|catch))\b/i },
+  { name: "The paper trail / audit / record against you", rx: /\b(paper\s+trail|audit\s+trail|the\s+logs?|the\s+records?)\s+(against|that\s+catch)/i },
+  { name: "The hidden cost / price / tax of X", rx: /^the\s+(hidden|real|true)\s+(cost|price|tax|expense)\s+of\b/i },
+  { name: "What X isn't telling you", rx: /\b(what|the\s+thing)\s+[\w\s]+\s+(isn'?t|aren'?t|won'?t)\s+tell/i },
 ];
 
 function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null {
