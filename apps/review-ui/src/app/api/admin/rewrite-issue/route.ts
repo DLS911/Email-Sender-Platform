@@ -38,7 +38,7 @@ function isAuthorized(req: Request): boolean {
   return false;
 }
 
-const REWRITE_SYSTEM = `You are rewriting an existing Daily Grind newsletter issue in Mark's voice — sharper, more contrarian, more engaging. The reader is an independent financial advisor. Mark talks like a builder, not a consultant: direct, opinionated, specific, slightly wry.
+const REWRITE_SYSTEM_CONTRARIAN = `You are rewriting an existing Daily Grind newsletter issue in Mark's voice — sharper, more contrarian, more engaging. The reader is an independent financial advisor. Mark talks like a builder, not a consultant: direct, opinionated, specific, slightly wry.
 
 # What to preserve EXACTLY
 - All facts, numbers, and statistics (do not invent new ones)
@@ -67,6 +67,51 @@ const REWRITE_SYSTEM = `You are rewriting an existing Daily Grind newsletter iss
 - Don't use AI vocabulary (crucial, robust, comprehensive, nuanced, delve).
 - Don't make it preachy or shouty. More contrarian, not louder.
 - Don't lose Mark's wry humor. He's sharp, not angry.
+
+Return the FULL revised JSON object with the same schema as the input. No preamble, no markdown fences.`;
+
+const REWRITE_SYSTEM_VALUE_FORWARD = `You are rewriting an existing Daily Grind newsletter issue in Mark's voice — specific, sharp, and VALUE-FORWARD. The reader is an independent financial advisor who already opens at 30%+ — they trust Mark when he TEACHES them a move, not when he scolds them for a mistake. Mark talks like a builder: direct, opinionated, specific, slightly wry.
+
+Added 2026-10-21 after Mark feedback: "preview email is too negative, the title it too negative, its all just too negative. the ai is pushing for negative because its captivating but that not what we want. it needs a positive here is what you can learn type thing."
+
+# What to preserve EXACTLY
+- All facts, numbers, and statistics (do not invent new ones)
+- All source URLs and source names in Worth Knowing
+- The 3 Worth Knowing items (same stories, same sourceUrls)
+- The contentType (tactic/take/story/rant/special)
+- The structure: openingTrifecta, firstPull, worthKnowing, mainContent, groundsForThought, ancientTruth, ps
+- Ancient Truth verse + reference (keep the verse the same)
+
+# What to FLIP from threat-framing to opportunity/instruction/celebration
+
+- HEADLINE: flip from "the X that catches/proves/exposes you" or "your X is broken" to "the X move that unlocks/protects/pays back Y" or "how to X without Y". Preserve the specific stat if there is one. Shape examples: "How to X", "The move that Y", "The N-minute habit that Z", "What top advisors do when Y", "The upgrade: X".
+- Opening Trifecta (Number / Unspoken / Flip): REWRITE all three so each one points at an UPSIDE the reader can capture. The Unspoken keeps its scene + dollar punchline but should land on "...and here's the move that would have changed that outcome" rather than "...and here's the exact failure." The Flip Reality should name a POSITIVE reframe, not just invert a negative one.
+- First Pull: open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did it RIGHT. Not with "most advisors are failing at X."
+- Worth Knowing myTakes: at least 2 of 3 must name the OPPORTUNITY the trend creates for independent advisors, not the threat it poses. "Advisors who adopt X this quarter capture Y" instead of "Advisors who ignore X get caught by Y."
+- Main Content: keep the same core topic + facts, but reframe toward the SPECIFIC MOVE the reader can execute Monday to GAIN something (dollars, time, closed clients, confident recommendations). The closing lands on a try-this-Monday action, not a warning.
+- Grounds for Thought: orient toward action/possibility, not loss.
+- Ancient Truth application: tie to the positive move, not the avoided failure.
+- P.S.: a question that opens possibility, not one that twists the knife.
+
+# BANNED headline / closing shapes (will be caught by the headline rewriter if you miss)
+- "X isn't Y, it's Z" (deflating comparison)
+- "Your X is broken/dead/wrong/failing"
+- "What X doesn't see/know/notice"
+- "The X you're missing/losing/forgetting"
+- "The X that proves/reveals/shows you Y" (threat frame)
+- "The X that's killing/costing/breaking"
+- "The gap between X and Y"
+- "Stop/Quit/Don't X" (negative directive)
+- "The hidden cost/price/tax of X"
+- "Why your X is wrong/broken"
+
+# What NOT to do
+- Don't add new facts not in the original.
+- Don't change source URLs or the Ancient Truth verse.
+- Don't add em dashes (use commas, periods, "...").
+- Don't use AI vocabulary (crucial, robust, comprehensive, nuanced, delve).
+- Don't preach or shout. Direct is not negative. Sharp is not negative.
+- Don't water down the specifics — "do X on Tuesday" beats "consider doing X sometime."
 
 Return the FULL revised JSON object with the same schema as the input. No preamble, no markdown fences.`;
 
@@ -126,6 +171,11 @@ async function handle(req: Request): Promise<NextResponse> {
   const url = new URL(req.url);
   const issueDate = url.searchParams.get("issueDate");
   const writeDate = url.searchParams.get("writeDate") ?? issueDate;
+  const tone = url.searchParams.get("tone") ?? "contrarian"; // "contrarian" (default, legacy) | "value-forward" (positive flip)
+  const REWRITE_SYSTEM = tone === "value-forward" ? REWRITE_SYSTEM_VALUE_FORWARD : REWRITE_SYSTEM_CONTRARIAN;
+  const userIntent = tone === "value-forward"
+    ? "FLIP the voice from threat/problem-identification to opportunity/instruction. Keep every fact, source, URL, and verse exactly the same. The same scene, the same stats — reoriented toward the advisor's AGENCY (what they can MAKE happen) instead of their LIABILITY (what will catch them)."
+    : "Sharpen the voice toward more contrarian + more engaging.";
   if (!issueDate || !writeDate) {
     return NextResponse.json({ error: "issueDate required" }, { status: 400 });
   }
@@ -159,7 +209,7 @@ async function handle(req: Request): Promise<NextResponse> {
   logger.info("rewrite_issue.start", { source_date: issueDate, target_date: writeDate });
 
   const client = new Anthropic({ apiKey: anthropicKey });
-  const userPrompt = `Here is the original issue JSON. Rewrite it per the system instructions. Keep all facts, sources, URLs, and the verse exactly the same. Sharpen the voice toward more contrarian + more engaging.
+  const userPrompt = `Here is the original issue JSON. Rewrite it per the system instructions. ${userIntent}
 
 ORIGINAL ISSUE:
 ${JSON.stringify(original, null, 2)}
@@ -205,7 +255,7 @@ Return the rewritten JSON object only.`;
   const rewriteMeta: Record<string, unknown> = {
     source: "rewrite-issue",
     sourceDate: issueDate,
-    tone: "more-contrarian",
+    tone,
     rewriteInputTokens: response.usage.input_tokens,
     rewriteOutputTokens: response.usage.output_tokens,
   };
