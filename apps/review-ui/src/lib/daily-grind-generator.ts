@@ -1069,9 +1069,33 @@ function buildWriterUserPrompt(
     `# CLOSING LANDINGS — Main Content closing must land somewhere NEW\n\nReal closes from the archive (notice: zero hedging, no softening, no apology, lands a position):\n${CANONICAL_EXAMPLES.closingLandings.map((c) => `- "${c}"`).join("\n")}\n\nThe Closing must NOT restate The Number. Land somewhere new — a directive, a fresh framing, a twist.`,
   );
 
+  // Value-forward framing bias — added 2026-10-21 after Mark feedback
+  // ("preview email is too negative... the ai is pushing for negative
+  // because its 'captivating' but that not what we want"). Default LLM
+  // instinct toward problem-identification headlines pushes this
+  // audience away. Readers already open at 30%+; they want to learn.
+  sections.push(
+    `# POSITIVE / VALUE-FORWARD FRAMING — HARD RULE (3-week A/B, added 10-21)
+
+The reader opens this on their commute or over coffee to LEARN SOMETHING THEY CAN USE, not to be told what they're doing wrong. Default LLM reflex is "problem = captivating headline" — that reflex IS WRONG for this audience. Mark gets trust when he TEACHES, not when he scolds.
+
+Required for THIS issue:
+- Headline: lean OPPORTUNITY / INSTRUCTION / CELEBRATION. Avoid deflating or diagnostic framings.
+  BANNED headline shapes: "X isn't Y, it's Z", "Your X is broken/dead/wrong", "What X doesn't see", "The X you're missing/losing", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong".
+  PREFERRED headline shapes: "How to X", "The upgrade: X", "The move that pays back by Y", "The one hour that unlocks Z", "What top advisors did when Y", "The X that compounds".
+- First Pull: open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did something right, not a diagnostic of what everyone's doing wrong.
+- Worth Knowing myTakes: can still be sharp and judgmental, but at least 2 of 3 should name an OPPORTUNITY the trend creates for independent advisors, not a threat.
+- Main Content closing: must land on a TRY-THIS-MONDAY move the reader can execute to gain something, not a warning about something they're losing. The specific move should be nameable in one sentence.
+- Grounds for Thought: can be observational, but should orient the reader toward action/possibility, not loss.
+
+Direct does NOT mean negative. "Here is the exact move" is sharp AND positive. "The three fields that predict closes" is specific AND positive. "The hire that pays back by Q2" is quantified AND positive. Mark's voice can be opinionated without being critical.
+
+If the research bundle only surfaces threats/problems, PICK A DIFFERENT ANGLE on that research: what's the upside hidden in it? What's the move an advisor who sees this clearly would make? That's the issue to write.`,
+  );
+
   // The activation reminder — final check the writer runs through
   sections.push(
-    `# BEFORE YOU RETURN — voice activation checklist\n\n1. The Unspoken has a physical scene + dollar punchline (not just stats)\n2. Each section adds a NEW angle — no single theme word appears across 3+ sections\n3. The Flip Reality is 12-20 words\n4. First Pull opens with narrative/argument, not a stat dump\n5. At least 3 sentences in the body run under 8 words for rhythm\n6. The Closing lands somewhere The Number didn't already cover\n7. Ancient Truth uses a concrete metaphor — not "as believers" or "trust in His plan"\n\nReturn the JSON object specified in the system prompt. No preamble, no fences.`,
+    `# BEFORE YOU RETURN — voice activation checklist\n\n1. The Unspoken has a physical scene + dollar punchline (not just stats)\n2. Each section adds a NEW angle — no single theme word appears across 3+ sections\n3. The Flip Reality is 12-20 words\n4. First Pull opens with narrative/argument, not a stat dump\n5. At least 3 sentences in the body run under 8 words for rhythm\n6. The Closing lands somewhere The Number didn't already cover\n7. Ancient Truth uses a concrete metaphor — not "as believers" or "trust in His plan"\n8. HEADLINE AND CLOSING ARE VALUE-FORWARD — no deflating, no "your X is broken", no "the X you're missing". The reader finishes knowing a specific move to TRY that will MAKE them something, not stop them from losing.\n\nReturn the JSON object specified in the system prompt. No preamble, no fences.`,
   );
 
   return sections.join("\n\n");
@@ -2355,6 +2379,18 @@ const HEADLINE_BAN_PATTERNS: Array<{ name: string; rx: RegExp }> = [
   { name: "Rethinking / Understanding", rx: /^(rethinking|understanding|reimagining)\b/i },
   { name: "N Ways / N Things / N Tips listicle", rx: /^\d+\s+(ways?|things?|tips?|reasons?|secrets?|steps?)\b/i },
   { name: "You're Not / You Aren't", rx: /\byou(\s|')?re\s+not\b/i },
+  // Negative-framing bans added 2026-10-21 per Mark: "preview email is too
+  // negative... the ai is pushing for negative because its 'captivating'
+  // but that not what we want". Readers already open at 30%+ — the hook
+  // isn't the problem. Push toward instruction/opportunity instead.
+  { name: "Deflating comparison (X isn't Y, it's Z)", rx: /\b(isn'?t|is\s+not|aren'?t|are\s+not)\s+[\d\w]+\.?\s+it'?s\b/i },
+  { name: "Negative deflation (your X is broken/dead/wrong)", rx: /\byour\s+[\w\s]+\s+is\s+(broken|dead|wrong|failing|dying|stuck|lost)\b/i },
+  { name: "What X doesn't see / miss / know", rx: /\b(doesn'?t|does\s+not|don'?t|do\s+not)\s+(see|know|realize|notice|understand|get)\b/i },
+  { name: "The X you're missing / losing / forgetting", rx: /\bthe\s+[\w\s]+\s+you'?re\s+(missing|losing|forgetting|overlooking|ignoring)\b/i },
+  { name: "The X that's killing / costing / breaking", rx: /\bthat'?s\s+(killing|costing|breaking|destroying|wrecking|crushing)\b/i },
+  { name: "The gap between X and Y (always diagnostic)", rx: /^the\s+gap\s+between\b/i },
+  { name: "Stop/Quit/Don't directive (negative command)", rx: /^(stop|quit|don'?t|never|avoid)\s+/i },
+  { name: "Why your X is wrong/broken", rx: /^why\s+your\s+[\w\s]+\s+(is|are)\s+(wrong|broken|failing|dead|dying)\b/i },
 ];
 
 function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null {
@@ -2364,21 +2400,28 @@ function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null
   return null;
 }
 
-const HEADLINE_REWRITE_SYSTEM_PROMPT = `You rewrite the H1 headline for The Daily Grind, a newsletter for independent financial advisors written in Mark's voice — sharp, contrarian, specific.
+const HEADLINE_REWRITE_SYSTEM_PROMPT = `You rewrite the H1 headline for The Daily Grind, a newsletter for independent financial advisors written in Mark's voice — sharp, specific, and VALUE-FORWARD.
 
 The headline must:
 - Be 5-12 words, title case.
 - Take a position or name a specific thing. Not neutral, not descriptive.
-- NOT use any of these banned patterns: "Nobody's X", "What Nobody Tells You", "The Truth About X", "Why X Matters", "Rethinking/Understanding X", "N Ways/Things/Tips" listicles, "You're Not X".
-- Use ONE of these structural templates (pick whichever fits the issue):
+- Lean toward OPPORTUNITY, INSTRUCTION, or CELEBRATION. Not problem-identification. Readers already open at 30%+ — the hook isn't the issue; they trust Mark when he TEACHES.
+- NOT use any of these BANNED patterns:
+  LEGACY: "Nobody's X", "What Nobody Tells You", "The Truth About X", "Why X Matters", "Rethinking/Understanding X", "N Ways/Things/Tips" listicles, "You're Not X".
+  NEGATIVE (added 2026-10-21): "X isn't Y, it's Z", "Your X is broken/dead/wrong/failing", "What X doesn't see/know", "The X you're missing/losing", "The X that's killing/costing/breaking", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong/broken".
+- Use ONE of these POSITIVE/VALUE-FORWARD structural templates (preferred for the next 3 weeks):
+  • The move: "The One Hire That Pays Back by Spring"
+  • The upgrade: "The Discovery Call Upgrade That Closes 40% More Prospects"
+  • The pattern win: "What Top-Decile Advisors Do in Q4 Review Meetings"
+  • The instruction: "How to Price Flat-Fee Plans So Clients Pre-Pay"
+  • The compounding move: "The 20-Minute Monday Habit That Fills Your Pipeline"
+  • The quantified upside: "The Fee Model Shift That Added $380K in Year One"
+  • The celebration/case study: "How One Advisor Doubled Her Book Without Hiring"
+  • The craft move: "The Three CRM Fields That Predict 80% of Closes"
+- Legacy structures that are STILL ALLOWED but LESS PREFERRED (use only if the issue genuinely requires a reframe, max 1 in 4):
   • The contrarian stat: "63% of Discovery Calls End in the First 4 Minutes"
-  • The named gap: "What Advisors Promise vs. What Compliance Logs Show"
-  • The reframe directive: "Stop Sending NDAs. Send a Calendar Hold."
-  • The observation w/ count: "Three CRM Fields Predict 80% of Closes"
-  • The challenge: "Your Pipeline Has 47 Names. Eight Will Move."
+  • The reframe directive (NOT "stop"-worded): "Send a Calendar Hold Instead of an NDA"
   • The setup-and-twist: "Conventional Wisdom Says Niche Down. The Math Says Scale Up First."
-  • The number specific: "The 15-Minute Window That Decides Every Review"
-  • The blunt verdict: "Form CRS Is Useless. Here's What Replaces It."
 
 Return ONLY this JSON, no preamble:
 { "headline": "the rewritten H1" }`;

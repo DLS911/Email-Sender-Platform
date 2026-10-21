@@ -244,16 +244,35 @@ The DOMAINS:
 
 ## Framing / Tone rotation — read carefully
 
-Separate from topic, every issue has an EMOTIONAL REGISTER. If the last 3 issues were all PROBLEM-IDENTIFICATION framings (something is wrong / clients are leaving / you're missing a signal), this issue MUST pick a different framing:
+Separate from topic, every issue has an EMOTIONAL REGISTER. For the 3-week A/B window started 2026-10-21, **problem-identification framing is HARD BANNED**. Pick ONE of the five allowed framings instead:
 
-- **Problem-identification** (default, overused) — "here's what you're missing / losing / breaking"
-- **Opportunity** — "here's an edge most advisors are ignoring"
+- **BANNED (next 3 weeks)**: ~~Problem-identification~~ — "here's what you're missing / losing / breaking". Mark feedback 2026-10-21: "the ai is pushing for negative because its 'captivating' but that not what we want". Readers already open at 30%+; the hook is not the issue; they trust Mark when he teaches, not when he scolds.
+- **Opportunity** — "here's an edge most advisors are ignoring; here's how to capture it"
 - **Celebration / win-story** — "here's an advisor who built something unusual, and how"
-- **Observation / insight** — "here's a pattern that showed up in the data — draw your own conclusion"
+- **Observation / insight** — "here's a pattern in the data; here's the move it suggests"
 - **Instruction / craft** — "here's exactly how to execute the thing"
-- **Contrarian** — "the industry says X; here's why the opposite is defensible"
+- **Contrarian** — "the industry says X; the opposite is defensible AND more profitable" (contrarian must point to an UPSIDE, not just name a flaw)
 
-If the last 3 headlines use words like "silence," "leaving," "stopped," "lose," "missing," "went silent," "pick one" — that's the problem-identification register three in a row. Pick opportunity / instruction / celebration / observation this time. Mark's voice CAN be direct and challenging in any register — it does not require a negative frame to feel like Mark.
+HEADLINE patterns BANNED for this window (reject your own proposal if the headline you'd write fits any of these):
+- "X isn't Y, it's Z" (deflating comparison, e.g. "Your book isn't 150 clients. It's 60.")
+- "Your X is broken / dead / wrong / failing"
+- "What X doesn't see / know / notice"
+- "The X you're missing / losing / forgetting"
+- "The gap between X and Y"
+- "Stop / Quit / Don't X"
+- "Why your X is wrong / broken"
+- Any headline that primarily tells the reader they are failing at something
+
+HEADLINE patterns PREFERRED for this window:
+- "How to X" (instruction)
+- "The upgrade: X" (opportunity)
+- "The move that pays back by Y" (quantified upside)
+- "The N-minute Monday habit that unlocks Z" (compounding move)
+- "What top advisors do when Y" (celebration/pattern)
+- "The X that compounds / scales / pays off" (positive compounding)
+- "How one advisor Y" (case study / win)
+
+Mark's voice stays sharp, specific, opinionated. Direct ≠ negative. "Here is the exact move" is sharp AND positive. "The three CRM fields that predict closes" is specific AND positive. If you can't propose a positive-framed topic in a given domain, pick a different domain — don't fall back to problem-identification.
 
 ## Adjacent-cluster examples to AVOID
 
