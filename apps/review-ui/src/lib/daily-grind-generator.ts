@@ -816,7 +816,12 @@ function deepStripDashes<T>(input: T): T {
 }
 
 function parseWorthKnowing(raw: unknown[]): WorthKnowingItem[] {
-  if (raw.length < 1) throw new Error("writer: worthKnowing must have at least one item");
+  // Removed the "must have at least one item" throw on 2026-10-22. The
+  // template refresh dropped the Worth Knowing section entirely; writer
+  // now outputs worthKnowing: [] and the renderer doesn't show it. The
+  // length check was the last blocker on the writer actually producing
+  // empty worthKnowing without failing.
+  if (raw.length === 0) return [];
   return raw.map((r, i) => {
     if (!r || typeof r !== "object") throw new Error(`writer: worthKnowing[${i}] not an object`);
     const obj = r as Record<string, unknown>;
