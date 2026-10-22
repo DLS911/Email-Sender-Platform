@@ -2457,6 +2457,12 @@ const HEADLINE_BAN_PATTERNS: Array<{ name: string; rx: RegExp }> = [
   { name: "The paper trail / audit / record against you", rx: /\b(paper\s+trail|audit\s+trail|the\s+logs?|the\s+records?)\s+(against|that\s+catch)/i },
   { name: "The hidden cost / price / tax of X", rx: /^the\s+(hidden|real|true)\s+(cost|price|tax|expense)\s+of\b/i },
   { name: "What X isn't telling you", rx: /\b(what|the\s+thing)\s+[\w\s]+\s+(isn'?t|aren'?t|won'?t)\s+tell/i },
+  // Third pass of negative-framing bans — added 2026-10-22 after
+  // "The $140K silence: What your insurance audit missed" slipped past
+  // the past-tense versions of the earlier bans.
+  { name: "What X missed/overlooked/caught (past-tense threat frame)", rx: /\bwhat\s+[\w\s]+\s+(missed|overlooked|skipped|failed|forgot|ignored|blew)\b/i },
+  { name: "The $X silence/loss/mistake (dollar-amount of loss)", rx: /\$[\d.,]+[kmb]?\s+(silence|loss|mistake|cost|gap|hole|miss|misstep|liability)\b/i },
+  { name: "The X audit (compliance threat frame)", rx: /\b(the|your)\s+[\w\s]+\s+audit\b/i },
 ];
 
 function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null {
