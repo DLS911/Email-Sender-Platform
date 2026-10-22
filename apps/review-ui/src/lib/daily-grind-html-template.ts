@@ -246,18 +246,15 @@ export function renderDailyGrindHtml(
             </td>
           </tr>
 
-          <!-- MAIN ARTICLE (one unified piece, no trifecta). 2026-10-22
-               template refresh: removed The Unspoken, Worth Knowing, First
-               Pull as separate sections; the opening-trifecta's The Number
-               (data-point hook) is kept inline above the headline when
-               present, since the data anchor is high-value. firstPull.
-               paragraphs render as the main article body. -->
+          <!-- MAIN ARTICLE — 2026-10-22 Mark feedback round 2: the big
+               gold stat above the headline was reading as a disjointed
+               header strip ("its splitting it by having a percentage for
+               some reason then the main text is there"). Removed. The
+               stat can still live inside the body paragraphs when the
+               writer chooses to anchor an argument to it. Headline +
+               paragraphs now flow continuously. -->
           <tr>
             <td style="padding: 36px 40px 0 40px;">
-              ${content.openingTrifecta?.theNumber?.stat
-                ? `<p style="font-family: Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 700; color: #c4a882; margin: 0 0 8px 0; line-height: 1;">${escapeHtml(content.openingTrifecta.theNumber.stat)}</p>
-              <p style="font-size: 15px; color: #4a4540; margin: 0 0 24px 0;">${escapeHtml(content.openingTrifecta.theNumber.description)}</p>`
-                : ""}
               <h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 700; color: #2d2926; line-height: 1.25; margin: 0 0 24px 0;">${escapeHtml(content.headline)}</h1>
               ${firstPullParagraphs}
             </td>
@@ -378,11 +375,6 @@ function renderText(content: DailyGrindContent, inputs: RenderInputs): string {
   lines.push("THE DAILY GRIND");
   lines.push(inputs.issueDate);
   lines.push("");
-  if (content.openingTrifecta?.theNumber?.stat) {
-    lines.push(content.openingTrifecta.theNumber.stat);
-    lines.push(content.openingTrifecta.theNumber.description);
-    lines.push("");
-  }
   lines.push(content.headline.toUpperCase());
   lines.push("");
   for (const p of content.firstPull.paragraphs) {
