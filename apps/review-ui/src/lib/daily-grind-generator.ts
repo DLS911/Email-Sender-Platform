@@ -3011,7 +3011,13 @@ ${availableForNumber})`;
   // and one more pass with any remaining focused flag (iter 3). 2 iters
   // meant anchor-repetition issues shipped with warning because the second
   // iter ran the same general prompt that failed on iter 1.
-  const MAX_EDITOR_ITERATIONS = 3;
+  // Capped from 3 → 1 on 2026-10-22. Same reason as voice-review sharpen
+  // and persona_revision caps earlier today — pipeline keeps timing out
+  // at Vercel's edge even with Fluid Compute. Each editor iteration is
+  // a Sonnet editor + optional Sonnet revision = 20-60s. Three sequential
+  // iterations ate ~60-180s of a ~5-min budget. Single pass still catches
+  // most issues; remaining ones ship as pending_review_with_warnings.
+  const MAX_EDITOR_ITERATIONS = 1;
   let editorFinalVerdict: string = "no_verdict";
   let editorIterationsUsed = 0;
   for (let iter = 1; iter <= MAX_EDITOR_ITERATIONS; iter++) {
@@ -4473,11 +4479,14 @@ export async function generateDailyGrindIssue(opts: {
       notes: `persona_panel verdict=pass — skipping voice review/sharpen to save budget`,
     });
   } else try {
-    // Iterative voice review + sharpen. Up to 2 sharpen iterations. After
-    // each sharpen, we re-run voice_review to see if the defects were
-    // actually addressed. Sharpen only fires when there are concrete
-    // defects to address.
-    const MAX_SHARPEN_ITERATIONS = 2;
+    // Iterative voice review + sharpen. Capped from 2 → 0 on 2026-10-22
+    // because the full pipeline keeps timing out at Vercel's edge even
+    // with the earlier persona_revision cap (3→1) and Fluid Compute on.
+    // Each sharpen is a Sonnet rewrite — 15-40s. Plus the re-review.
+    // Single voice_review pass still runs (no sharpen loop); if defects
+    // remain the issue ships as pending_review_with_warnings (same spec
+    // terminal state as exhausting 2 sharpens would have given).
+    const MAX_SHARPEN_ITERATIONS = 0;
     let lastDefects: string[] = [];
     let lastScore = 0;
     for (let iter = 1; iter <= MAX_SHARPEN_ITERATIONS + 1; iter++) {
