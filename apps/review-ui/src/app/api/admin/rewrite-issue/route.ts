@@ -74,23 +74,37 @@ const REWRITE_SYSTEM_VALUE_FORWARD = `You are rewriting an existing Daily Grind 
 
 Added 2026-10-21 after Mark feedback: "preview email is too negative, the title it too negative, its all just too negative. the ai is pushing for negative because its captivating but that not what we want. it needs a positive here is what you can learn type thing."
 
+# Template refresh 2026-10-22 — what actually renders
+
+The newsletter template now shows ONLY these sections:
+1. Headline + preheader
+2. Main article (The Number stat + headline + 3-5 body paragraphs from firstPull.paragraphs)
+3. Sponsor (template-injected)
+4. How to Practice (mainContent.subhead + mainContent.howTo)
+5. Shot of Wisdom (ancientTruth)
+6. P.S.
+
+The following fields are IGNORED by the template — rewrite them to empty strings/arrays, don't waste tokens:
+- openingTrifecta.theUnspoken → "" (gone)
+- openingTrifecta.theFlip.conventional/reality → "" (gone)
+- worthKnowing → [] (gone)
+- mainContent.intro → "" (gone)
+- mainContent.closing → "" (gone)
+- groundsForThought → "" (gone)
+
 # What to preserve EXACTLY
 - All facts, numbers, and statistics (do not invent new ones)
-- All source URLs and source names in Worth Knowing
-- The 3 Worth Knowing items (same stories, same sourceUrls)
+- openingTrifecta.theNumber (stat, description, sourceUrl, sourceName) — this is the data anchor shown inline above the headline
 - The contentType (tactic/take/story/rant/special)
-- The structure: openingTrifecta, firstPull, worthKnowing, mainContent, groundsForThought, ancientTruth, ps
-- Ancient Truth verse + reference (keep the verse the same)
+- The structure keys (openingTrifecta, firstPull, worthKnowing, mainContent, groundsForThought, ancientTruth, ps) — present but with removed fields emptied
+- ancientTruth verse + reference (keep the verse the same)
 
 # What to FLIP from threat-framing to opportunity/instruction/celebration
 
 - HEADLINE: flip from "the X that catches/proves/exposes you" or "your X is broken" to "the X move that unlocks/protects/pays back Y" or "how to X without Y". Preserve the specific stat if there is one. Shape examples: "How to X", "The move that Y", "The N-minute habit that Z", "What top advisors do when Y", "The upgrade: X".
-- Opening Trifecta (Number / Unspoken / Flip): REWRITE all three so each one points at an UPSIDE the reader can capture. The Unspoken keeps its scene + dollar punchline but should land on "...and here's the move that would have changed that outcome" rather than "...and here's the exact failure." The Flip Reality should name a POSITIVE reframe, not just invert a negative one.
-- First Pull: open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did it RIGHT. Not with "most advisors are failing at X."
-- Worth Knowing myTakes: at least 2 of 3 must name the OPPORTUNITY the trend creates for independent advisors, not the threat it poses. "Advisors who adopt X this quarter capture Y" instead of "Advisors who ignore X get caught by Y."
-- Main Content: keep the same core topic + facts, but reframe toward the SPECIFIC MOVE the reader can execute Monday to GAIN something (dollars, time, closed clients, confident recommendations). The closing lands on a try-this-Monday action, not a warning.
-- Grounds for Thought: orient toward action/possibility, not loss.
-- Ancient Truth application: tie to the positive move, not the avoided failure.
+- Main article (firstPull.paragraphs): open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did it RIGHT. Not with "most advisors are failing at X." 3-5 paragraphs that argue or narrate.
+- How to Practice (mainContent.subhead + mainContent.howTo): the subhead names the section ("The 20-Minute Monday Protocol" etc.); the howTo has 3-5 labeled steps the reader can execute Monday to GAIN something (dollars, time, closed clients, confident recommendations). Each step is a specific move.
+- Shot of Wisdom (ancientTruth): tie the application to the positive move, not the avoided failure.
 - P.S.: a question that opens possibility, not one that twists the knife.
 
 # BANNED headline / closing shapes (will be caught by the headline rewriter if you miss)

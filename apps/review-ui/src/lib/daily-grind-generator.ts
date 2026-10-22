@@ -903,60 +903,60 @@ function parseContent(rawText: string): DailyGrindContent {
   }
   if (!parsed || typeof parsed !== "object") throw new Error("writer: model output not an object");
   const obj = parsed as Record<string, unknown>;
-  const trifecta = requireObject(obj, "openingTrifecta", "root");
-  const theNumber = requireObject(trifecta, "theNumber", "openingTrifecta");
-  const theFlip = requireObject(trifecta, "theFlip", "openingTrifecta");
-  const firstPull = requireObject(obj, "firstPull", "root");
-  const firstPullParas = requireArray(firstPull, "paragraphs", "firstPull");
+  // 2026-10-22 template refresh: removed sections are now OPTIONAL in
+  // the writer output. Writer can omit theUnspoken / theFlip / worthKnowing
+  // / groundsForThought / mainContent.intro / mainContent.closing and the
+  // parser defaults each to empty. The HTML template no longer renders
+  // these fields; keeping the type-level back-compat so historical
+  // issues still parse.
+  const trifectaRaw = (obj.openingTrifecta ?? {}) as Record<string, unknown>;
+  const theNumberRaw = (trifectaRaw.theNumber ?? {}) as Record<string, unknown>;
+  const theFlipRaw = (trifectaRaw.theFlip ?? {}) as Record<string, unknown>;
+  const firstPullRaw = (obj.firstPull ?? {}) as Record<string, unknown>;
+  const firstPullParas = Array.isArray(firstPullRaw.paragraphs) ? (firstPullRaw.paragraphs as unknown[]) : [];
   const mainContent = requireObject(obj, "mainContent", "root");
   const howTo = requireObject(mainContent, "howTo", "mainContent");
   const howToSteps = requireArray(howTo, "steps", "mainContent.howTo");
   const ancient = requireObject(obj, "ancientTruth", "root");
+  const worthKnowingRaw = Array.isArray(obj.worthKnowing) ? (obj.worthKnowing as unknown[]) : [];
   return {
     headline: requireString(obj, "headline", "root"),
     preheader: requireString(obj, "preheader", "root"),
     contentType: parseContentType(requireString(obj, "contentType", "root")),
     openingTrifecta: {
       theNumber: {
-        stat: requireString(theNumber, "stat", "openingTrifecta.theNumber"),
-        description: requireString(theNumber, "description", "openingTrifecta.theNumber"),
-        // Parsed leniently here; the hard "must be a verified research URL"
-        // rule is enforced in the_number_source_check stage after url_verify.
-        sourceUrl: typeof theNumber.sourceUrl === "string" ? theNumber.sourceUrl.trim() : "",
-        sourceName: typeof theNumber.sourceName === "string" ? theNumber.sourceName.trim() : "",
+        stat: typeof theNumberRaw.stat === "string" ? theNumberRaw.stat : "",
+        description: typeof theNumberRaw.description === "string" ? theNumberRaw.description : "",
+        sourceUrl: typeof theNumberRaw.sourceUrl === "string" ? theNumberRaw.sourceUrl.trim() : "",
+        sourceName: typeof theNumberRaw.sourceName === "string" ? theNumberRaw.sourceName.trim() : "",
       },
-      // selectedType is set downstream by the trifecta_scorer; the writer
-      // doesn't produce it. Parsed leniently for back-compat.
-      ...(trifecta.selectedType === "number" ||
-      trifecta.selectedType === "unspoken" ||
-      trifecta.selectedType === "flip"
-        ? { selectedType: trifecta.selectedType as "number" | "unspoken" | "flip" }
+      ...(trifectaRaw.selectedType === "number" ||
+      trifectaRaw.selectedType === "unspoken" ||
+      trifectaRaw.selectedType === "flip"
+        ? { selectedType: trifectaRaw.selectedType as "number" | "unspoken" | "flip" }
         : {}),
-      theUnspoken: requireString(trifecta, "theUnspoken", "openingTrifecta"),
+      theUnspoken: typeof trifectaRaw.theUnspoken === "string" ? trifectaRaw.theUnspoken : "",
       theFlip: {
-        conventional: requireString(theFlip, "conventional", "openingTrifecta.theFlip"),
-        reality: requireString(theFlip, "reality", "openingTrifecta.theFlip"),
+        conventional: typeof theFlipRaw.conventional === "string" ? theFlipRaw.conventional : "",
+        reality: typeof theFlipRaw.reality === "string" ? theFlipRaw.reality : "",
       },
     },
     firstPull: {
-      paragraphs: firstPullParas.map((p, i) => {
-        if (typeof p !== "string" || p.trim() === "") {
-          throw new Error(`firstPull.paragraphs[${i}] not a non-empty string`);
-        }
-        return p.trim();
-      }),
+      paragraphs: firstPullParas
+        .filter((p): p is string => typeof p === "string" && p.trim() !== "")
+        .map((p) => p.trim()),
     },
-    worthKnowing: parseWorthKnowing(requireArray(obj, "worthKnowing", "root")),
+    worthKnowing: parseWorthKnowing(worthKnowingRaw),
     mainContent: {
       subhead: requireString(mainContent, "subhead", "mainContent"),
-      intro: requireString(mainContent, "intro", "mainContent"),
+      intro: typeof mainContent.intro === "string" ? mainContent.intro : "",
       howTo: {
         title: requireString(howTo, "title", "mainContent.howTo"),
         steps: parseHowToSteps(howToSteps),
       },
-      closing: requireString(mainContent, "closing", "mainContent"),
+      closing: typeof mainContent.closing === "string" ? mainContent.closing : "",
     },
-    groundsForThought: requireString(obj, "groundsForThought", "root"),
+    groundsForThought: typeof obj.groundsForThought === "string" ? obj.groundsForThought : "",
     ancientTruth: {
       verse: requireString(ancient, "verse", "ancientTruth"),
       reference: requireString(ancient, "reference", "ancientTruth"),
@@ -1027,41 +1027,49 @@ function buildWriterUserPrompt(
   const sections: string[] = [];
 
   sections.push(
-    `Today is ${issueDate}. Write today's Daily Grind in Mark's voice.\n\nContent type for this issue: ${contentType.toUpperCase()}. Use the ${contentType} structure exactly — Main Content must follow the structure spec for ${contentType} in the system prompt, not any other content type.`,
+    `Today is ${issueDate}. Write today's Daily Grind in Mark's voice.\n\nContent type for this issue: ${contentType.toUpperCase()}. The ${contentType} shape still guides the main-article voice and structure, but the newsletter template was refreshed 2026-10-22 and now has FEWER sections — produce only what the new structure needs.`,
   );
 
   sections.push(
-    `# RESEARCH BUNDLE\n\nUse these for Worth Knowing and any cited statistics. Everything else (The Unspoken, The Flip, Main Content commentary, Grounds for Thought, Ancient Truth) draws on Mark's pattern recognition — no citations needed there.\n\n${JSON.stringify(research, null, 2)}`,
+    `# TEMPLATE REFRESH — produce ONLY these fields (2026-10-22)
+
+The reader-facing newsletter structure is now:
+1. Headline + preheader
+2. Main article (one unified piece — The Number stat + headline + 3-5 body paragraphs)
+3. Sponsor segment (template-injected, you don't write this)
+4. How to Practice (title + 3-5 labeled steps the advisor can execute)
+5. Shot of Wisdom (verse + reference + application)
+6. P.S.
+
+REMOVED SECTIONS — do NOT write them (they are ignored by the template; writing them wastes tokens and provides no value):
+- The Unspoken (opening scene with dollar punchline) — gone
+- The Flip (conventional vs reality) — gone
+- Worth Knowing (3 news items with myTake) — gone
+- Grounds for Thought (one italic sentence) — gone
+
+JSON OUTPUT:
+- openingTrifecta.theNumber: REQUIRED — produce the stat + description + sourceUrl + sourceName. This is the data anchor shown inline above the headline.
+- openingTrifecta.theUnspoken: output empty string "". Not rendered.
+- openingTrifecta.theFlip.conventional + reality: output empty strings. Not rendered.
+- firstPull.paragraphs: these ARE the main article body now (3-5 paragraphs, no separate "First Pull" header).
+- worthKnowing: output an empty array []. Not rendered.
+- mainContent.subhead: REQUIRED — the How to Practice section header.
+- mainContent.howTo.title + steps: REQUIRED — labeled step-by-step practice (3-5 steps).
+- mainContent.intro + mainContent.closing: output empty strings. Not rendered.
+- groundsForThought: output empty string "". Not rendered.
+- ancientTruth.verse + reference + application: REQUIRED — the Shot of Wisdom section.
+- ps: REQUIRED.`,
   );
 
-  // The Unspoken — show the writer EXACTLY what production-shipped looks like
   sections.push(
-    `# THE UNSPOKEN — write at this caliber\n\nThese are real published Castor Abbott Unspokens. Notice:\n- Specific named counts (twelve CPAs, three CPAs, eighteen months)\n- A SCENE (lunch, charity event, phone call, dog)\n- Dollar-amount punchline tied to the failure ($187, $847)\n- Wry self-recognition (reader laughs and winces)\n\nExample 1 (theme: ${CANONICAL_EXAMPLES.unspoken[0]!.theme}):\n"${CANONICAL_EXAMPLES.unspoken[0]!.text}"\n\nExample 2 (theme: ${CANONICAL_EXAMPLES.unspoken[1]!.theme}):\n"${CANONICAL_EXAMPLES.unspoken[1]!.text}"\n\nProduce work at this level. The Unspoken is a SHORT STORY with a financial backdrop, not a financial analysis with personality bolted on.`,
+    `# RESEARCH BUNDLE\n\nUse these for the main article's data anchor + any cited statistics. The Shot of Wisdom draws on Mark's pattern recognition — no citation needed.\n\n${JSON.stringify(research, null, 2)}`,
   );
 
-  // First Pull — show the opening pattern (narrative tension, not stat dump)
+  // Main article hook + body — show the writer EXACTLY what production-shipped
+  // looks like at this new structure. Reuses firstPullOpener examples since
+  // those WERE the opening paragraph pattern.
   sections.push(
-    `# FIRST PULL — write at this caliber\n\nOpening paragraphs from real Castor Abbott First Pulls. Notice each opens with either (a) a 2-character contrast/narrative, or (b) naming conventional wisdom about to be flipped. Neither opens with a stat dump.\n\nExample 1 (${CANONICAL_EXAMPLES.firstPullOpener[0]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[0]!.text}"\n\nExample 2 (${CANONICAL_EXAMPLES.firstPullOpener[1]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[1]!.text}"\n\nYour First Pull should ARGUE or NARRATE, not summarize.`,
-  );
-
-  // The Flip Reality — 12-20 words, sharp reframe
-  sections.push(
-    `# THE FLIP REALITY — keep it 12-20 words\n\nReal Mark Flip Realities are compressed reframes, not analytical explanations:\n${CANONICAL_EXAMPLES.flipReality.map((f) => `- "${f}"`).join("\n")}\n\nIf yours runs over 25 words, you're explaining instead of reframing. Cut it.`,
-  );
-
-  // Worth Knowing my-take — judgment, not summary. REFRAMED 2026-10-21
-  // from "name a failure mode" to "name the opportunity for the advisor
-  // paying attention" after Mark feedback that the newsletter was too
-  // negative. The LLM's instinct to point out what advisors are DOING
-  // WRONG is the exact instinct that pushed the whole newsletter into
-  // threat framings. Flip it.
-  sections.push(
-    `# WORTH KNOWING myTake — judgment, not summary\n\nReal Mark my-takes don't summarize the article. They REFRAME it as a position on what the trend MEANS for the advisor who's paying attention:\n${CANONICAL_EXAMPLES.myTake.map((m) => `- "${m}"`).join("\n")}\n\nAt least 2 of 3 myTakes must name the OPPORTUNITY the trend creates for independent advisors, not the threat it poses. "Advisors who adopt X capture Y" beats "Advisors who ignore X get caught by Y." The one that does name a risk should land on the move that neutralizes it, not just the risk itself. 20-40 words each.`,
-  );
-
-  // Grounds for Thought
-  sections.push(
-    `# GROUNDS FOR THOUGHT — one italic sentence, non-obvious\n\nExamples:\n${CANONICAL_EXAMPLES.groundsForThought.map((g) => `- "${g}"`).join("\n")}`,
+    `# MAIN ARTICLE — write at this caliber (positive, value-forward)\n\nThe main article is firstPull.paragraphs. Each paragraph should argue or narrate — not summarize. The reader should finish knowing a specific MOVE they can try that will MAKE them something (dollars, time, closed clients, a hire that pays back).\n\nExample 1 (${CANONICAL_EXAMPLES.firstPullOpener[0]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[0]!.text}"\n\nExample 2 (${CANONICAL_EXAMPLES.firstPullOpener[1]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[1]!.text}"\n\nOpen with the UPSIDE the advisor can capture OR a brief scene of an advisor who did it right. Not with "most advisors are failing at X."`,
   );
 
   // Ancient Truth application — concrete metaphor, not preachy
@@ -1084,23 +1092,37 @@ function buildWriterUserPrompt(
 
 The reader opens this on their commute or over coffee to LEARN SOMETHING THEY CAN USE, not to be told what they're doing wrong. Default LLM reflex is "problem = captivating headline" — that reflex IS WRONG for this audience. Mark gets trust when he TEACHES, not when he scolds.
 
-Required for THIS issue:
+Required for THIS issue (template-refreshed 2026-10-22):
 - Headline: lean OPPORTUNITY / INSTRUCTION / CELEBRATION. Avoid deflating or diagnostic framings.
   BANNED headline shapes: "X isn't Y, it's Z", "Your X is broken/dead/wrong", "What X doesn't see", "The X you're missing/losing", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong".
   PREFERRED headline shapes: "How to X", "The upgrade: X", "The move that pays back by Y", "The one hour that unlocks Z", "What top advisors did when Y", "The X that compounds".
-- First Pull: open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did something right, not a diagnostic of what everyone's doing wrong.
-- Worth Knowing myTakes: can still be sharp and judgmental, but at least 2 of 3 should name an OPPORTUNITY the trend creates for independent advisors, not a threat.
-- Main Content closing: must land on a TRY-THIS-MONDAY move the reader can execute to gain something, not a warning about something they're losing. The specific move should be nameable in one sentence.
-- Grounds for Thought: can be observational, but should orient the reader toward action/possibility, not loss.
+- Main article (firstPull.paragraphs): open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did something right, not a diagnostic of what everyone's doing wrong. 3-5 paragraphs that argue or narrate, not summarize.
+- How to Practice (mainContent.howTo): 3-5 labeled steps the advisor can execute Monday. Each step title names the move; each step body gives the mechanic.
+- Shot of Wisdom (ancientTruth): keep it. Verse + reference + application that connects to Mark's practical register, not devotional preaching.
 
 Direct does NOT mean negative. "Here is the exact move" is sharp AND positive. "The three fields that predict closes" is specific AND positive. "The hire that pays back by Q2" is quantified AND positive. Mark's voice can be opinionated without being critical.
 
 If the research bundle only surfaces threats/problems, PICK A DIFFERENT ANGLE on that research: what's the upside hidden in it? What's the move an advisor who sees this clearly would make? That's the issue to write.`,
   );
 
-  // The activation reminder — final check the writer runs through
+  // The activation reminder — rewritten 2026-10-22 to match the new
+  // 5-section structure. Writer should NOT be checking Unspoken / Flip /
+  // Worth Knowing / Grounds for Thought boxes anymore.
   sections.push(
-    `# BEFORE YOU RETURN — voice activation checklist\n\n1. The Unspoken has a physical scene + dollar punchline (not just stats)\n2. Each section adds a NEW angle — no single theme word appears across 3+ sections\n3. The Flip Reality is 12-20 words\n4. First Pull opens with narrative/argument, not a stat dump\n5. At least 3 sentences in the body run under 8 words for rhythm\n6. The Closing lands somewhere The Number didn't already cover\n7. Ancient Truth uses a concrete metaphor — not "as believers" or "trust in His plan"\n8. HEADLINE AND CLOSING ARE VALUE-FORWARD — no deflating, no "your X is broken", no "the X you're missing". The reader finishes knowing a specific move to TRY that will MAKE them something, not stop them from losing.\n\nReturn the JSON object specified in the system prompt. No preamble, no fences.`,
+    `# BEFORE YOU RETURN — voice activation checklist (new structure, 2026-10-22)
+
+1. The Number stat has a verified sourceUrl + descriptive one-liner. (Shown inline above the headline.)
+2. HEADLINE is value-forward — no deflating, no "your X is broken", no "the X you're missing". It names an upside or an instruction.
+3. Main article (firstPull.paragraphs) opens with narrative/argument/upside, not a stat dump or a diagnosis of what everyone's doing wrong.
+4. Each paragraph of the main article adds a NEW angle — no single theme word repeats across 3+ paragraphs.
+5. At least 3 sentences in the article run under 8 words for rhythm.
+6. mainContent.subhead names the How to Practice section (e.g. "The 20-Minute Monday Protocol").
+7. mainContent.howTo has 3-5 labeled steps the reader can execute Monday. Each step is a specific move, not a platitude.
+8. Shot of Wisdom (ancientTruth) uses a concrete metaphor — not "as believers" or "trust in His plan".
+9. P.S. is a specific, upside-oriented question that invites a real reply.
+10. Removed-section fields (theUnspoken, theFlip.conventional/reality, worthKnowing, mainContent.intro, mainContent.closing, groundsForThought) are output as empty strings or empty arrays — do NOT write real content for them. They are not rendered.
+
+Return the JSON object specified in the system prompt. No preamble, no fences.`,
   );
 
   return sections.join("\n\n");
