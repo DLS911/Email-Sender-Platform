@@ -246,43 +246,20 @@ export function renderDailyGrindHtml(
             </td>
           </tr>
 
-          <!-- OPENING TRIFECTA (spec: ship 1 of 3 when selectedType is set; otherwise legacy stack) -->
-          <tr>
-            <td style="padding: 24px 40px 0 40px;">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border: 1px solid #e8e4de;">
-                ${(() => {
-                  const sel = content.openingTrifecta.selectedType;
-                  if (sel === "number") return renderTheNumber(content.openingTrifecta.theNumber);
-                  if (sel === "unspoken") return renderTheUnspoken(content.openingTrifecta.theUnspoken);
-                  if (sel === "flip") return renderTheFlip(content.openingTrifecta.theFlip);
-                  // Legacy: render all three stacked when selectedType isn't set.
-                  return [
-                    renderTheNumber(content.openingTrifecta.theNumber),
-                    renderTheUnspoken(content.openingTrifecta.theUnspoken),
-                    renderTheFlip(content.openingTrifecta.theFlip),
-                  ].join("\n                ");
-                })()}
-              </table>
-            </td>
-          </tr>
-
-          <!-- FIRST PULL -->
+          <!-- MAIN ARTICLE (one unified piece, no trifecta). 2026-10-22
+               template refresh: removed The Unspoken, Worth Knowing, First
+               Pull as separate sections; the opening-trifecta's The Number
+               (data-point hook) is kept inline above the headline when
+               present, since the data anchor is high-value. firstPull.
+               paragraphs render as the main article body. -->
           <tr>
             <td style="padding: 36px 40px 0 40px;">
-              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">First Pull</p>
+              ${content.openingTrifecta?.theNumber?.stat
+                ? `<p style="font-family: Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 700; color: #c4a882; margin: 0 0 8px 0; line-height: 1;">${escapeHtml(content.openingTrifecta.theNumber.stat)}</p>
+              <p style="font-size: 15px; color: #4a4540; margin: 0 0 24px 0;">${escapeHtml(content.openingTrifecta.theNumber.description)}</p>`
+                : ""}
               <h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 700; color: #2d2926; line-height: 1.25; margin: 0 0 24px 0;">${escapeHtml(content.headline)}</h1>
               ${firstPullParagraphs}
-            </td>
-          </tr>
-
-          ${divider()}
-
-          <!-- WORTH KNOWING -->
-          <tr>
-            <td style="padding: 0 40px;">
-              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 6px 0;">Worth Knowing</p>
-              <p style="font-size: 13px; color: #9a8b7a; font-style: italic; margin: 0 0 20px 0;">Industry news. Sharp takes.</p>
-              ${worthKnowingItems}
             </td>
           </tr>
 
@@ -315,33 +292,28 @@ export function renderDailyGrindHtml(
 
           ${divider()}
 
-          <!-- MAIN CONTENT (Tactic / Take / Story / Rant / Special) -->
+          <!-- HOW TO PRACTICE — formerly "The Tactic/Take/Story" label +
+               mainContent.howTo box. 2026-10-22 template refresh: dropped
+               the contentType-specific label (Tactic/Take/etc) in favor of
+               a single "How to Practice" label since the whole newsletter
+               is now one unified teaching move. The subhead + howToBox
+               render inside this section; mainContent.intro and
+               mainContent.closing are hidden to keep the section tight. -->
           <tr>
             <td style="padding: 0 40px;">
-              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">${escapeHtml(sectionLabel)}</p>
+              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">How to Practice</p>
               <h2 style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: #2d2926; margin: 0 0 12px 0;">${escapeHtml(content.mainContent.subhead)}</h2>
-              <p style="color: #4a4540; margin: 0 0 18px 0;">${escapeHtml(content.mainContent.intro)}</p>
               ${renderHowToBox(content.mainContent.howTo)}
-              <p style="color: #4a4540; margin: 0 0 18px 0;">${escapeHtml(content.mainContent.closing)}</p>
             </td>
           </tr>
 
           ${divider()}
 
-          <!-- GROUNDS FOR THOUGHT -->
+          <!-- SHOT OF WISDOM — renamed from Ancient Truth 2026-10-22
+               per Mark. Same verse+reference+application structure. -->
           <tr>
             <td style="padding: 0 40px;">
-              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">Grounds for Thought</p>
-              <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 17px; font-style: italic; color: #4a4540; text-align: center; padding: 20px 0; margin: 0;">${escapeHtml(content.groundsForThought)}</p>
-            </td>
-          </tr>
-
-          ${divider()}
-
-          <!-- ANCIENT TRUTH -->
-          <tr>
-            <td style="padding: 0 40px;">
-              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">Ancient Truth</p>
+              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">Shot of Wisdom</p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border-top: 1px solid #e8e4de; border-bottom: 1px solid #e8e4de;">
                 <tr>
                   <td style="padding: 24px 18px; text-align: center;">
@@ -398,71 +370,35 @@ export function renderDailyGrindHtml(
 }
 
 function renderText(content: DailyGrindContent, inputs: RenderInputs): string {
+  // Updated 2026-10-22: text body mirrors the trimmed HTML — only sections
+  // that actually render go in. The Unspoken / Worth Knowing / Grounds
+  // for Thought are gone; First Pull paragraphs are the main article body;
+  // Ancient Truth renders under its new "Shot of Wisdom" label.
   const lines: string[] = [];
   lines.push("THE DAILY GRIND");
   lines.push(inputs.issueDate);
   lines.push("");
-  // OPENING: when selectedType is set, render only the winning opening; else legacy stack.
-  const sel = content.openingTrifecta.selectedType;
-  if (sel === "number") {
-    lines.push(`THE NUMBER: ${content.openingTrifecta.theNumber.stat}`);
-    lines.push(content.openingTrifecta.theNumber.description);
-  } else if (sel === "unspoken") {
-    lines.push("THE UNSPOKEN");
-    lines.push(content.openingTrifecta.theUnspoken);
-  } else if (sel === "flip") {
-    lines.push("THE FLIP");
-    lines.push(`Conventional: "${content.openingTrifecta.theFlip.conventional}"`);
-    lines.push(`Reality: ${content.openingTrifecta.theFlip.reality}`);
-  } else {
-    lines.push("=== OPENING TRIFECTA ===");
-    lines.push("");
-    lines.push(`THE NUMBER: ${content.openingTrifecta.theNumber.stat}`);
+  if (content.openingTrifecta?.theNumber?.stat) {
+    lines.push(content.openingTrifecta.theNumber.stat);
     lines.push(content.openingTrifecta.theNumber.description);
     lines.push("");
-    lines.push("THE UNSPOKEN");
-    lines.push(content.openingTrifecta.theUnspoken);
-    lines.push("");
-    lines.push("THE FLIP");
-    lines.push(`Conventional: "${content.openingTrifecta.theFlip.conventional}"`);
-    lines.push(`Reality: ${content.openingTrifecta.theFlip.reality}`);
   }
-  lines.push("");
-  lines.push("=== FIRST PULL ===");
-  lines.push("");
   lines.push(content.headline.toUpperCase());
   lines.push("");
   for (const p of content.firstPull.paragraphs) {
     lines.push(p);
     lines.push("");
   }
-  lines.push("=== WORTH KNOWING ===");
-  lines.push("");
-  for (const item of content.worthKnowing) {
-    lines.push(`[${item.category.toUpperCase()}] ${item.headline}`);
-    if (item.stat) lines.push(`  ${item.stat} — ${item.statLabel ?? ""}`);
-    lines.push(item.body);
-    lines.push(`  My take: ${item.myTake}`);
-    lines.push("");
-  }
-  lines.push(`=== ${CONTENT_TYPE_LABEL[content.contentType].toUpperCase()} ===`);
+  lines.push("=== HOW TO PRACTICE ===");
   lines.push("");
   lines.push(content.mainContent.subhead);
-  lines.push("");
-  lines.push(content.mainContent.intro);
   lines.push("");
   lines.push(content.mainContent.howTo.title);
   for (const s of content.mainContent.howTo.steps) {
     lines.push(`  ${s.label}: ${s.body}`);
   }
   lines.push("");
-  lines.push(content.mainContent.closing);
-  lines.push("");
-  lines.push("=== GROUNDS FOR THOUGHT ===");
-  lines.push("");
-  lines.push(content.groundsForThought);
-  lines.push("");
-  lines.push("=== ANCIENT TRUTH ===");
+  lines.push("=== SHOT OF WISDOM ===");
   lines.push("");
   lines.push(`"${content.ancientTruth.verse}"`);
   lines.push(content.ancientTruth.reference);
