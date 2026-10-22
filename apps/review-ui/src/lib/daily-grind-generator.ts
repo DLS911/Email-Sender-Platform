@@ -1049,9 +1049,14 @@ function buildWriterUserPrompt(
     `# THE FLIP REALITY — keep it 12-20 words\n\nReal Mark Flip Realities are compressed reframes, not analytical explanations:\n${CANONICAL_EXAMPLES.flipReality.map((f) => `- "${f}"`).join("\n")}\n\nIf yours runs over 25 words, you're explaining instead of reframing. Cut it.`,
   );
 
-  // Worth Knowing my-take — judgment, not summary
+  // Worth Knowing my-take — judgment, not summary. REFRAMED 2026-10-21
+  // from "name a failure mode" to "name the opportunity for the advisor
+  // paying attention" after Mark feedback that the newsletter was too
+  // negative. The LLM's instinct to point out what advisors are DOING
+  // WRONG is the exact instinct that pushed the whole newsletter into
+  // threat framings. Flip it.
   sections.push(
-    `# WORTH KNOWING myTake — judgment, not summary\n\nReal Mark my-takes don't summarize the article. They REFRAME it as a position on what advisors are doing wrong or right:\n${CANONICAL_EXAMPLES.myTake.map((m) => `- "${m}"`).join("\n")}\n\nEach myTake should NAME a specific failure mode or contrarian read. 20-40 words.`,
+    `# WORTH KNOWING myTake — judgment, not summary\n\nReal Mark my-takes don't summarize the article. They REFRAME it as a position on what the trend MEANS for the advisor who's paying attention:\n${CANONICAL_EXAMPLES.myTake.map((m) => `- "${m}"`).join("\n")}\n\nAt least 2 of 3 myTakes must name the OPPORTUNITY the trend creates for independent advisors, not the threat it poses. "Advisors who adopt X capture Y" beats "Advisors who ignore X get caught by Y." The one that does name a risk should land on the move that neutralizes it, not just the risk itself. 20-40 words each.`,
   );
 
   // Grounds for Thought
@@ -1260,11 +1265,28 @@ async function runTopicProposer(
   // the proposer with a hard "do NOT propose this domain" instruction.
   // Added 10-16 after 11 consecutive DGs all converged on this one theme.
   const RUT_WORDS = [
+    // Legacy attrition/silence rut (added 10-16)
     "silent", "silence", "quiet", "stopped", "left", "leaving", "lose", "lost",
     "missing", "gone", "drift", "drifted", "disengag", "engag", "retention",
     "attrition", "churn", "ghost", "ghosting", "showing up", "show up",
     "already left", "didn't show", "didnt show", "unseen", "ignored",
     "forgotten", "stayed quiet", "went dark", "went silent",
+    // Negative-framing expansion added 2026-10-21 after Mark feedback that
+    // the whole newsletter leans too negative. Catches compliance-threat,
+    // exposure, liability, and "the X that catches you" framings even when
+    // the specific regex headline-ban in HEADLINE_BAN_PATTERNS misses them.
+    "proves you knew", "proves you", "the trap", "the liability",
+    "the case against", "becomes evidence", "negligence", "exposure",
+    "catches you", "catches up", "haunts you", "comes back", "backfires",
+    "the hidden cost", "hidden price", "true cost", "actual cost",
+    "the gap between", "the problem with", "why your", "where you fail",
+    "doesn't work", "doesnt work", "won't work", "wont work",
+    "stop doing", "quit doing", "the biggest mistake", "biggest mistake",
+    "what you're doing wrong", "what youre doing wrong",
+    "the thing that's killing", "whats killing", "what's killing",
+    "red flag", "warning sign", "the signs you", "signs that",
+    "capacity ceiling", "burnout", "overloaded", "stuck",
+    "isn't 150", "isn't working", "aren't working", "arent working",
   ];
   function hasRutWord(text: string): boolean {
     const low = text.toLowerCase();
@@ -1274,7 +1296,14 @@ async function runTopicProposer(
   const recent3 = recentIssues.slice(0, 3).map((r) => r.topic).join(" | ");
   const proposalInRut = hasRutWord(proposalText);
   const recentInRut = hasRutWord(recent3);
-  if (proposalInRut && recentInRut && !contentTypeOverride) {
+  // Changed 2026-10-21: trigger re-roll on proposal-only match during
+  // the positive-framing window. Previous version required BOTH the
+  // proposal AND the recent-3 to be in the rut; too permissive for the
+  // current goal. If ANY proposal has a negative-rut word, re-roll —
+  // the system can afford a 2nd Haiku call per generation to kill the
+  // instinct that keeps producing "The file that proves you knew" and
+  // "Your book isn't 150 clients" topics.
+  if (proposalInRut && !contentTypeOverride) {
     console.warn("topic_proposer.rut_detected_rerolling", {
       proposalTopic: parsed?.topic,
       recent3: recent3.slice(0, 200),

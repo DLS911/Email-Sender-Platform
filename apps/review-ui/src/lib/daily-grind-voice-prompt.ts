@@ -265,78 +265,104 @@ export const DAILY_GRIND_VOICE_SYSTEM_PROMPT = getDailyGrindVoiceSystemPrompt();
  * writer prompt embeds these per-section so the writer has concrete patterns
  * to draw on instead of just abstract voice modules.
  */
+// CANONICAL_EXAMPLES — the few-shot the writer directly imitates. Replaced
+// 2026-10-21 after Mark feedback: "preview email is too negative... the ai
+// is pushing for negative because its 'captivating' but that not what we
+// want. it needs a positive here is what you can learn type thing."
+//
+// The old set skewed every section negative — "that lunch cost you $187,"
+// "exhausted by phone calls," "the math doesn't work," "race to irrelevance,"
+// "burnout with better spreadsheets," "the ones who don't, lose them."
+// Readers trust Mark when he TEACHES. These rewrites keep Mark's wry,
+// specific, scene-based voice but land each section on an UPSIDE the advisor
+// can capture or has captured. Sharp is kept. Mean is removed.
 export const CANONICAL_EXAMPLES = {
-  // The Unspoken — visceral, second-person, scene-anchored, dollar punchline
+  // The Unspoken — visceral, second-person, scene-anchored. Dollar
+  // punchline now ties to WHAT THE MOVE PRODUCED, not what the failure cost.
   unspoken: [
     {
-      theme: "centers of influence (12 CPAs, lunch in 2022)",
-      text: `You have a 'centers of influence' strategy. You identified twelve CPAs and three estate attorneys who would be 'perfect referral partners.' You took one to lunch in 2022. They ordered the lobster. You talked about everything except business. They said 'we should definitely do this again.' You have not spoken since. Their contact is still in your CRM tagged 'HOT COI.' You see them at a charity event, make aggressive eye contact, and pretend to take a phone call. That lunch cost you $187 and exactly zero referrals.`,
+      theme: "the 20-minute Monday block that fills a pipeline",
+      text: `You started blocking twenty minutes every Monday for one thing: write a short, specific note to one past client. Not a newsletter. Not a check-in. A note that references something they told you last quarter — the daughter's recital, the house in Montana, the surgery that worried them. Twenty minutes. One note. The first Monday felt silly. The eighth Monday a client replied with "I was just thinking about you — can my sister call you?" The twelfth Monday a different client forwarded your note to their college roommate who runs a surgery practice. Over sixteen weeks, that twenty-minute Monday block has produced four introductions and $740K in new assets. Your spouse asked what changed. "Nothing dramatic," you said. You weren't lying.`,
     },
     {
-      theme: "client who calls every market headline (the dog)",
-      text: `You have a client who calls you about every market headline. Every. Single. One. CNBC mentions volatility, your phone rings. Fed hints at anything, your phone rings. Some guy on Twitter posts a chart, your phone rings. You've started screening calls. You've rehearsed the 'stay the course' speech so many times you could do it in your sleep. You probably have. Your spouse has heard it. Your kids have heard it. The dog has heard it. (The dog seems unconvinced about your long-term equity allocation.)`,
+      theme: "the client call that became a planning engagement",
+      text: `You have a client who called you panicked about a Fed headline in May. You've taken that call before. The old version of you would deliver the "stay the course" speech, end the call in nine minutes, and move on. This time you asked one question: "What is this really about?" Twenty minutes later you were talking about her daughter's wedding, the second home she and her husband can't agree on, and whether to help her mother sell the family cabin. You turned a volatility hand-hold into a $4,200 planning engagement that closed the following week. The dog, who was napping through the whole call, remains the quiet hero of your practice.`,
     },
   ],
 
-  // First Pull — sets up the argument with narrative tension, not stat dumps
+  // First Pull — sets up the argument with narrative tension pointing at
+  // an UPSIDE, not a failure. Opens with the advisor who did the thing right,
+  // or with the opportunity most peers haven't noticed yet.
   firstPullOpener: [
     {
-      theme: "two-character narrative (15-min ritual)",
-      text: `You walk into a prospect meeting. You know your process, your fees, your differentiators. You're ready to present. One problem: you know nothing about them. Meanwhile, the advisor down the street spent 15 minutes on LinkedIn before the call. She noticed the prospect just got promoted. She saw he commented on an article about succession planning. She knows his daughter plays college volleyball because he posted about it last week. Guess who wins that meeting?`,
+      theme: "two-character narrative (the advisor who did it)",
+      text: `You walk into a prospect meeting with your deck, your fees, your differentiators ready. The advisor down the street walks into the same kind of meeting with something else: fifteen minutes of prep done on LinkedIn that morning. She knows the prospect just took a board seat. She saw a comment on an article about generational transfer. She knows the daughter plays college volleyball. In the first six minutes she asks about the board seat and the daughter. By minute twelve the prospect is talking about the family cabin. By minute thirty she has a signed engagement. The whole difference is fifteen minutes anyone could spend. Most advisors don't. The ones who do win the next decade of referrals from clients they haven't met yet.`,
     },
     {
-      theme: "naming the conventional wisdom (niche trap)",
-      text: `Every conference speaker for the last decade has preached the same gospel: find your niche. Serve dentists. Own the tech executive market. Become the divorce specialist. The logic sounds airtight. Specialize, differentiate, dominate. Here's what nobody mentions at those conferences: the math doesn't work for most practices.`,
+      theme: "naming the opportunity most are ignoring",
+      text: `Every conference speaker has told you to pick a niche. Serve dentists. Own the tech executives. Specialize. The talk is right in the long run, but there's a nearer-term move most firms miss: get radically specific about the first ten minutes of your discovery call. Not your niche. Not your fee. The first ten minutes. Three advisors we track who sharpened those ten minutes last year without changing a single other thing added $1.1M, $780K, and $620K in new recurring revenue. The specialization conversation can wait. The first ten minutes cannot.`,
     },
   ],
 
-  // The Flip Reality — 12-20 words, sharp reframe, takes a position
+  // The Flip Reality — 12-20 words, sharp reframe pointing at a POSITIVE
+  // positioning or move the advisor can make.
   flipReality: [
-    `Know their situation cold. Your value proposition is irrelevant until they believe you understand their problem.`,
-    `When everyone owns a niche, the advisor who can serve the whole family becomes the rare one.`,
-    `Always be diagnosing. The close happens naturally when the diagnosis is accurate. Force a close on a bad diagnosis and you inherit a problem client.`,
+    `Know their situation cold before you walk in. The engagement closes itself once they feel understood.`,
+    `When everyone is picking a niche, the advisor who can confidently serve a whole family becomes the rare one.`,
+    `Diagnose carefully. The right diagnosis makes the engagement obvious to both of you.`,
+    `The two-column file (what the warning said / what you did about it) is the exact artifact that lets you recommend alternatives with confidence.`,
   ],
 
-  // Worth Knowing my-take — judgment, not summary. Reframes the news in Mark's voice.
+  // Worth Knowing my-take — judgment, not summary. REFRAME from "failure
+  // mode" to "opportunity the trend creates for the advisor who's paying
+  // attention". At least 2 of 3 myTakes should name UPSIDE, not threat.
   myTake: [
-    `This isn't about being 'personal.' It's about proving you're a professional who prepares. Prospects smell a template from three emails away.`,
-    `This is what happens when your only differentiator is price. Smaller firms competing on cost against Vanguard and Schwab is a race to irrelevance. Compete on depth of relationship and planning complexity, or get squeezed out.`,
-    `More households isn't productivity. It's dilution. The advisors growing profitably are getting more selective about who they serve, not less. Capacity without quality is just burnout with better spreadsheets.`,
-    `Having LinkedIn is not a strategy. Having a 15-minute ritual before every meeting is. The gap between 'I use it' and 'I have a system' is where conversions live.`,
+    `The research isn't a warning, it's a map. Advisors who adopt a 15-minute pre-meeting ritual this quarter close noticeably more engagements by Q2. The tooling is free. The time is already yours.`,
+    `This is where price-pressure actually opens a door. As the big platforms compete on cost, families with real planning complexity move toward firms that can handle depth. If you can run a tax-aware three-generation plan, this trend puts money on your doorstep.`,
+    `Smaller book, better margins. The advisors adding profit this year aren't the ones with the most households — they're the ones who recognized earlier that a tightly served fifty is worth more than a thinly served two hundred. Pricing follows capacity, in both directions.`,
+    `A simple weekly ritual beats any CRM feature. The advisors converting at the top of the market have a system that fires every Monday morning. The ones at the median have a tool.`,
   ],
 
-  // Grounds for Thought — one italic sentence, 12-30 words, non-obvious
+  // Grounds for Thought — one italic sentence, 12-30 words, non-obvious.
+  // Orient toward possibility and action, not loss.
   groundsForThought: [
-    `Prospects don't remember your pitch. They remember whether you bothered to learn their name before asking for their business.`,
-    `It doesn't get easier. You get better.`,
-    `The practice you're building to keep is worth less every year you don't sell it.`,
+    `Prospects don't remember your pitch. They remember whether you learned their name before asking for their business.`,
+    `It doesn't get easier. You get better. That's the deal, and it's a good deal.`,
+    `The practice you'd happily refer your own family to is also the one that trades at the highest multiple.`,
+    `The hour you spend thinking about one client compounds in ways the hour you spend thinking about all of them cannot.`,
   ],
 
   // Ancient Truth — daily wisdom, NOT topically tied to the email theme.
-  // Application explains the verse's plain meaning. Direct, not preachy.
-  // Don't force a connection to today's specific tactic/take.
+  // Application explains the verse's plain meaning in a direct, practical
+  // tone. Not preachy.
   ancientTruthApplication: [
     {
       verse: `Be quick to hear, slow to speak, slow to anger. — James 1:19`,
-      application: `Wisdom usually shows up in restraint. The fastest opinion in the room is rarely the right one, and listening costs nothing.`,
+      application: `Wisdom usually shows up in restraint. The fastest opinion in the room is rarely the right one, and listening costs nothing while buying real information.`,
     },
     {
       verse: `Do not be anxious about tomorrow, for tomorrow will be anxious for itself. Sufficient for the day is its own trouble. — Matthew 6:34`,
-      application: `Worry borrowed from tomorrow doesn't change tomorrow, it just empties today. Do the next right thing in front of you.`,
+      application: `Worry borrowed from tomorrow doesn't change tomorrow, it just empties today. Do the next right thing in front of you and keep walking.`,
+    },
+    {
+      verse: `Whatever your hand finds to do, do it with your might. — Ecclesiastes 9:10`,
+      application: `The work in front of you right now is the only work you actually control. Give it everything, then look up.`,
     },
   ],
 
-  // P.S. — one specific question that invites a real reply (not generic)
+  // P.S. — one specific, upside-oriented question that invites a real reply
   ps: [
-    `I'm building tools for advisors. One question: What's the one task that eats your time but shouldn't? Hit reply. I read every one.`,
+    `I'm building tools for advisors. One question: what's the one move you made this year that paid you back the most? Hit reply. I read every one.`,
   ],
 
-  // Closing line patterns — landing, no hedging, no apology
+  // Closing line patterns — landing, no hedging, no apology. REWRITTEN
+  // to land on possibility / what the move produces, not on who gets
+  // left behind.
   closingLandings: [
-    `It doesn't get easier. You get better.`,
-    `Most advisors won't do this. That's not a bug. That's why it works for the few who do.`,
-    `The advisors who figure this out keep their best clients. The ones who don't, lose them.`,
-    `Build the kind of practice you'd refer your own family to. Or don't. The market sorts the rest.`,
-    `If you wouldn't say it on a sales call, don't put it in your follow-up email.`,
+    `It doesn't get easier. You get better. The compounding is on your side.`,
+    `Most advisors won't do this. That's exactly why it keeps working for the ones who do.`,
+    `Advisors who tighten this up this quarter are the ones referrals find in Q2.`,
+    `Build the kind of practice you'd happily refer your own family to. The multiple takes care of itself.`,
+    `The move isn't dramatic. It just has to be the one you actually make this week.`,
   ],
 };
