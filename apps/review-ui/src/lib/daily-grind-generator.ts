@@ -3808,8 +3808,17 @@ export async function generateDailyGrindIssue(opts: {
   // Chronicle rotation: 1 in every 4 issues. If NONE of the last 4
   // issues used chronicle (looked up from recentIssueSummaries by
   // contentType), tell the proposer chronicle is due this issue.
-  const recentContentTypes = recentIssueSummaries.slice(0, 4).map((s) => s.contentType ?? "");
-  const chronicleDue = !recentContentTypes.includes("chronicle");
+  //
+  // SUSPENDED 2026-10-21 for the positive-framing A/B window.
+  // Chronicles are historical advisor-industry scandals (Madoff, Allen
+  // Stanford, Woodbridge, GPB) — structurally retrospective and
+  // negative. Picked by the rotation Thu 10-22 as "due" and immediately
+  // produced "47 pages of files. Zero idea what was actually happening"
+  // (Fairfield Greenwich supervision chronicle). Not what Mark wants.
+  // Chronicle is BANNED until the positive-framing window closes;
+  // flip back to `!recentContentTypes.includes("chronicle")` when we
+  // reopen it, or add an explicit CHRONICLE_WINDOW_OPEN env flag.
+  const chronicleDue = false; // was: !recentContentTypes.includes("chronicle")
   try {
     for (let attempt = 1; attempt <= MAX_PROPOSER_ATTEMPTS; attempt++) {
       const candidate = await runTopicProposer(
