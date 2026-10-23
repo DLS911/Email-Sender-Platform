@@ -177,6 +177,13 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (messageId) {
     const m = await acGet<{ message?: Record<string, unknown> }>(`/messages/${messageId}`);
     const htmlSnip = typeof m?.message?.html === "string" ? (m.message.html as string) : "";
+    // Optional ?containsAny=foo,bar — report which of those substrings
+    // appear in the message HTML. Used to verify a specific edit landed
+    // (e.g. "$320K,$68K,62-year-old" for the digits edit on 10-23).
+    const needlesParam = url.searchParams.get("containsAny");
+    const needles = needlesParam ? needlesParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const contains: Record<string, boolean> = {};
+    for (const n of needles) contains[n] = htmlSnip.includes(n);
     return NextResponse.json({
       message: m?.message ? {
         id: m.message.id,
@@ -188,6 +195,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         html_len: htmlSnip.length,
         html_contains_headline_your_best: htmlSnip.includes("best clients stopped showing up"),
         html_contains_headline_ask_one: htmlSnip.includes("Ask one question"),
+        ...(needles.length > 0 ? { contains } : {}),
       } : { id: messageId, error: "not found" },
     });
   }
