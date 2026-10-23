@@ -274,6 +274,19 @@ HEADLINE patterns PREFERRED for this window:
 
 Mark's voice stays sharp, specific, opinionated. Direct ≠ negative. "Here is the exact move" is sharp AND positive. "The three CRM fields that predict closes" is specific AND positive. If you can't propose a positive-framed topic in a given domain, pick a different domain — don't fall back to problem-identification.
 
+## HARD BAN — clusters that are OFF-LIMITS this window (added 2026-10-23)
+
+The following clusters are STRUCTURALLY defensive/threat-oriented regardless of how you phrase the headline. Do NOT propose a topic in any of these clusters during the current positive-framing window. A proposal that lands here will be rejected and you will be re-prompted:
+
+- **compliance-documentation** — "document the gap before the claim arrives", "the defensible file", "errors and omissions", "liability protection", "knowing negligence", "protection gap", any topic about generating paperwork to defend against future enforcement/suit.
+- **compliance-supervision** — "audit trail", "ongoing verification", "supervisory procedure", "principal review", "insurance audit", any topic framing documentation as what-catches-you-if-you're-wrong.
+- **client-communication** attrition/silence — "the questions that mean she's already left", "your best clients stopped showing up", "client retention", "the silence", "went quiet", "didn't show up to the review", any topic about losing clients or missing engagement signals.
+- **team-and-scaling** capacity-ceiling — "your book isn't 150 clients", "capacity ceiling", "founder bottleneck", "burnout", "structurally built to serve X", any topic framing team/capacity as a trap or ceiling.
+
+These clusters produce defensive content even when the headline uses positive verbs ("document", "verify", "protect"). The reader-facing register is still "something is going to go wrong unless you do X." That's problem-identification, which Mark banned this window.
+
+If your natural instinct is pulling toward one of these — stop and ask: what's a GROWTH or INSTRUCTION topic in a DIFFERENT domain the reader can act on this week? Pick that instead. Tax strategy, estate planning, growth channels (SEO/podcast/speaking), investment management, pricing/fee models, succession/M&A as opportunity, operations/tech-stack as efficiency — these are the live domains.
+
 ## HARD CHECK before you submit — read this twice
 
 Your LLM training biases you STRONGLY toward problem-identification because that framing wins engagement on generic internet copy (newsletters, blogs, social). This audience is DIFFERENT. They already open at 30%+ and have the context to recognize fluff. Three framings they REJECT, confirmed from reader feedback:

@@ -198,14 +198,18 @@ type DriftInput = {
 const CLUSTER_KEYWORDS: Array<{ cluster: string; patterns: RegExp[] }> = [
   { cluster: "prospecting-prep", patterns: [/discovery call/i, /prospecting/i, /linkedin intel/i, /pre.?meeting/i, /coi lunch/i] },
   { cluster: "referral-mechanics", patterns: [/referral/i, /center.? of influence/i, /\bcoi\b/i] },
-  { cluster: "compliance-documentation", patterns: [/\bwsp\b/i, /sec exam/i, /\badv\b/i, /marketing rule/i, /compliance documentation/i] },
+  // Expanded 2026-10-23 to catch broader compliance/liability framings
+  // ("document the gap before the claim arrives" slipped past). These
+  // clusters are HARD-banned during the positive-framing window — see
+  // POSITIVE_WINDOW_BANNED_CLUSTERS below.
+  { cluster: "compliance-documentation", patterns: [/\bwsp\b/i, /sec exam/i, /\badv\b/i, /marketing rule/i, /compliance documentation/i, /liability/i, /document(?:ing)?\s+the\s+gap/i, /before\s+the\s+claim/i, /protection\s+gap/i, /defensible\s+(file|trail|record)/i, /knowing\s+negligence/i, /e\s*&\s*o/i, /errors\s+and\s+omissions/i] },
   { cluster: "m-and-a-buyer-vetting", patterns: [/\bm&a\b/i, /\bm and a\b/i, /buyer vetting/i, /earnout/i, /due diligence/i, /buyer integration/i, /\bria sale\b/i, /selling your practice/i] },
   { cluster: "m-and-a-valuation", patterns: [/valuation/i, /aum multiple/i, /deal terms/i, /growth.?rate/i] },
   { cluster: "fee-and-pricing", patterns: [/fee compression/i, /pricing/i, /flat.?fee/i, /retainer/i, /free planning/i] },
-  { cluster: "team-and-scaling", patterns: [/hiring/i, /succession/i, /capacity/i, /founder bottleneck/i, /team building/i] },
-  { cluster: "compliance-supervision", patterns: [/supervisory/i, /principal review/i, /audit trail/i] },
-  { cluster: "tax-scenarios", patterns: [/roth conversion/i, /year.?end planning/i, /estate transition/i, /tax scenario/i] },
-  { cluster: "client-communication", patterns: [/annual review/i, /market panic/i, /client retention/i, /client communication/i] },
+  { cluster: "team-and-scaling", patterns: [/hiring/i, /succession/i, /capacity/i, /founder bottleneck/i, /team building/i, /capacity\s+ceiling/i, /burnout/i, /overloaded/i, /structural(?:ly)?\s+built/i] },
+  { cluster: "compliance-supervision", patterns: [/supervisory/i, /principal review/i, /audit trail/i, /supervision/i, /insurance\s+audit/i, /ongoing\s+verification/i, /\baudit\b/i] },
+  { cluster: "tax-scenarios", patterns: [/roth conversion/i, /year.?end planning/i, /estate transition/i, /tax scenario/i, /tax[-\s]?loss\s+harvest/i, /qcd/i, /\bRMD/i] },
+  { cluster: "client-communication", patterns: [/annual review/i, /market panic/i, /client retention/i, /client communication/i, /client\s+(attrition|churn|silence|stopped)/i, /best\s+clients/i, /already\s+left/i] },
   { cluster: "tech-and-tools", patterns: [/\bcrm\b/i, /ai tool/i, /integration sprawl/i] },
   { cluster: "positioning-and-niche", patterns: [/niche/i, /positioning/i, /demographic vs transition/i, /contrarian positioning/i] },
 ];
@@ -1319,29 +1323,46 @@ async function runTopicProposer(
     const low = text.toLowerCase();
     return RUT_WORDS.some((w) => low.includes(w));
   }
+  // Clusters hard-banned during the positive-framing window (added
+  // 2026-10-23). These clusters produce defensive/threat content no
+  // matter how the headline is phrased ("Document the gap before the
+  // claim arrives" — positive verb, defensive topic → still rejected).
+  // Reinstate when positive window closes.
+  const POSITIVE_WINDOW_BANNED_CLUSTERS = new Set([
+    "compliance-documentation",
+    "compliance-supervision",
+    "client-communication",
+    "team-and-scaling",
+  ]);
   const proposalText = `${typeof parsed?.topic === "string" ? parsed.topic : ""} ${typeof parsed?.angle === "string" ? parsed.angle : ""}`;
   const recent3 = recentIssues.slice(0, 3).map((r) => r.topic).join(" | ");
   const proposalInRut = hasRutWord(proposalText);
   const recentInRut = hasRutWord(recent3);
-  // Changed 2026-10-21: trigger re-roll on proposal-only match during
-  // the positive-framing window. Previous version required BOTH the
-  // proposal AND the recent-3 to be in the rut; too permissive for the
-  // current goal. If ANY proposal has a negative-rut word, re-roll —
-  // the system can afford a 2nd Haiku call per generation to kill the
-  // instinct that keeps producing "The file that proves you knew" and
-  // "Your book isn't 150 clients" topics.
-  if (proposalInRut && !contentTypeOverride) {
+  const detectedCluster = detectClusterFromString(proposalText);
+  const proposalInBannedCluster = detectedCluster != null && POSITIVE_WINDOW_BANNED_CLUSTERS.has(detectedCluster);
+  // Trigger re-roll if EITHER the headline/angle text contains a rut
+  // word OR the detected cluster is in the banned list. Rut-words catch
+  // negative wording; cluster-ban catches positive-wording-defensive-topic
+  // ("Document the gap before the claim arrives" slipped the word check
+  // but matched the compliance-documentation cluster).
+  if ((proposalInRut || proposalInBannedCluster) && !contentTypeOverride) {
     console.warn("topic_proposer.rut_detected_rerolling", {
       proposalTopic: parsed?.topic,
+      proposalInRut,
+      proposalInBannedCluster,
+      detectedCluster,
       recent3: recent3.slice(0, 200),
     });
+    const rejectReason = proposalInBannedCluster
+      ? `That topic is in the HARD-BANNED "${detectedCluster}" cluster during the current positive-framing window. All compliance-documentation, compliance-supervision, client-communication (attrition/silence), and team-and-scaling (capacity ceiling) topics are banned — they produce defensive/threat content regardless of how the headline is phrased.`
+      : `That topic is in the client-attrition / silence / engagement DOMAIN — the SAME domain as recent issues.`;
     const rerollPrompt = `${fullPrompt}
 
 ## ⛔ RE-ROLL REQUIRED — your previous proposal was in the rut
 
 Your previous proposal was: "${parsed?.topic ?? ""}" (${parsed?.angle ?? ""}).
 
-That topic is in the client-attrition / silence / engagement DOMAIN — the SAME domain as the last 3 issues. The last 3 topics were: ${recent3}.
+${rejectReason} The last 3 topics were: ${recent3}.
 
 Propose a DIFFERENT topic from a DIFFERENT DOMAIN. Specifically BANNED for this re-roll:
 - Any topic about clients leaving, going silent, disengaging, being lost, or being missed
@@ -1375,14 +1396,20 @@ Return the SAME JSON schema as before.`;
         const json = extractJsonObject(rerollBlock.text);
         const reparsed = JSON.parse(json) as Record<string, unknown>;
         const reparsedText = `${typeof reparsed?.topic === "string" ? reparsed.topic : ""} ${typeof reparsed?.angle === "string" ? reparsed.angle : ""}`;
-        if (!hasRutWord(reparsedText)) {
+        const reparsedCluster = detectClusterFromString(reparsedText);
+        const reparsedBanned = reparsedCluster != null && POSITIVE_WINDOW_BANNED_CLUSTERS.has(reparsedCluster);
+        if (!hasRutWord(reparsedText) && !reparsedBanned) {
           parsed = reparsed;
           console.info("topic_proposer.rut_rerolled_success", {
             newTopic: reparsed?.topic,
+            newCluster: reparsedCluster,
           });
         } else {
           console.warn("topic_proposer.rut_reroll_still_in_rut_keeping_original", {
             rerollTopic: reparsed?.topic,
+            rerollCluster: reparsedCluster,
+            rerollInRut: hasRutWord(reparsedText),
+            rerollInBannedCluster: reparsedBanned,
           });
         }
       } catch (err) {
