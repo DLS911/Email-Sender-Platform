@@ -32,7 +32,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const db = createClient(supaUrl, supaKey, { auth: { persistSession: false } });
   const { data, error } = await db
     .from("daily_grind_issues")
-    .select("issue_date, generated_at, headline, subject, sections")
+    .select("issue_date, generated_at, headline, subject, sections, model, input_tokens, output_tokens, cost_usd, latency_ms")
     .eq("issue_date", issueDate)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -42,6 +42,11 @@ export async function GET(req: Request): Promise<NextResponse> {
     issue_date: data.issue_date,
     headline: data.headline,
     subject: data.subject,
+    model: data.model,
+    input_tokens: data.input_tokens,
+    output_tokens: data.output_tokens,
+    cost_usd: data.cost_usd,
+    latency_ms: data.latency_ms,
     openingTrifecta_theNumber: (s.openingTrifecta as { theNumber?: unknown } | undefined)?.theNumber ?? null,
     firstPull: s.firstPull ?? null,
     mainContent: s.mainContent ?? null,
