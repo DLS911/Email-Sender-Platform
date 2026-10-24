@@ -43,7 +43,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
   if (!before) return NextResponse.json({ error: `no ${brand} issue for ${issueDate}` }, { status: 404 });
 
-  const { error: upErr } = await db.from(table).update({ approval_status: "approved", approved_at: new Date().toISOString() }).eq("issue_date", issueDate);
+  const { error: upErr } = await db.from(table).update({ approval_status: "approved" }).eq("issue_date", issueDate);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
   logger.info("approve_direct.success", { brand, issueDate, prev: before.approval_status });
