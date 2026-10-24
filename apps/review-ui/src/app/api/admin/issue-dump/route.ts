@@ -34,6 +34,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     tastingMenu: tm.map((t, i) => ({
       label: t.label,
       title: t.title,
+      url: t.url ?? null,
       imageUrl: imgTasting[i] ?? null,
       body_preview: typeof t.body === "string" ? (t.body as string).slice(0, 300) : null,
     })),
