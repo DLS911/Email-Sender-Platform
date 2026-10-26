@@ -306,8 +306,11 @@ export function renderDailyGrindHtml(
 
           ${divider()}
 
-          <!-- SHOT OF WISDOM — renamed from Ancient Truth 2026-10-22
-               per Mark. Same verse+reference+application structure. -->
+          <!-- SHOT OF WISDOM — renamed from Ancient Truth 2026-10-22.
+               2026-10-26 per Mark: AI application paragraph dropped
+               permanently ("no more of that feature"). Only verse +
+               reference render. If the writer still produces an
+               application string (legacy), it is ignored. -->
           <tr>
             <td style="padding: 0 40px;">
               <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">Shot of Wisdom</p>
@@ -315,8 +318,7 @@ export function renderDailyGrindHtml(
                 <tr>
                   <td style="padding: 24px 18px; text-align: center;">
                     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 16px; font-style: italic; color: #2d2926; margin: 0 0 8px 0;">"${escapeHtml(content.ancientTruth.verse)}"</p>
-                    <p style="font-size: 13px; color: #9a8b7a; margin: 0 0 12px 0;">${escapeHtml(content.ancientTruth.reference)}</p>
-                    <p style="font-size: 14px; color: #6b6560; margin: 0;">${escapeHtml(content.ancientTruth.application)}</p>
+                    <p style="font-size: 13px; color: #9a8b7a; margin: 0;">${escapeHtml(content.ancientTruth.reference)}</p>
                   </td>
                 </tr>
               </table>
@@ -394,8 +396,6 @@ function renderText(content: DailyGrindContent, inputs: RenderInputs): string {
   lines.push("");
   lines.push(`"${content.ancientTruth.verse}"`);
   lines.push(content.ancientTruth.reference);
-  lines.push("");
-  lines.push(content.ancientTruth.application);
   lines.push("");
   lines.push("Keep grinding,");
   lines.push("Mark");

@@ -1071,7 +1071,8 @@ JSON OUTPUT:
 - mainContent.howTo.title + steps: REQUIRED — labeled step-by-step practice (3-5 steps).
 - mainContent.intro + mainContent.closing: output empty strings. Not rendered.
 - groundsForThought: output empty string "". Not rendered.
-- ancientTruth.verse + reference + application: REQUIRED — the Shot of Wisdom section.
+- ancientTruth.verse + reference: REQUIRED — the Shot of Wisdom section (just verse + reference).
+- ancientTruth.application: output empty string "". The AI commentary paragraph beneath the verse was removed 2026-10-26 ("no more of that feature"). Template no longer renders it.
 - ps: REQUIRED.`,
   );
 
@@ -1086,9 +1087,12 @@ JSON OUTPUT:
     `# MAIN ARTICLE — write at this caliber (positive, value-forward)\n\nThe main article is firstPull.paragraphs. Each paragraph should argue or narrate — not summarize. The reader should finish knowing a specific MOVE they can try that will MAKE them something (dollars, time, closed clients, a hire that pays back).\n\nExample 1 (${CANONICAL_EXAMPLES.firstPullOpener[0]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[0]!.text}"\n\nExample 2 (${CANONICAL_EXAMPLES.firstPullOpener[1]!.theme}):\n"${CANONICAL_EXAMPLES.firstPullOpener[1]!.text}"\n\nOpen with the UPSIDE the advisor can capture OR a brief scene of an advisor who did it right. Not with "most advisors are failing at X."`,
   );
 
-  // Ancient Truth application — concrete metaphor, not preachy
+  // Shot of Wisdom: verse + reference ONLY. Application paragraph was
+  // dropped 2026-10-26 per Mark ("no more of that feature"). The writer
+  // should still produce a strong verse pick, but ancientTruth.application
+  // should be output as empty string — the template no longer renders it.
   sections.push(
-    `# ANCIENT TRUTH application — concrete, NOT preachy\n\nExample 1:\nVerse: "${CANONICAL_EXAMPLES.ancientTruthApplication[0]!.verse}"\nApplication: "${CANONICAL_EXAMPLES.ancientTruthApplication[0]!.application}"\n\nExample 2:\nVerse: "${CANONICAL_EXAMPLES.ancientTruthApplication[1]!.verse}"\nApplication: "${CANONICAL_EXAMPLES.ancientTruthApplication[1]!.application}"\n\nNotice: a concrete metaphor (farmer / blindsided) + direct application to advisor practice. Two sentences. No "as believers..." preaching.`,
+    `# SHOT OF WISDOM — verse + reference only\n\nPick a Bible verse (ESV/NIV) that connects loosely to the issue's theme. Set:\n- ancientTruth.verse: the quoted text\n- ancientTruth.reference: "Book Chapter:Verse (Translation)" (e.g. "Proverbs 21:5 (ESV)")\n- ancientTruth.application: "" (empty string — the AI commentary paragraph was removed 2026-10-26)\n\nDo NOT write an application paragraph. The verse stands on its own.`,
   );
 
   // Closing landings + P.S. format
@@ -1112,7 +1116,7 @@ Required for THIS issue (template-refreshed 2026-10-22):
   PREFERRED headline shapes: "How to X", "The upgrade: X", "The move that pays back by Y", "The one hour that unlocks Z", "What top advisors did when Y", "The X that compounds".
 - Main article (firstPull.paragraphs): open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did something right, not a diagnostic of what everyone's doing wrong. 3-5 paragraphs that argue or narrate, not summarize.
 - How to Practice (mainContent.howTo): 3-5 labeled steps the advisor can execute Monday. Each step title names the move; each step body gives the mechanic.
-- Shot of Wisdom (ancientTruth): keep it. Verse + reference + application that connects to Mark's practical register, not devotional preaching.
+- Shot of Wisdom (ancientTruth): verse + reference only — the application paragraph was removed 2026-10-26 per Mark ("no more of that feature"). Output ancientTruth.application as empty string.
 
 Direct does NOT mean negative. "Here is the exact move" is sharp AND positive. "The three fields that predict closes" is specific AND positive. "The hire that pays back by Q2" is quantified AND positive. Mark's voice can be opinionated without being critical.
 
@@ -1134,7 +1138,7 @@ If the research bundle only surfaces threats/problems, PICK A DIFFERENT ANGLE on
 7. mainContent.howTo has 3-5 labeled steps the reader can execute Monday. Each step is a specific move, not a platitude.
 8. Shot of Wisdom (ancientTruth) uses a concrete metaphor — not "as believers" or "trust in His plan".
 9. P.S. is a specific, upside-oriented question that invites a real reply.
-10. Removed-section fields (theUnspoken, theFlip.conventional/reality, worthKnowing, mainContent.intro, mainContent.closing, groundsForThought) are output as empty strings or empty arrays — do NOT write real content for them. They are not rendered.
+10. Removed-section fields (theUnspoken, theFlip.conventional/reality, worthKnowing, mainContent.intro, mainContent.closing, groundsForThought, ancientTruth.application) are output as empty strings or empty arrays — do NOT write real content for them. They are not rendered.
 
 Return the JSON object specified in the system prompt. No preamble, no fences.`,
   );
