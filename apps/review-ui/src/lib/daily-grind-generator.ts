@@ -210,6 +210,11 @@ const CLUSTER_KEYWORDS: Array<{ cluster: string; patterns: RegExp[] }> = [
   { cluster: "compliance-supervision", patterns: [/supervisory/i, /principal review/i, /audit trail/i, /supervision/i, /insurance\s+audit/i, /ongoing\s+verification/i, /\baudit\b/i] },
   { cluster: "tax-scenarios", patterns: [/roth conversion/i, /year.?end planning/i, /estate transition/i, /tax scenario/i, /tax[-\s]?loss\s+harvest/i, /qcd/i, /\bRMD/i] },
   { cluster: "client-communication", patterns: [/annual review/i, /market panic/i, /client retention/i, /client communication/i, /client\s+(attrition|churn|silence|stopped)/i, /best\s+clients/i, /already\s+left/i] },
+  // Added 2026-10-26: defensive insurance/coverage framings slipped past
+  // existing compliance clusters because they're framed as "insurance
+  // planning" but functionally about gap/leakage/exposure. Banned during
+  // positive window alongside compliance-documentation/supervision.
+  { cluster: "insurance-coverage-defense", patterns: [/uninsured/i, /underinsured/i, /coverage\s+gap/i, /protection\s+gap/i, /insurance\s+gap/i, /exposure\s+(sitting|in\s+your)/i, /tax\s+leakage/i, /estate\s+leakage/i, /loss(es)?\s+sitting/i, /unprotected\s+(client|asset)/i, /\b(two|three|four|five|\d+)\s+gaps\s+/i] },
   { cluster: "tech-and-tools", patterns: [/\bcrm\b/i, /ai tool/i, /integration sprawl/i] },
   { cluster: "positioning-and-niche", patterns: [/niche/i, /positioning/i, /demographic vs transition/i, /contrarian positioning/i] },
 ];
@@ -1318,6 +1323,18 @@ async function runTopicProposer(
     "red flag", "warning sign", "the signs you", "signs that",
     "capacity ceiling", "burnout", "overloaded", "stuck",
     "isn't 150", "isn't working", "aren't working", "arent working",
+    // Round 4 expansion added 2026-10-26 after "Three gaps sitting in your
+    // book right now" (insurance coverage gaps, defensively framed) slipped
+    // the existing bans. "gap"/"gaps" standalone, "sitting in your book",
+    // insurance-coverage-defense vocabulary.
+    "gaps", "the gaps", "three gaps", "two gaps", "four gaps",
+    "hole in your", "holes in your", "weak spots", "blind spot",
+    "sitting in your", "sitting in a drawer", "waiting to blow",
+    "uninsured", "underinsured", "exposure", "leakage", "unprotected",
+    "coverage gap", "protection gap", "liability gap",
+    "losses sitting", "money left on the table", "leaving money",
+    "walking away from", "giving away",
+    "estate tax leakage", "tax leakage",
   ];
   function hasRutWord(text: string): boolean {
     const low = text.toLowerCase();
@@ -1333,6 +1350,9 @@ async function runTopicProposer(
     "compliance-supervision",
     "client-communication",
     "team-and-scaling",
+    // Added 2026-10-26 after "Three gaps sitting in your book right now"
+    // (insurance-coverage-defense framing) slipped the earlier ban set.
+    "insurance-coverage-defense",
   ]);
   const proposalText = `${typeof parsed?.topic === "string" ? parsed.topic : ""} ${typeof parsed?.angle === "string" ? parsed.angle : ""}`;
   const recent3 = recentIssues.slice(0, 3).map((r) => r.topic).join(" | ");
@@ -2490,6 +2510,13 @@ const HEADLINE_BAN_PATTERNS: Array<{ name: string; rx: RegExp }> = [
   { name: "What X missed/overlooked/caught (past-tense threat frame)", rx: /\bwhat\s+[\w\s]+\s+(missed|overlooked|skipped|failed|forgot|ignored|blew)\b/i },
   { name: "The $X silence/loss/mistake (dollar-amount of loss)", rx: /\$[\d.,]+[kmb]?\s+(silence|loss|mistake|cost|gap|hole|miss|misstep|liability)\b/i },
   { name: "The X audit (compliance threat frame)", rx: /\b(the|your)\s+[\w\s]+\s+audit\b/i },
+  // Round 4 (2026-10-26): catch gap/hole/weakness enumerations and "sitting
+  // in your book" frames. "Three gaps sitting in your book right now" slipped
+  // every earlier ban because 'gaps' plural wasn't tracked.
+  { name: "N gaps/holes/weaknesses in your/the X", rx: /\b(\d+|\btwo|\bthree|\bfour|\bfive|\bsix|\bseven|\beight|\bnine|\bten|a\s+few)\s+(gaps?|holes?|weaknesses?|blind\s+spots?|cracks?|leaks?|blocks?)\s+(in|sitting)\b/i },
+  { name: "X sitting in your book/portfolio/drawer", rx: /\bsitting\s+in\s+(your|a|the)\s+(book|portfolio|drawer|file|cabinet)\b/i },
+  { name: "Uninsured / underinsured X exposure", rx: /\b(uninsured|underinsured)\s+(exposure|loss(es)?|liability|risk)\b/i },
+  { name: "The X leakage (loss framing)", rx: /\b(estate\s+tax|cash\s+flow|revenue|margin|opportunity)\s+leakage\b/i },
 ];
 
 function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null {
