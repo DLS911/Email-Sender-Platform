@@ -2636,6 +2636,14 @@ const HEADLINE_BAN_PATTERNS: Array<{ name: string; rx: RegExp }> = [
   { name: "X sitting in your book/portfolio/drawer", rx: /\bsitting\s+in\s+(your|a|the)\s+(book|portfolio|drawer|file|cabinet)\b/i },
   { name: "Uninsured / underinsured X exposure", rx: /\b(uninsured|underinsured)\s+(exposure|loss(es)?|liability|risk)\b/i },
   { name: "The X leakage (loss framing)", rx: /\b(estate\s+tax|cash\s+flow|revenue|margin|opportunity)\s+leakage\b/i },
+  // Round 6 (2026-10-27): catch neutral-descriptive textbook-chapter
+  // shapes AND headlines that smuggle "gaps/holes/misses" past Round-4
+  // bans by using them as terminal diagnostic nouns ("Four questions
+  // that surface $200K+ planning gaps" — leaked past the N-gaps-IN ban
+  // because "gaps" is terminal, not followed by "in" or "sitting").
+  { name: "N <plural noun> that <diagnostic verb> (textbook shape)", rx: /^(the\s+)?(\d+|\btwo|\bthree|\bfour|\bfive|\bsix|\bseven|\beight|\bnine|\bten)\s+\w+s\s+(that|which)\s+(surfaces?|reveals?|exposes?|uncovers?|predicts?|produces?|causes?|identif|catches?|flags?|spots?)/i },
+  { name: "Headline contains diagnostic terminal noun (gaps/holes/misses/losses)", rx: /\b(gaps|holes|misses|losses|leaks|cracks|weaknesses|blind\s+spots)\b/i },
+  { name: "Surface/reveal X-problems (diagnostic action)", rx: /\b(surfaces?|reveals?|exposes?|uncovers?)\s+(the\s+)?[\w\s]*(gaps?|holes?|misses?|losses?|problems?|issues?|weaknesses?|liabil)/i },
 ];
 
 function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null {
@@ -2679,6 +2687,30 @@ NEUTRAL-DESCRIPTIVE (added 2026-10-27): "The [N] [things] that [predict/produce/
 Return ONLY this JSON, no preamble:
 { "headline": "the rewritten H1" }`;
 
+// Soft-check: does the headline reference a prize-element (dollar amount,
+// multiple, percentage, timeline, specific-win noun) from theMove.sentence?
+// If not, the writer composed a headline disconnected from the declared
+// move and we should route through the rewrite path even when no BAN regex
+// fires. Added 2026-10-27 — Round-5 fix "Three CRM fields that predict
+// closes" and Round-6 attempt "Four questions that surface $200K+ planning
+// gaps" both passed the ban regexes but failed to carry the move's prize.
+export function headlineCarriesPrize(headline: string, theMove: { sentence?: string } | undefined): boolean {
+  if (!theMove?.sentence) return true; // nothing to compare against
+  const h = headline.toLowerCase();
+  // Prize-element 1: dollar amount, percentage, or multiple anywhere in headline
+  if (/\$[\d]/i.test(headline) || /\d+%/i.test(headline) || /\d+\.?\d*x\b/i.test(headline)) return true;
+  // Prize-element 2: unclaimed-prize framing + payoff timeline
+  const prizeFrames = ["hiding", "to unlock", "sitting", "between you and", "waiting", "pocketed", "unlocks", "unlock", "pays back", "pays off", "paid back", "paid off"];
+  if (prizeFrames.some((p) => h.includes(p))) return true;
+  // Prize-element 2b: explicit payoff timeline ("by December", "by Q1", "by Thanksgiving", "by year-end")
+  if (/\bby\s+(january|february|march|april|may|june|july|august|september|october|november|december|q[1-4]|year[-\s]?end|spring|fall|summer|winter|thanksgiving|christmas|new\s+year)/i.test(headline)) return true;
+  // Prize-element 3: captured-win / case study
+  if (/\bhow\s+one\b/i.test(headline) || /\bwhat\s+a\s+\$/i.test(headline) || /\bwhat\s+top\b/i.test(headline)) return true;
+  // Prize-element 4: starts with "Why" (mechanism-tease)
+  if (/^why\b/i.test(headline)) return true;
+  return false;
+}
+
 async function rewriteBannedHeadline(
   client: Anthropic,
   issueDate: string,
@@ -2686,12 +2718,21 @@ async function rewriteBannedHeadline(
   matchedPattern: string,
   recentHeadlines: string[],
   contextSummary: string,
+  theMoveSentence: string | undefined,
 ): Promise<{ headline: string; inputTokens: number; outputTokens: number; latencyMs: number }> {
+  const moveBlock = theMoveSentence
+    ? `
+THE MOVE this issue teaches (headline MUST carry the prize this names):
+"${theMoveSentence}"
+
+The headline you produce must reference at least one specific element from theMove — a dollar amount, a multiple, a percentage, a timeline (date / Q1 / by December), OR a prize-framing word ("hiding", "to unlock", "sitting in", "between you and"). If theMove.sentence has "$25K engagement" and "$200K-$800K tax savings", your headline should probably name one of those numbers. Carrying the prize is more important than being clever.
+`
+    : "";
   const userPrompt = `Issue date: ${issueDate}
 Issue context (from first paragraph): ${contextSummary}
-
-The writer produced this headline, which matches a BANNED pattern:
-"${bannedHeadline}"  ← matches "${matchedPattern}"
+${moveBlock}
+The writer produced this headline, which failed the quality bar:
+"${bannedHeadline}"  ← ${matchedPattern}
 
 Rewrite it. The new headline must NOT match any banned pattern AND must be structurally different from these recent headlines:
 ${recentHeadlines.slice(0, 15).map((h) => `- ${h}`).join("\n") || "(none)"}
@@ -3792,26 +3833,32 @@ ${panelResult.commonFlags
     }
   }
 
-  // Headline pattern check: if the writer produced a headline matching one of
-  // the banned formulas (e.g. "Nobody's X"), rewrite it via Haiku rather than
-  // ship a weak/repetitive hook. Up to 3 attempts before we accept whatever
-  // we have to avoid a generation failure on a recoverable issue. Wrapped
-  // so a Haiku timeout here doesn't torch the whole generation — we'd
-  // rather ship a slightly-weaker headline than drop the issue.
+  // Headline pattern check: TWO gates. (1) If the writer produced a headline
+  // matching a banned formula, rewrite via Haiku. (2) New Round-6 soft gate:
+  // if the headline doesn't CARRY a prize from theMove.sentence (no $ amount,
+  // no multiple, no %, no unclaimed-prize framing, no mechanism-why), ALSO
+  // rewrite — the writer composed a headline disconnected from the declared
+  // move. Rewriter sees theMove.sentence as the source of truth. Up to 3
+  // attempts before we accept whatever we have.
   try {
     const headlineBan = headlineBanMatch(content.headline);
-    if (!headlineBan) {
+    const carriesPrize = headlineCarriesPrize(content.headline, content.theMove);
+    const triggerReason: { kind: "ban" | "weak_prize" | "ok"; detail: string } =
+      headlineBan ? { kind: "ban", detail: `matches "${headlineBan.name}"` }
+      : !carriesPrize ? { kind: "weak_prize", detail: "headline carries no prize element from theMove.sentence (no $/multiple/%/timeline/unclaim-frame/why-mechanism)" }
+      : { kind: "ok", detail: "" };
+    if (triggerReason.kind === "ok") {
       pipeline.push({
         name: "headline_check",
         status: "success",
-        notes: `headline does not match any banned pattern: "${content.headline}"`,
+        notes: `headline passes both gates: "${content.headline}"`,
       });
     }
-    if (headlineBan) {
+    if (triggerReason.kind !== "ok") {
       const contextSummary = content.firstPull.paragraphs[0] ?? content.headline;
       const originalHeadline = content.headline;
       let rewritten: string | null = null;
-      let bannedPattern = headlineBan;
+      let reasonForRewriter = triggerReason.detail;
       let headlineAttempts = 0;
       for (let attempt = 0; attempt < 3; attempt++) {
         headlineAttempts++;
@@ -3819,32 +3866,36 @@ ${panelResult.commonFlags
           client,
           issueDate,
           content.headline,
-          bannedPattern.name,
+          reasonForRewriter,
           recentTopics,
           contextSummary,
+          content.theMove?.sentence,
         );
         totalInput += result.inputTokens;
         totalOutput += result.outputTokens;
         totalLatency += result.latencyMs;
         const newMatch = headlineBanMatch(result.headline);
-        if (!newMatch) {
+        const newCarriesPrize = headlineCarriesPrize(result.headline, content.theMove);
+        if (!newMatch && newCarriesPrize) {
           rewritten = result.headline;
           break;
         }
-        bannedPattern = newMatch;
+        reasonForRewriter = newMatch
+          ? `matches "${newMatch.name}"`
+          : "headline carries no prize element from theMove.sentence (no $/multiple/%/timeline/unclaim-frame/why-mechanism) — carry a specific prize from theMove";
       }
       if (rewritten) {
         content = deepStripDashes({ ...content, headline: rewritten });
         pipeline.push({
           name: "headline_check",
           status: "retried",
-          notes: `original "${originalHeadline}" matched ${headlineBan.name}; Haiku rewrite (${headlineAttempts} attempts) → "${rewritten}"`,
+          notes: `original "${originalHeadline}" (${triggerReason.kind}: ${triggerReason.detail}); Haiku rewrite (${headlineAttempts} attempts) → "${rewritten}"`,
         });
       } else {
         pipeline.push({
           name: "headline_check",
           status: "warning",
-          notes: `original "${originalHeadline}" matched ${headlineBan.name}; ${headlineAttempts} rewrites also matched, shipping original`,
+          notes: `original "${originalHeadline}" (${triggerReason.kind}: ${triggerReason.detail}); ${headlineAttempts} rewrites also failed, shipping original`,
         });
       }
     }
