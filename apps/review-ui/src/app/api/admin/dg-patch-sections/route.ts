@@ -3,6 +3,8 @@
  *   {
  *     issueDate,
  *     patch: {
+ *       headline?: string,                 // overwrites sections.headline (and re-renders subject)
+ *       preheader?: string,                // overwrites sections.preheader
  *       firstPullParagraphs?: string[],   // overwrites sections.firstPull.paragraphs
  *       mainContentSubhead?: string,
  *       howToTitle?: string,
@@ -42,6 +44,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   let body: {
     issueDate?: string;
     patch?: {
+      headline?: string;
+      preheader?: string;
       firstPullParagraphs?: string[];
       mainContentSubhead?: string;
       howToTitle?: string;
@@ -69,6 +73,14 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const next: DailyGrindContent = structuredClone(sections);
   const changed: string[] = [];
+  if (patch.headline !== undefined) {
+    next.headline = patch.headline;
+    changed.push("headline");
+  }
+  if (patch.preheader !== undefined) {
+    next.preheader = patch.preheader;
+    changed.push("preheader");
+  }
   if (patch.firstPullParagraphs !== undefined) {
     next.firstPull = { paragraphs: patch.firstPullParagraphs.filter((p) => typeof p === "string" && p.trim().length > 0) };
     changed.push(`firstPull.paragraphs(${next.firstPull.paragraphs.length})`);
