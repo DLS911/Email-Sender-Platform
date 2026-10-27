@@ -933,7 +933,24 @@ function parseContent(rawText: string): DailyGrindContent {
   const howToSteps = requireArray(howTo, "steps", "mainContent.howTo");
   const ancient = requireObject(obj, "ancientTruth", "root");
   const worthKnowingRaw = Array.isArray(obj.worthKnowing) ? (obj.worthKnowing as unknown[]) : [];
+  // theMove — added 2026-10-27 as a structural forcing function against
+  // negative-hook drift. Writer must declare upside first. Parse is tolerant
+  // (optional at type level for back-compat), but validateTheMove() runs
+  // separately after parse and triggers regen if missing/problem-shaped.
+  const theMoveRaw = (obj.theMove ?? {}) as Record<string, unknown>;
+  const theMove = (
+    typeof theMoveRaw.verb === "string" ||
+    typeof theMoveRaw.gain === "string" ||
+    typeof theMoveRaw.sentence === "string"
+      ? {
+          verb: typeof theMoveRaw.verb === "string" ? theMoveRaw.verb.trim() : "",
+          gain: typeof theMoveRaw.gain === "string" ? theMoveRaw.gain.trim() : "",
+          sentence: typeof theMoveRaw.sentence === "string" ? theMoveRaw.sentence.trim() : "",
+        }
+      : undefined
+  );
   return {
+    ...(theMove ? { theMove } : {}),
     headline: requireString(obj, "headline", "root"),
     preheader: requireString(obj, "preheader", "root"),
     contentType: parseContentType(requireString(obj, "contentType", "root")),
@@ -1129,9 +1146,10 @@ If the research bundle only surfaces threats/problems, PICK A DIFFERENT ANGLE on
   sections.push(
     `# BEFORE YOU RETURN — voice activation checklist (new structure, 2026-10-22)
 
+0. theMove is filled: verb starts with a CREATING verb (Add/Carve/Call/Launch/Charge/Switch/Price/Pitch/Hire/Separate/Open/Lead/Shift/Build/Ship/Introduce/Run/Schedule/Write/Post/Record/Send/Offer/Propose — NOT stop/quit/avoid/fix/document/audit/protect/prevent/address/catch), gain names a concrete outcome (dollars/revenue/closes/clients/hires/retention lift/multiple/book/deals/openings/referrals/upgrade/wins/repositioning/growth/prospects/meetings/M&A/pipeline/conversion/yield/AUM/payback), sentence contains no rut words (gap/hole/exposure/leakage/uninsured/silent/missing/lost/broken/hidden cost/trap/liability/catches you/"stop doing"/"the biggest mistake"/red flag). If this fails, the whole draft gets rejected and regenerated — fix it NOW.
 1. The Number stat has a verified sourceUrl + descriptive one-liner. (Shown inline above the headline.)
-2. HEADLINE is value-forward — no deflating, no "your X is broken", no "the X you're missing". It names an upside or an instruction.
-3. Main article (firstPull.paragraphs) opens with narrative/argument/upside, not a stat dump or a diagnosis of what everyone's doing wrong.
+2. HEADLINE is value-forward AND EXPRESSES theMove.sentence (compressed) — no deflating, no "your X is broken", no "the X you're missing". It names an upside or an instruction.
+3. Main article (firstPull.paragraphs) opens with narrative/argument/upside, not a stat dump or a diagnosis of what everyone's doing wrong. The whole article argues toward the MOVE named in theMove.
 4. Each paragraph of the main article adds a NEW angle — no single theme word repeats across 3+ paragraphs.
 5. At least 3 sentences in the article run under 8 words for rhythm.
 6. mainContent.subhead names the How to Practice section (e.g. "The 20-Minute Monday Protocol").
@@ -2475,6 +2493,75 @@ Return the revised JSON only.`;
   }
 }
 
+// theMove validator — added 2026-10-27 as the structural forcing function
+// against negative-hook drift. Writer must declare upside first; this gates
+// whether the move counts. If it fails, caller regens the whole draft.
+//
+// Rules match the writer prompt in draft-weekday.ts "STEP 1 — DECLARE THE
+// MOVE" section. Keep in sync.
+const MOVE_CREATE_VERBS = [
+  "add", "carve", "call", "launch", "charge", "switch", "price", "pitch",
+  "hire", "separate", "open", "lead", "shift", "build", "ship", "introduce",
+  "run", "schedule", "write", "post", "record", "send", "offer", "propose",
+  "re-price", "reprice", "repackage", "re-package", "re-pitch", "repitch",
+  "start", "set up", "spin up", "stand up", "name", "declare", "post",
+];
+const MOVE_DEFENSE_VERBS = [
+  "stop", "quit", "avoid", "fix", "document", "audit", "protect",
+  "prevent", "address", "catch", "patch", "cover", "defend", "shore up",
+  "mitigate", "remedy", "guard", "insulate",
+];
+const MOVE_GAIN_NOUNS = [
+  "dollar", "dollars", "$", "revenue", "margin", "client", "clients",
+  "close", "closes", "closed", "hire", "hires", "retention", "lift",
+  "multiple", "book", "deal", "deals", "opening", "openings", "referral",
+  "referrals", "upgrade", "win", "wins", "repositioning", "growth",
+  "prospect", "prospects", "meeting", "meetings", "m&a", "pipeline",
+  "conversion", "conversions", "yield", "return", "returns", "aum",
+  "pay-back", "payback", "pays back", "paid back", "paid off", "payoff",
+];
+const MOVE_RUT_WORDS_IN_SENTENCE = [
+  "gap", "hole", "exposure", "leakage", "uninsured", "underinsured",
+  "silent", "silence", "missing", "lost", "broken", "hidden cost",
+  "trap", "liability", "catches you", "isn't 150", "isn't working",
+  "stop doing", "quit doing", "the biggest mistake", "red flag",
+  "warning sign", "unprotected", "coverage gap", "protection gap",
+  "losses sitting", "money left on the table",
+];
+
+export function validateTheMove(theMove: { verb: string; gain: string; sentence: string } | undefined): { ok: true } | { ok: false; reason: string } {
+  if (!theMove) return { ok: false, reason: "theMove field missing from writer output" };
+  const verb = (theMove.verb ?? "").trim();
+  const gain = (theMove.gain ?? "").trim();
+  const sentence = (theMove.sentence ?? "").trim();
+  if (verb.length < 4) return { ok: false, reason: "theMove.verb is empty or too short" };
+  if (gain.length < 4) return { ok: false, reason: "theMove.gain is empty or too short" };
+  if (sentence.length < 20) return { ok: false, reason: "theMove.sentence is empty or too short" };
+  const verbLow = verb.toLowerCase();
+  // Rule 1: verb must start with a creating verb (not defense/correction)
+  const startsWithDefense = MOVE_DEFENSE_VERBS.some((d) => verbLow.startsWith(d + " ") || verbLow === d);
+  if (startsWithDefense) {
+    return { ok: false, reason: `theMove.verb starts with a defensive verb ("${verb.split(/\s+/)[0]}"). Must create something, not prevent something.` };
+  }
+  const startsWithCreate = MOVE_CREATE_VERBS.some((c) => verbLow.startsWith(c + " ") || verbLow === c);
+  if (!startsWithCreate) {
+    return { ok: false, reason: `theMove.verb must start with a creating verb (Add, Carve, Call, Launch, Charge, Switch, Price, Pitch, Hire, Separate, Open, Lead, Shift, Build, Ship, Introduce, Run, Schedule, Write, Post, Record, Send, Offer, Propose). Got "${verb.split(/\s+/)[0]}".` };
+  }
+  // Rule 2: gain must contain at least one gain-noun
+  const gainLow = gain.toLowerCase();
+  const hasGainNoun = MOVE_GAIN_NOUNS.some((n) => gainLow.includes(n));
+  if (!hasGainNoun) {
+    return { ok: false, reason: `theMove.gain must name a concrete outcome (dollars, revenue, closes, clients, hires, retention lift, multiples, book, pipeline, M&A, growth, upgrade, repositioning). Got "${gain}".` };
+  }
+  // Rule 3: sentence must contain NO rut words
+  const sentLow = sentence.toLowerCase();
+  const rut = MOVE_RUT_WORDS_IN_SENTENCE.find((w) => sentLow.includes(w));
+  if (rut) {
+    return { ok: false, reason: `theMove.sentence contains defensive/problem-shaped language ("${rut}"). The move is a defensive move dressed up as positive. Rewrite as an upside the reader WILL CAPTURE.` };
+  }
+  return { ok: true };
+}
+
 // Patterns the writer keeps mode-collapsing onto. If a generated headline
 // matches any of these, we rewrite via Haiku rather than ship a weak hook.
 const HEADLINE_BAN_PATTERNS: Array<{ name: string; rx: RegExp }> = [
@@ -2761,6 +2848,96 @@ async function runWriterPhase(
     throw new Error("writer: response missing text block");
   }
   let content = parseContent(firstBlock.text);
+
+  // STAGE: theMove validator — added 2026-10-27 as the structural forcing
+  // function against negative-hook drift. If the writer skipped theMove or
+  // declared a defensive/problem-shaped move, regen ONCE with the specific
+  // failure reason surfaced. Composing from a declared upside before the
+  // headline is the whole point of this gate; it's cheaper than regenerating
+  // headlines downstream and catches the root cause in-prompt.
+  {
+    const moveCheck = validateTheMove(content.theMove);
+    if (!moveCheck.ok) {
+      console.warn("writer.the_move_invalid.regenerating", {
+        reason: moveCheck.reason,
+        proposedVerb: content.theMove?.verb ?? "",
+        proposedGain: content.theMove?.gain ?? "",
+        proposedSentence: content.theMove?.sentence ?? "",
+      });
+      const moveRegenStart = Date.now();
+      const moveRegenPrompt = `${userPrompt}
+
+## ⛔ RE-DRAFT REQUIRED — theMove failed the structural upside check
+
+Your previous theMove was:
+- verb: "${content.theMove?.verb ?? "(missing)"}"
+- gain: "${content.theMove?.gain ?? "(missing)"}"
+- sentence: "${content.theMove?.sentence ?? "(missing)"}"
+
+Reason it failed: ${moveCheck.reason}
+
+Re-draft the ENTIRE issue. Start by rewriting theMove so it passes:
+1. verb starts with a CREATING verb (Add, Carve, Call, Launch, Charge, Switch, Price, Pitch, Hire, Separate, Open, Lead, Shift, Build, Ship, Introduce, Run, Schedule, Write, Post, Record, Send, Offer, Propose). Not stop/quit/avoid/fix/document/audit/protect/prevent/address/catch.
+2. gain contains at least one of: dollars, revenue, margin, closes, clients, hires, retention lift, multiple, book, deals, openings, referrals, upgrade, wins, repositioning, growth, prospects, meetings, M&A, pipeline, conversion, yield, AUM, payback.
+3. sentence contains NONE of these rut words: gap, hole, exposure, leakage, uninsured, silent, silence, missing, lost, broken, hidden cost, trap, liability, catches you, "stop doing", "the biggest mistake", red flag.
+
+Then compose the headline FROM theMove.sentence (not the other way around), and compose everything else to deliver that specific move. Return the full JSON object again.`;
+      const moveRegenResponse = await client.messages.create({
+        model: MODEL,
+        max_tokens: WRITER_MAX_TOKENS,
+        temperature: WRITER_TEMPERATURE,
+        system: [{ type: "text", text: contentTypeVoicePrompt, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: moveRegenPrompt }],
+      });
+      totalLatency += Date.now() - moveRegenStart;
+      totalInput += moveRegenResponse.usage.input_tokens;
+      totalOutput += moveRegenResponse.usage.output_tokens;
+      const regenBlock = moveRegenResponse.content[0];
+      if (regenBlock && regenBlock.type === "text") {
+        try {
+          const regenContent = parseContent(regenBlock.text);
+          const recheck = validateTheMove(regenContent.theMove);
+          content = regenContent;
+          pipeline.push({
+            name: "the_move_regen",
+            status: recheck.ok ? "success" : "warning",
+            latencyMs: Date.now() - moveRegenStart,
+            notes: recheck.ok
+              ? `theMove regen passed on second try: "${regenContent.theMove?.sentence ?? ""}"`
+              : `theMove regen still invalid (${recheck.reason}) — shipping with downstream guardrails as backstop`,
+            data: {
+              originalReason: moveCheck.reason,
+              regenVerb: regenContent.theMove?.verb ?? "",
+              regenGain: regenContent.theMove?.gain ?? "",
+              regenSentence: regenContent.theMove?.sentence ?? "",
+            },
+          });
+        } catch (parseErr) {
+          pipeline.push({
+            name: "the_move_regen",
+            status: "warning",
+            latencyMs: Date.now() - moveRegenStart,
+            notes: `theMove regen output failed to parse (${parseErr instanceof Error ? parseErr.message : String(parseErr)}) — keeping original draft, shipping with downstream guardrails as backstop`,
+          });
+        }
+      } else {
+        pipeline.push({
+          name: "the_move_regen",
+          status: "warning",
+          latencyMs: Date.now() - moveRegenStart,
+          notes: `theMove regen returned no text block — keeping original draft`,
+        });
+      }
+    } else {
+      pipeline.push({
+        name: "the_move_check",
+        status: "success",
+        latencyMs: 0,
+        notes: `theMove passed: "${content.theMove?.sentence ?? ""}"`,
+      });
+    }
+  }
+
   // Strip banned dashes globally before any further processing.
   // Voice modules forbid em/en/figure dashes — the model still emits them
   // occasionally despite the rules. This belt-and-suspenders pass replaces

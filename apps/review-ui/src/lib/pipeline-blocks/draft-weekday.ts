@@ -237,6 +237,35 @@ export function buildDraftWeekdayPrompt(input: DraftWeekdayInput): string {
     `You are drafting the Daily Grind weekday issue dated ${input.issueDate}. This is the primary writer block — your output is the substantive content. Voice review and Haiku-based sharpen passes run AFTER you, so produce your best draft, knowing minor polish happens downstream.`,
   );
 
+  // UPSIDE DECLARATION — forcing function added 2026-10-27 (Mark feedback:
+  // "find a way so the emails arnt negative... it might be trying to make it
+  // negative because you tell it to be captivating and most captivating
+  // content is negative hook"). The whack-a-mole of banning negative patterns
+  // has limits — the LLM finds new paths around word bans. The structural fix:
+  // require the writer to COMMIT to a specific MOVE + GAIN before composing
+  // anything, so the headline and article compose FROM the upside instead
+  // of defaulting to problem-identification.
+  sections.push(
+    formatSection(
+      "⚠️ STEP 1 — DECLARE THE MOVE BEFORE YOU COMPOSE (hard structural rule)",
+      `Before you write the headline, the article, or anything else, FILL theMove in your output JSON. This is step one, not step last. The rest of the issue composes FROM theMove.
+
+theMove has three fields:
+- "verb": the specific MOVE the reader will MAKE (an action verb + object: "Carve a planning-fee call out of the first prospect intro", "Call three past-year referrals back with a specific question", "Add a 20-minute Monday review slot that re-prices one legacy household", "Switch one AUM-only account to a flat planning fee"). An action, not a diagnosis. If your verb is "stop", "quit", "avoid", "fix", "address", "document", or any flavor of defense/correction — rewrite it. The verb must create something, not prevent something.
+- "gain": the specific GAIN the move produces, named in a readable noun phrase ending in a concrete outcome: dollars, time, closed clients, retention lift, a hire that pays back, a higher close rate, a repositioning edge, an upgrade in book quality, M&A multiple lift. If your gain is "clarity", "better conversations", "peace of mind", "fewer surprises", or any flavor of defense/relief — rewrite it. The gain must be a thing the reader CAPTURES, not a thing the reader AVOIDS.
+- "sentence": one plain sentence linking the two. E.g. "Add a 20-minute planning-fee carve-out call to your next three prospect intros — captures the clients you've been losing to RIAs that already separate the fees."
+
+HARD CHECKS the parser applies to theMove — if ANY fail, the whole draft is rejected and you'll be re-prompted:
+1. verb starts with an action word that CREATES something (Add, Carve, Call, Launch, Charge, Switch, Price, Pitch, Hire, Separate, Open, Lead, Shift, Build, Ship, Introduce). Not: Stop, Quit, Avoid, Fix, Document, Audit, Protect, Prevent, Address, Catch.
+2. gain names a thing the reader WILL HAVE after the move. The field must contain at least one of: dollar(s), $, revenue, margin, client(s), close(s), hire, retention, lift, multiple, book, deal(s), opening(s), referral(s), upgrade, win(s), repositioning, growth, prospect(s), meeting(s), referral(s), M&A.
+3. sentence contains NONE of these rut words: gap, hole, exposure, leakage, uninsured, underinsured, silent, silence, missing, lost, broken, hidden cost, trap, liability, catches you, isn't 150, isn't working, "stop doing", "quit doing", "the biggest mistake", "red flag", "warning sign". If any of these appear, your move is a defensive move dressed up as positive — rewrite.
+
+Then — and ONLY then — compose the headline. The headline must EXPRESS theMove.sentence (same move, more compressed). Not the opposite — do not write the headline first and then back-fill theMove. The order matters: declaring the move FIRST changes what your attention is on when you compose, and that changes the headline you produce. (We can tell when it was back-filled. Don't.)
+
+Composing from theMove is the whole point of this block. If you cannot name a specific MOVE + GAIN for this topic + angle, THE TOPIC IS WRONG for a positive-framing window — flag that in draftNotes and we'll reroute, rather than ship a diagnosis dressed as an opportunity.`,
+    ),
+  );
+
   // Topic
   sections.push(
     formatSection(
@@ -477,10 +506,15 @@ The Main Content closing must NOT restate The Number paragraph. Land somewhere n
   sections.push(
     formatSection(
       "Output Schema",
-      `Return ONLY the JSON object below — no preamble, no fences:
+      `Return ONLY the JSON object below — no preamble, no fences. theMove is step one and comes first in the JSON for a reason: compose it before everything else.
 
 {
-  "headline": "<H1, 5-12 words, takes a position>",
+  "theMove": {
+    "verb": "<action verb + object naming the specific MOVE the reader will MAKE this week — e.g. 'Carve a planning-fee call out of the first prospect intro', 'Add a 20-minute Monday re-pricing slot'. Must START with a creating verb (Add/Carve/Call/Launch/Charge/Switch/Price/Pitch/Hire/Separate/Open/Lead/Shift/Build/Ship/Introduce). NOT stop/quit/avoid/fix/document/audit/protect/prevent/address/catch.>",
+    "gain": "<the specific GAIN this move captures, named with a concrete outcome noun — dollars, revenue, closes, clients, hires, retention lift, a higher close rate, repositioning edge, M&A multiple lift, growth, upgrade. NOT clarity/peace-of-mind/fewer-surprises/relief/defense.>",
+    "sentence": "<one plain sentence linking verb + gain. No rut words (gap, hole, exposure, leakage, uninsured, missing, lost, broken, hidden cost, trap, liability).>"
+  },
+  "headline": "<H1, 5-12 words, EXPRESSES theMove.sentence — same move, compressed. Must name the upside or the instruction, not a problem the reader has.>",
   "preheader": "<60-110 chars for Gmail preview>",
   "contentType": "${input.approvedTopic.contentType}",
   "openingTrifecta": {

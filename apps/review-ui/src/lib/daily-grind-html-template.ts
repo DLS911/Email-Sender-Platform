@@ -31,6 +31,16 @@ export type HowToStep = {
 };
 
 export type DailyGrindContent = {
+  /**
+   * UPSIDE DECLARATION — writer must fill this BEFORE composing the headline.
+   * Not rendered. Added 2026-10-27 as a structural forcing function against
+   * negative-hook drift: by committing to a MOVE + GAIN first, the headline
+   * and article compose FROM an upside instead of defaulting to problem-
+   * identification. Optional in the type for back-compat with pre-2026-10-27
+   * issues that don't have it; required in the writer's output schema (parse
+   * triggers regen if missing or problem-shaped).
+   */
+  theMove?: { verb: string; gain: string; sentence: string };
   headline: string;
   preheader: string;
   contentType: DailyGrindContentType;
