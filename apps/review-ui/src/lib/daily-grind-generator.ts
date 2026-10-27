@@ -1123,19 +1123,39 @@ JSON OUTPUT:
   // instinct toward problem-identification headlines pushes this
   // audience away. Readers already open at 30%+; they want to learn.
   sections.push(
-    `# POSITIVE / VALUE-FORWARD FRAMING — HARD RULE (3-week A/B, added 10-21)
+    `# POSITIVE AND CAPTIVATING — HARD RULE (updated 2026-10-27 per Mark)
 
-The reader opens this on their commute or over coffee to LEARN SOMETHING THEY CAN USE, not to be told what they're doing wrong. Default LLM reflex is "problem = captivating headline" — that reflex IS WRONG for this audience. Mark gets trust when he TEACHES, not when he scolds.
+Two failure modes, both wrong:
+- NEGATIVE-HOOK (what Round 4 was fixing): "The gap in your book", "What advisors miss". Diagnostic, defensive, blames the reader.
+- NEUTRAL-DESCRIPTIVE (what Round 5 over-corrected into): "Three CRM fields that predict closes", "How to price flat fees". Technically positive, but reads like a textbook chapter title. Describes a thing instead of pointing at a prize.
 
-Required for THIS issue (template-refreshed 2026-10-22):
-- Headline: lean OPPORTUNITY / INSTRUCTION / CELEBRATION. Avoid deflating or diagnostic framings.
-  BANNED headline shapes: "X isn't Y, it's Z", "Your X is broken/dead/wrong", "What X doesn't see", "The X you're missing/losing", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong".
-  PREFERRED headline shapes: "How to X", "The upgrade: X", "The move that pays back by Y", "The one hour that unlocks Z", "What top advisors did when Y", "The X that compounds".
-- Main article (firstPull.paragraphs): open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who did something right, not a diagnostic of what everyone's doing wrong. 3-5 paragraphs that argue or narrate, not summarize.
-- How to Practice (mainContent.howTo): 3-5 labeled steps the advisor can execute Monday. Each step title names the move; each step body gives the mechanic.
-- Shot of Wisdom (ancientTruth): verse + reference only — the application paragraph was removed 2026-10-26 per Mark ("no more of that feature"). Output ancientTruth.application as empty string.
+The right mode is **CAPTIVATING-POSITIVE**: name an UNCLAIMED PRIZE the reader already owns, quantify it the reader can project onto themselves, and give it a sense that the money / time / clients / multiple is already SITTING there waiting — the reader just hasn't captured it yet. "Something you have to unlock" beats "something to earn" because the reader already owns the thing.
 
-Direct does NOT mean negative. "Here is the exact move" is sharp AND positive. "The three fields that predict closes" is specific AND positive. "The hire that pays back by Q2" is quantified AND positive. Mark's voice can be opinionated without being critical.
+PRIZE-FRAMED HEADLINE SHAPES — study these carefully:
+- "Why you might have $10K per client to unlock" (reader-owned + quantified + already-there)
+- "The $47K sitting in your 3rd-quartile book right now" (reader-owned + specific amount + waiting)
+- "Four moves between you and a 2.5x multiple" (quantified distance to a prize)
+- "What a solo RIA pocketed in Q3 without hiring" (specific win someone like the reader captured)
+- "How to pull Q1 revenue forward 60 days" (upside with timeline)
+- "The planning fee hiding inside your current AUM clients" (reader-owned asset waiting to be surfaced)
+- "The one Monday hour that pays back by December" (compounding move with payoff date)
+- "Why 11.6x goes to firms that separate planning fees" (mechanism + specific reward)
+
+HEADLINE QUALITY TESTS — your proposed headline must pass at least ONE:
+1. Does it name a DOLLAR AMOUNT, MULTIPLE, PERCENTAGE, or TIMELINE that the reader can project onto their own book?
+2. Does it imply the thing is ALREADY THE READER'S but not yet captured ("hiding in", "to unlock", "sitting in", "between you and")? (NOT "left on the table" — that reads diagnostic.)
+3. Does it name a specific WIN someone like the reader captured ("How one solo RIA...", "What a $200M firm did...")?
+4. Does it start with "Why..." when the body actually explains a MECHANISM the reader will want to know?
+
+If NONE of (1-4) pass and your headline is still just a label for a tactic ("Three CRM fields that predict closes") — rewrite. That's neutral-descriptive, not captivating.
+
+BANNED (still): "X isn't Y, it's Z", "Your X is broken/dead/wrong", "What X doesn't see", "The X you're missing/losing", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong", "Money left on the table" (diagnostic frame).
+
+ESCAPE VALVE — when the research honestly can't support a quantified prize for this topic, DO NOT FABRICATE a number. Fall back to a mechanism-tease ("Why top-decile advisors run Q4 differently", "How solo RIAs beat aggregator buyers to the same clients") that still names a specific reader-owned win, just without the digit. Fabricated numbers destroy trust faster than a bland headline.
+
+- Main article (firstPull.paragraphs): open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who captured it, not a diagnostic of what everyone's doing wrong. The upside must appear in the FIRST paragraph with a concrete number if the research supports one.
+- How to Practice (mainContent.howTo): 3-5 labeled steps the advisor can execute Monday. Each step title names the move; each step body gives the mechanic and the specific gain that step produces.
+- Shot of Wisdom (ancientTruth): verse + reference only — output ancientTruth.application as empty string.
 
 If the research bundle only surfaces threats/problems, PICK A DIFFERENT ANGLE on that research: what's the upside hidden in it? What's the move an advisor who sees this clearly would make? That's the issue to write.`,
   );
@@ -2504,12 +2524,20 @@ const MOVE_CREATE_VERBS = [
   "hire", "separate", "open", "lead", "shift", "build", "ship", "introduce",
   "run", "schedule", "write", "post", "record", "send", "offer", "propose",
   "re-price", "reprice", "repackage", "re-package", "re-pitch", "repitch",
-  "start", "set up", "spin up", "stand up", "name", "declare", "post",
+  "start", "set up", "spin up", "stand up", "name", "declare",
+  // Round 6: capture/claim verbs — the move surfaces or unlocks something
+  // the reader already owns but hasn't captured.
+  "pull", "pocket", "capture", "claim", "unlock", "surface", "convert",
+  "collect", "upgrade",
 ];
 const MOVE_DEFENSE_VERBS = [
   "stop", "quit", "avoid", "fix", "document", "audit", "protect",
   "prevent", "address", "catch", "patch", "cover", "defend", "shore up",
   "mitigate", "remedy", "guard", "insulate",
+  // Round 6: passive-observation verbs also fail — the move must CAPTURE,
+  // not just WATCH. ("Track friction type" produced a bland result.)
+  "track", "monitor", "measure", "log", "observe", "note",
+  "review", "assess", "evaluate", "analyze",
 ];
 const MOVE_GAIN_NOUNS = [
   "dollar", "dollars", "$", "revenue", "margin", "client", "clients",
@@ -2617,28 +2645,36 @@ function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null
   return null;
 }
 
-const HEADLINE_REWRITE_SYSTEM_PROMPT = `You rewrite the H1 headline for The Daily Grind, a newsletter for independent financial advisors written in Mark's voice — sharp, specific, and VALUE-FORWARD.
+const HEADLINE_REWRITE_SYSTEM_PROMPT = `You rewrite the H1 headline for The Daily Grind, a newsletter for independent financial advisors written in Mark's voice — sharp, specific, CAPTIVATING, and VALUE-FORWARD.
+
+Two failure modes to avoid:
+1. NEGATIVE-HOOK: "The gap in your book", "What advisors miss". Diagnostic. Blames the reader.
+2. NEUTRAL-DESCRIPTIVE: "Three CRM fields that predict closes", "How to price flat fees". Technically positive but reads like a textbook chapter title. Describes a thing instead of pointing at a prize the reader can project onto themselves.
+
+Aim for CAPTIVATING-POSITIVE: point at an UNCLAIMED PRIZE the reader already owns, with a reader-personal number ($/client, $/deal, %, multiple, timeline) when the body genuinely supports one.
 
 The headline must:
 - Be 5-12 words, title case.
-- Take a position or name a specific thing. Not neutral, not descriptive.
-- Lean toward OPPORTUNITY, INSTRUCTION, or CELEBRATION. Not problem-identification. Readers already open at 30%+ — the hook isn't the issue; they trust Mark when he TEACHES.
-- NOT use any of these BANNED patterns:
-  LEGACY: "Nobody's X", "What Nobody Tells You", "The Truth About X", "Why X Matters", "Rethinking/Understanding X", "N Ways/Things/Tips" listicles, "You're Not X".
-  NEGATIVE (added 2026-10-21): "X isn't Y, it's Z", "Your X is broken/dead/wrong/failing", "What X doesn't see/know", "The X you're missing/losing", "The X that's killing/costing/breaking", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong/broken".
-- Use ONE of these POSITIVE/VALUE-FORWARD structural templates (preferred for the next 3 weeks):
-  • The move: "The One Hire That Pays Back by Spring"
-  • The upgrade: "The Discovery Call Upgrade That Closes 40% More Prospects"
-  • The pattern win: "What Top-Decile Advisors Do in Q4 Review Meetings"
-  • The instruction: "How to Price Flat-Fee Plans So Clients Pre-Pay"
-  • The compounding move: "The 20-Minute Monday Habit That Fills Your Pipeline"
-  • The quantified upside: "The Fee Model Shift That Added $380K in Year One"
-  • The celebration/case study: "How One Advisor Doubled Her Book Without Hiring"
-  • The craft move: "The Three CRM Fields That Predict 80% of Closes"
-- Legacy structures that are STILL ALLOWED but LESS PREFERRED (use only if the issue genuinely requires a reframe, max 1 in 4):
-  • The contrarian stat: "63% of Discovery Calls End in the First 4 Minutes"
-  • The reframe directive (NOT "stop"-worded): "Send a Calendar Hold Instead of an NDA"
-  • The setup-and-twist: "Conventional Wisdom Says Niche Down. The Math Says Scale Up First."
+- Pass AT LEAST ONE of these quality tests:
+  (a) Names a DOLLAR AMOUNT, MULTIPLE, PERCENTAGE, or TIMELINE the reader can project onto their own book.
+  (b) Implies the thing is ALREADY THE READER'S but not yet captured ("hiding in", "to unlock", "sitting in", "between you and", "waiting in").
+  (c) Names a specific WIN someone like the reader captured ("How one solo RIA...", "What a $200M firm did...").
+  (d) Starts with "Why..." when the body actually explains a MECHANISM worth knowing.
+- NEVER echo the shape-example gallery below as the output. Those are SHAPES, not phrases to copy.
+
+SHAPE-ONLY TEMPLATES (study the pattern, do NOT copy the words):
+  • PRIZE-WAITING shape: "The $[N] [adjective] in your [reader's thing] right now"
+  • QUANTIFIED-DISTANCE shape: "[N] moves between you and a [N]x [outcome]"
+  • CAPTURED-WIN shape: "What a [specific-firm-shape] pocketed in [period] [without X]"
+  • TIME-TO-PAYOFF shape: "The [specific habit] that pays back by [date]"
+  • MECHANISM-WHY shape: "Why [specific outcome] goes to firms that [specific move]"
+  • READER-PERSONAL-QUANT shape: "Why you might have $[N] per [client/deal/household] to [verb]"
+  • UNLOCK shape: "The [reader's existing thing] hiding inside your [current state]"
+
+BANNED patterns:
+LEGACY: "Nobody's X", "What Nobody Tells You", "The Truth About X", "Why X Matters", "Rethinking/Understanding X", "N Ways/Things/Tips" listicles, "You're Not X".
+NEGATIVE: "X isn't Y, it's Z", "Your X is broken/dead/wrong/failing", "What X doesn't see/know", "The X you're missing/losing", "The X that's killing/costing/breaking", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong/broken", "Money left on the table".
+NEUTRAL-DESCRIPTIVE (added 2026-10-27): "The [N] [things] that [predict/produce/cause] [outcome]" when none of (a)-(d) above apply. If your rewrite reads like a textbook chapter title with no prize framing, keep rewriting.
 
 Return ONLY this JSON, no preamble:
 { "headline": "the rewritten H1" }`;

@@ -53,18 +53,31 @@ export function buildAssembleHtmlPrompt(input: AssembleHtmlInput): string {
 
 **Voice:** Same as the brand voice. Direct, opinionated, specific. Not clickbait. Not "5 ways to..." listicle drift. Not "You won't believe what happened next" curiosity-gap manipulation.
 
-**UPSIDE-FIRST RULE (HARD, added 2026-10-27).** The reader opens because they already trust Mark. The inbox is already won — do NOT try to re-win it with pain or surprise-problem. Negative hooks ("miss this", "stop doing X", "the gap", "isn't Y", "the hidden cost") LAND the open but LOSE the trust. Default LLM instinct is "captivating = negative hook because that's what wins on generic internet copy". That instinct is WRONG for this audience. Your subject MUST name an UPSIDE, an INSTRUCTION, a WIN, or a QUANTIFIED GAIN — not a problem the reader has.
+**PRIZE-FRAMING RULE (HARD, Round 6 — updated 2026-10-27).** The reader opens because they already trust Mark. The inbox is already won — don't try to re-win it with pain OR with a textbook chapter title. Two failure modes:
+1. NEGATIVE-HOOK: "miss this", "stop doing X", "the gap", "isn't Y", "the hidden cost". Diagnostic, blames the reader. BANNED.
+2. NEUTRAL-DESCRIPTIVE: "Three CRM fields that predict closes", "How to price flat fees". Technically positive, but reads like a book-chapter label — describes a thing instead of pointing at a prize. ALSO BANNED.
 
-**Patterns that work for this brand (ALL upside-forward):**
-- The specific tactic: "The 15-minute Friday review that protects your week"
-- The quantified upside: "The move that compounds to 11.6x on exit"
-- The win-story: "How one solo RIA closed $47M in Q3"
-- The instruction: "How to carve a planning fee out of your next intro"
-- The compounding habit: "The Monday hour that pays back by December"
-- The pattern name: "What top advisors do with their first prospect call"
-- The specific stat as opportunity: "The 3 CRM fields that predict closes"
+Aim for CAPTIVATING-POSITIVE: name an UNCLAIMED PRIZE the reader already owns, with a reader-personal number ($/client, $/deal, %, multiple, timeline) when the body supports one. The subject should make the reader lean in because something is sitting there waiting for them.
 
-**Patterns to AVOID (HARD BAN — these are negative-hook shapes):**
+**Patterns that work for this brand (ALL prize-framed, study the SHAPE not the words):**
+- The quantified reader-prize: "Why you might have $10K per client to unlock"
+- The waiting prize: "The $47K hiding in your 3rd-quartile book right now"
+- The quantified distance: "Four moves between you and a 2.5x multiple"
+- The captured win: "How one solo RIA pocketed $47M in Q3"
+- The time-to-payoff: "The Monday hour that pays back by December"
+- The mechanism-why: "Why 11.6x multiples go to firms that separate planning fees"
+- The unlock: "The planning fee hiding inside your current AUM clients"
+
+**Quality tests — your subject MUST pass at least ONE:**
+(a) Names a DOLLAR AMOUNT, MULTIPLE, PERCENTAGE, or TIMELINE the reader can project onto their own book.
+(b) Implies the thing is ALREADY THE READER'S but not yet captured ("hiding in", "to unlock", "sitting in", "between you and", "waiting in").
+(c) Names a specific WIN someone like the reader captured ("How one solo RIA...").
+(d) Starts with "Why..." when the body explains a MECHANISM worth knowing.
+
+If NONE of (a-d) pass and your subject is just a label for a tactic — rewrite. "Three X that Y Z" is neutral-descriptive, not captivating.
+
+**Patterns to AVOID (HARD BAN):**
+NEGATIVE-HOOK family:
 - "X isn't Y, it's Z" / "Your X isn't Y" (deflating comparison)
 - "The X you're missing / losing / forgetting"
 - "Stop / Quit / Don't / Avoid" anything
@@ -73,6 +86,12 @@ export function buildAssembleHtmlPrompt(input: AssembleHtmlInput): string {
 - "What X doesn't see / know / notice"
 - "The gap between X and Y"
 - "Why your X is broken / wrong / dead"
+- "Money left on the table" (diagnostic frame)
+NEUTRAL-DESCRIPTIVE family (added Round 6 — "technically positive but boring"):
+- "The N [things] that [predict/produce/cause] [outcome]" — reads like a textbook chapter
+- "How to [do a tactic]" with no number, timeline, or prize attached
+- "The [tactic] [that/for] [generic benefit]"
+GENERIC spam/bait:
 - Curiosity-gap: "Don't miss this..." / "You won't believe..."
 - False personalization: "[NAME], here's what you need to know"
 - ALL CAPS, multiple punctuation (!!!), emoji-loaded subjects
