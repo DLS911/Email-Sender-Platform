@@ -31,7 +31,7 @@ function isAuthorized(req: Request): boolean {
 
 export async function POST(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  let body: { issueDate?: string; confirm?: boolean };
+  let body: { issueDate?: string; confirm?: boolean; force?: boolean };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const issueDate = body.issueDate?.trim();
   if (!issueDate) return NextResponse.json({ error: "issueDate required" }, { status: 400 });
@@ -49,9 +49,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     .maybeSingle();
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
   if (!before) return NextResponse.json({ error: `no issue for ${issueDate}` }, { status: 404 });
-  if (before.approval_status === "approved") {
+  if (before.approval_status === "approved" && body.force !== true) {
     return NextResponse.json({
-      error: `issue for ${issueDate} is APPROVED. Refusing to delete to prevent dropping something scheduled. If you really want to delete, un-approve first.`,
+      error: `issue for ${issueDate} is APPROVED. Refusing to delete to prevent dropping something scheduled. If the scheduled campaign has already been cancelled and you really want to delete the orphaned row, pass force:true.`,
       current: before,
     }, { status: 409 });
   }
