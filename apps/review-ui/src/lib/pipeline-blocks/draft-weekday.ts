@@ -319,6 +319,36 @@ Rehashing WK is the fastest way to make the reader feel this newsletter is on au
     );
   }
 
+  // Round 8 (2026-10-30) — BODY VOICE rule, added after Mark feedback that
+  // the body still reads "kinda negative in voice" even when the headline is
+  // prize-framed. The leak was a recurring opening pattern "Most advisors
+  // treat X like Y. The ones who do Z capture $N." which implicitly casts
+  // the reader into the "casual" class before the pivot. Replaced with
+  // scene-first narrative openings.
+  sections.push(
+    formatSection(
+      "⚠️ BODY VOICE — SCENE-FIRST, NEVER CLASSIFY THE READER (Round 8)",
+      `The headline/subject already carries the prize. The BODY must not re-win the reader with an "us vs them" diagnostic. Mark's feedback (2026-10-30): "its still kinda negative in voice."
+
+HARD BAN for firstPull.paragraphs[0]:
+- Do NOT open with "Most advisors / most firms / the majority / typical advisors / N% of advisors ..." as a classifying statement about the reader's peer group.
+- Do NOT open with the implicit "casuals vs. systematized" dichotomy ("Most firms do X casually. The firms that systematize X capture $N.").
+- Do NOT open with "The typical / common / average advisor does..." phrasing.
+
+INSTEAD, open with ONE of:
+- **Scene-anchored**: One specific advisor (named or anonymized), one specific moment, one specific action they took. The reader is a WITNESS, not a diagnosis subject. "Sarah walked out of the discovery call having said five words and closed the biggest household of her year." / "The call was Thursday afternoon. The portfolio hit the inbox Monday morning."
+- **Direct second-person instruction**: Address the reader with the move. "Pick one $2M+ household whose last review ran under 45 minutes."
+- **Concrete data as entry**: Lead with the specific number that justifies the whole issue. "Schwab's 2026 study put it at 68%. That's the share of business owners who keep sale proceeds in cash for 11+ months."
+- **A specific question**: "What would you charge if the first prospect call Monday had already signed a $6,500 planning engagement?"
+
+For contentType=story specifically: the ENTIRE firstPull.paragraphs are one or more scenes. Named or anonymized advisor, specific moments, dialogue if it fits. Data lives in theNumber above; the body lives in the scene.
+
+Every paragraph should NARRATE (someone did something), INSTRUCT (you do this), or ARGUE (here's why X compounds). None of them should classify the reader's peer group as a comparison setup. "Most advisors" is a crutch — we're done with it.
+
+This rule applies to firstPull.paragraphs AND mainContent.howTo step bodies. A step body that opens "Advisors who track X see Y" is also classifying — rewrite to "You run X on your next client review" or anchor it in a specific scene.`,
+    ),
+  );
+
   // Per-content-type structure
   sections.push(
     formatSection(

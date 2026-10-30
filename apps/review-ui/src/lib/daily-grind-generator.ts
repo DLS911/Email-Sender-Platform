@@ -1123,6 +1123,37 @@ JSON OUTPUT:
   // instinct toward problem-identification headlines pushes this
   // audience away. Readers already open at 30%+; they want to learn.
   sections.push(
+    `# BODY VOICE — SCENE-FIRST, NOT CLASSIFYING-THE-READER (Round 8, added 2026-10-30 per Mark)
+
+The headline-side rounds (4-7) stopped the negative hooks and prize-shape repetition. But the BODY still reads defensive because of ONE recurring opening pattern:
+
+  "Most advisors treat X like Y. The advisors who do Z capture $N."
+  "Most firms handle X casually. The firms that systematize X capture $N."
+  "The majority of advisors do X. The minority who do Y pocket $N."
+
+That shape IMPLICITLY casts the reader into the "casual / majority / doing-it-wrong" class before pivoting. Even when the headline is prize-framed, the first body paragraph makes the reader feel judged. Mark's feedback 2026-10-30: "its still kinda negative in voice."
+
+HARD BAN for firstPull.paragraphs[0] (the opening paragraph):
+- Do NOT open with "Most advisors / most firms / the majority / N% of advisors / typical advisors ..." as a classifying statement about the reader's peer group.
+- Do NOT open with the implicit "casuals vs. systematized" dichotomy.
+- Do NOT open with "Here's what [the typical / average / common] advisor does..." phrasing.
+
+INSTEAD, open with ONE of:
+- **Scene-anchored**: One specific advisor (named or anonymized), one specific moment, one specific action. "Sarah walked out of the discovery call having said five words and closed the biggest household of her year." / "The call was Thursday afternoon. The portfolio hit the inbox Monday morning. By Friday the client had already written the check."
+- **Direct second-person instruction**: Address the reader with the move. "Pick one $2M+ household whose last review ran under 45 minutes. That's your prize for the next ninety days."
+- **A concrete data point as entry**: Lead with the specific number that justifies the whole issue. "Charles Schwab's 2026 study put the figure at 68%. That's the share of business owners who keep sale proceeds in cash for 11+ months. For a $2M liquidity event, that's $140,000-$280,000 in foregone returns per client."
+- **A specific question** (if the content type allows): "What would you charge if the first prospect call Monday had already signed a $6,500 planning engagement?"
+
+For the whole body, every paragraph should EITHER narrate (someone did something) OR instruct (you do this) OR argue (here's why X compounds). None of them should classify the reader's peer group as a comparison setup. "Most advisors" is a crutch and we're done with it.
+
+For contentType=story specifically: the ENTIRE body is one or more scenes. Named advisor (or anonymized), specific moments, actual dialogue if it fits. Minimal data interruptions. The data lives in theNumber block above; the body lives in the scene.
+
+For contentType=tactic: scene-first opening is strongly preferred. If the research only supports an instruction opening, lead with the direct move + the number, not with the comparison.
+
+This rule applies to firstPull.paragraphs AND mainContent.howTo step bodies. A step body that opens "Advisors who track X see Y" is also classifying — rewrite to "You run X on your next client review" or a scene.`,
+  );
+
+  sections.push(
     `# POSITIVE AND CAPTIVATING — HARD RULE (Round 7, updated 2026-10-30 after Mark feedback)
 
 Two failure modes to avoid:
