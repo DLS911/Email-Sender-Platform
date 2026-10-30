@@ -59,22 +59,27 @@ export function buildAssembleHtmlPrompt(input: AssembleHtmlInput): string {
 
 Aim for CAPTIVATING-POSITIVE: name an UNCLAIMED PRIZE the reader already owns, with a reader-personal number ($/client, $/deal, %, multiple, timeline) when the body supports one. The subject should make the reader lean in because something is sitting there waiting for them.
 
-**Patterns that work for this brand (ALL prize-framed, study the SHAPE not the words):**
-- The quantified reader-prize: "Why you might have $10K per client to unlock"
-- The waiting prize: "The $47K hiding in your 3rd-quartile book right now"
-- The quantified distance: "Four moves between you and a 2.5x multiple"
-- The captured win: "How one solo RIA pocketed $47M in Q3"
-- The time-to-payoff: "The Monday hour that pays back by December"
-- The mechanism-why: "Why 11.6x multiples go to firms that separate planning fees"
-- The unlock: "The planning fee hiding inside your current AUM clients"
+**Shapes that work for this brand (ALL prize-framed — described by property, no specific examples):**
+- per-client-prize-range: reader-personal + per-client/per-deal/per-household + range of dollars
+- prize-waiting: the dollars are already in the reader's book, framed as waiting to be captured
+- quantified-distance: N moves between the reader and a specific multiple / percentage / dollar outcome
+- captured-win: a specific firm or advisor shape who captured a specific thing in a specific period
+- time-to-payoff: a specific habit / move that pays back by a specific date
+- mechanism-why: starts with "Why" + explains the mechanism behind a specific reward
+- unlock: a reader-owned asset waiting to be surfaced (not "left on the table" — that's diagnostic)
+
+NO EXAMPLES. We don't give specific example subjects here because when we did, the writer kept echoing the exact SHAPE back — three consecutive "$X-$Y per client" subjects in a row across different topics. Instead:
+- Pick a shape whose structure differs from the recent subject lines list above
+- Fill it with the specific details of THIS issue's topic
+- Do not pattern-match on specific wording from any example you may have seen before
 
 **Quality tests — your subject MUST pass at least ONE:**
 (a) Names a DOLLAR AMOUNT, MULTIPLE, PERCENTAGE, or TIMELINE the reader can project onto their own book.
-(b) Implies the thing is ALREADY THE READER'S but not yet captured ("hiding in", "to unlock", "sitting in", "between you and", "waiting in").
-(c) Names a specific WIN someone like the reader captured ("How one solo RIA...").
+(b) Implies the thing is ALREADY THE READER'S but not yet captured.
+(c) Names a specific WIN someone like the reader captured.
 (d) Starts with "Why..." when the body explains a MECHANISM worth knowing.
 
-If NONE of (a-d) pass and your subject is just a label for a tactic — rewrite. "Three X that Y Z" is neutral-descriptive, not captivating.
+If NONE of (a-d) pass and your subject is just a label for a tactic — rewrite. "N X that Y Z" is neutral-descriptive, not captivating.
 
 **Patterns to AVOID (HARD BAN):**
 NEGATIVE-HOOK family:

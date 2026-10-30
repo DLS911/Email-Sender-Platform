@@ -1123,35 +1123,32 @@ JSON OUTPUT:
   // instinct toward problem-identification headlines pushes this
   // audience away. Readers already open at 30%+; they want to learn.
   sections.push(
-    `# POSITIVE AND CAPTIVATING — HARD RULE (updated 2026-10-27 per Mark)
+    `# POSITIVE AND CAPTIVATING — HARD RULE (Round 7, updated 2026-10-30 after Mark feedback)
 
-Two failure modes, both wrong:
-- NEGATIVE-HOOK (what Round 4 was fixing): "The gap in your book", "What advisors miss". Diagnostic, defensive, blames the reader.
-- NEUTRAL-DESCRIPTIVE (what Round 5 over-corrected into): "Three CRM fields that predict closes", "How to price flat fees". Technically positive, but reads like a textbook chapter title. Describes a thing instead of pointing at a prize.
+Two failure modes to avoid:
+- NEGATIVE-HOOK: diagnostic, defensive, blames the reader (banned since Round 4).
+- NEUTRAL-DESCRIPTIVE: technically positive but reads like a textbook chapter title (banned since Round 5).
 
-The right mode is **CAPTIVATING-POSITIVE**: name an UNCLAIMED PRIZE the reader already owns, quantify it the reader can project onto themselves, and give it a sense that the money / time / clients / multiple is already SITTING there waiting — the reader just hasn't captured it yet. "Something you have to unlock" beats "something to earn" because the reader already owns the thing.
-
-PRIZE-FRAMED HEADLINE SHAPES — study these carefully:
-- "Why you might have $10K per client to unlock" (reader-owned + quantified + already-there)
-- "The $47K sitting in your 3rd-quartile book right now" (reader-owned + specific amount + waiting)
-- "Four moves between you and a 2.5x multiple" (quantified distance to a prize)
-- "What a solo RIA pocketed in Q3 without hiring" (specific win someone like the reader captured)
-- "How to pull Q1 revenue forward 60 days" (upside with timeline)
-- "The planning fee hiding inside your current AUM clients" (reader-owned asset waiting to be surfaced)
-- "The one Monday hour that pays back by December" (compounding move with payoff date)
-- "Why 11.6x goes to firms that separate planning fees" (mechanism + specific reward)
+The right mode is CAPTIVATING-POSITIVE: name an UNCLAIMED PRIZE the reader already owns, quantify it so the reader can project it onto their own book, and give it the sense that the thing is already waiting — the reader just hasn't captured it yet. "Something to unlock" beats "something to earn" because the reader already owns it.
 
 HEADLINE QUALITY TESTS — your proposed headline must pass at least ONE:
-1. Does it name a DOLLAR AMOUNT, MULTIPLE, PERCENTAGE, or TIMELINE that the reader can project onto their own book?
-2. Does it imply the thing is ALREADY THE READER'S but not yet captured ("hiding in", "to unlock", "sitting in", "between you and")? (NOT "left on the table" — that reads diagnostic.)
-3. Does it name a specific WIN someone like the reader captured ("How one solo RIA...", "What a $200M firm did...")?
-4. Does it start with "Why..." when the body actually explains a MECHANISM the reader will want to know?
+1. Names a DOLLAR AMOUNT, MULTIPLE, PERCENTAGE, or TIMELINE the reader can project onto their own book.
+2. Implies the thing is ALREADY the reader's but not yet captured (unclaimed-waiting framing).
+3. Names a specific WIN someone like the reader captured (case-study framing).
+4. Starts with a MECHANISM-WHY the reader will want to understand.
 
-If NONE of (1-4) pass and your headline is still just a label for a tactic ("Three CRM fields that predict closes") — rewrite. That's neutral-descriptive, not captivating.
+NO SPECIFIC EXAMPLES. We intentionally do NOT give example headlines here, because when we did, the writer collapsed onto that exact SHAPE and produced three consecutive "$X-$Y per client" headlines in a row across different topics (10-23, 10-28, 10-30). Instead:
+- Read the quality tests above and the headline-shape rotation list below.
+- Write a headline whose SHAPE differs from the last three issues' headlines.
 
-BANNED (still): "X isn't Y, it's Z", "Your X is broken/dead/wrong", "What X doesn't see", "The X you're missing/losing", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong", "Money left on the table" (diagnostic frame).
+HEADLINE-SHAPE ROTATION — Round-7 structural rule:
+The system classifies each headline into one of ~8 abstract SHAPES (per-client-prize-range, prize-waiting, quantified-distance, captured-win, time-to-payoff, mechanism-why, unlock, instructional). If this issue's headline uses the same SHAPE as any of the last three issues, the whole headline gets rejected and rewritten. See the "RECENT HEADLINE SHAPES — DO NOT REPEAT" section of this prompt (provided below if any recent headlines were loaded) for which shapes are off-limits for THIS issue. If none are listed, you're free. If some are listed, use one of the shapes NOT on that list.
 
-ESCAPE VALVE — when the research honestly can't support a quantified prize for this topic, DO NOT FABRICATE a number. Fall back to a mechanism-tease ("Why top-decile advisors run Q4 differently", "How solo RIAs beat aggregator buyers to the same clients") that still names a specific reader-owned win, just without the digit. Fabricated numbers destroy trust faster than a bland headline.
+The shapes are UNDERDETERMINED by language — a headline that quantifies the prize but reads as "per client $X-$Y" is a per-client-prize-range even if the verb or topic differs. Pay attention to the inbox-level pattern, not the words. Two headlines with the same reader-personal + range-of-dollars + per-client structure are the same shape even if one is about tax and one is about insurance.
+
+BANNED (unchanged from Round 6): "X isn't Y, it's Z", "Your X is broken/dead/wrong", "What X doesn't see", "The X you're missing/losing", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong", "Money left on the table".
+
+ESCAPE VALVE — when the research honestly can't support a quantified prize for this topic, DO NOT FABRICATE a number. Fall back to a mechanism-tease OR captured-win OR time-to-payoff shape that still names a specific reader-owned win without a per-client-$ structure. Fabricated numbers destroy trust faster than a different headline shape.
 
 - Main article (firstPull.paragraphs): open with the UPSIDE the advisor can capture, OR a brief scene of an advisor who captured it, not a diagnostic of what everyone's doing wrong. The upside must appear in the FIRST paragraph with a concrete number if the research supports one.
 - How to Practice (mainContent.howTo): 3-5 labeled steps the advisor can execute Monday. Each step title names the move; each step body gives the mechanic and the specific gain that step produces.
@@ -2656,8 +2653,8 @@ function headlineBanMatch(headline: string): { name: string; rx: RegExp } | null
 const HEADLINE_REWRITE_SYSTEM_PROMPT = `You rewrite the H1 headline for The Daily Grind, a newsletter for independent financial advisors written in Mark's voice — sharp, specific, CAPTIVATING, and VALUE-FORWARD.
 
 Two failure modes to avoid:
-1. NEGATIVE-HOOK: "The gap in your book", "What advisors miss". Diagnostic. Blames the reader.
-2. NEUTRAL-DESCRIPTIVE: "Three CRM fields that predict closes", "How to price flat fees". Technically positive but reads like a textbook chapter title. Describes a thing instead of pointing at a prize the reader can project onto themselves.
+1. NEGATIVE-HOOK: diagnostic, blames the reader. Banned.
+2. NEUTRAL-DESCRIPTIVE: reads like a textbook chapter title. Banned.
 
 Aim for CAPTIVATING-POSITIVE: point at an UNCLAIMED PRIZE the reader already owns, with a reader-personal number ($/client, $/deal, %, multiple, timeline) when the body genuinely supports one.
 
@@ -2665,27 +2662,70 @@ The headline must:
 - Be 5-12 words, title case.
 - Pass AT LEAST ONE of these quality tests:
   (a) Names a DOLLAR AMOUNT, MULTIPLE, PERCENTAGE, or TIMELINE the reader can project onto their own book.
-  (b) Implies the thing is ALREADY THE READER'S but not yet captured ("hiding in", "to unlock", "sitting in", "between you and", "waiting in").
-  (c) Names a specific WIN someone like the reader captured ("How one solo RIA...", "What a $200M firm did...").
+  (b) Implies the thing is ALREADY the reader's but not yet captured (unclaimed-waiting framing).
+  (c) Names a specific WIN someone like the reader captured (case-study framing).
   (d) Starts with "Why..." when the body actually explains a MECHANISM worth knowing.
-- NEVER echo the shape-example gallery below as the output. Those are SHAPES, not phrases to copy.
 
-SHAPE-ONLY TEMPLATES (study the pattern, do NOT copy the words):
-  • PRIZE-WAITING shape: "The $[N] [adjective] in your [reader's thing] right now"
-  • QUANTIFIED-DISTANCE shape: "[N] moves between you and a [N]x [outcome]"
-  • CAPTURED-WIN shape: "What a [specific-firm-shape] pocketed in [period] [without X]"
-  • TIME-TO-PAYOFF shape: "The [specific habit] that pays back by [date]"
-  • MECHANISM-WHY shape: "Why [specific outcome] goes to firms that [specific move]"
-  • READER-PERSONAL-QUANT shape: "Why you might have $[N] per [client/deal/household] to [verb]"
-  • UNLOCK shape: "The [reader's existing thing] hiding inside your [current state]"
+NO SPECIFIC EXAMPLES BELOW. We intentionally do NOT include example headlines in this prompt. When we did, the writer produced three consecutive "$X-$Y per client" headlines in a row (10-23, 10-28, 10-30) by copying the shape of the example. Instead, you'll see the user prompt specify (1) WHICH abstract shape(s) are OFF-LIMITS for this issue because recent issues used them, and (2) the specific details of this issue's theMove. Pick an allowed shape and compose from the theMove — don't pattern-match on any example you've seen before.
+
+Abstract shapes (described by property, not example):
+  • per-client-prize-range — reader-personal + range of dollars + per-client/deal
+  • prize-waiting — the dollars are already in the reader's book, framed as waiting
+  • quantified-distance — N moves/steps/questions between the reader and an outcome
+  • captured-win — a specific firm shape who captured a specific thing in a specific period
+  • time-to-payoff — a specific habit that pays back by a specific date
+  • mechanism-why — starts with Why + explains the mechanism behind a specific reward
+  • unlock — a reader-owned asset waiting to be surfaced
+  • instructional — "How to X" (less preferred unless paired with a number)
 
 BANNED patterns:
 LEGACY: "Nobody's X", "What Nobody Tells You", "The Truth About X", "Why X Matters", "Rethinking/Understanding X", "N Ways/Things/Tips" listicles, "You're Not X".
 NEGATIVE: "X isn't Y, it's Z", "Your X is broken/dead/wrong/failing", "What X doesn't see/know", "The X you're missing/losing", "The X that's killing/costing/breaking", "The gap between X and Y", "Stop/Quit/Don't X", "Why your X is wrong/broken", "Money left on the table".
-NEUTRAL-DESCRIPTIVE (added 2026-10-27): "The [N] [things] that [predict/produce/cause] [outcome]" when none of (a)-(d) above apply. If your rewrite reads like a textbook chapter title with no prize framing, keep rewriting.
+NEUTRAL-DESCRIPTIVE: "The [N] [things] that [predict/produce/cause] [outcome]" when none of (a)-(d) apply. If your rewrite reads like a textbook chapter title with no prize framing, keep rewriting.
 
 Return ONLY this JSON, no preamble:
 { "headline": "the rewritten H1" }`;
+
+// Classify a headline into one of ~8 abstract shapes. Added 2026-10-30 after
+// Mark feedback — the writer kept collapsing onto the "$X-$Y per client"
+// shape for 10-23, 10-28, 10-30. Example leakage was the root cause (we
+// gave Mark's own "$10K per client to unlock" as a prompt example and the
+// model copied it). Shape classifier lets us detect same-shape repetition
+// across issues even when the topic differs.
+export type HeadlineShape =
+  | "per-client-prize-range"
+  | "prize-waiting"
+  | "quantified-distance"
+  | "captured-win"
+  | "time-to-payoff"
+  | "mechanism-why"
+  | "unlock"
+  | "instructional"
+  | "other";
+
+export function classifyHeadlineShape(headline: string): HeadlineShape {
+  const h = headline.toLowerCase();
+  // per-client-prize-range: $X-$Y + per client/deal/household (OR comma'd range)
+  const hasRange = /\$[\d.,]+[kmb]?\s*[-,]\s*\$?[\d.,]+[kmb]?/i.test(headline);
+  const perReader = /\bper\s+(client|deal|household|advisor|rep|office|book)\b/i.test(headline);
+  if (hasRange && perReader) return "per-client-prize-range";
+  // captured-win: "How a $X firm did Y" / "How one X Y" / "What a $X Z"
+  if (/\b(how\s+one|how\s+a\s+\$|what\s+a\s+\$|what\s+top|how\s+top|how\s+\w+\s+(advisor|rias?|firms?)\s+)/i.test(headline)) return "captured-win";
+  // mechanism-why: starts with "Why" + body explains a mechanism
+  if (/^why\b/i.test(headline)) return "mechanism-why";
+  // quantified-distance: "N moves between you and a Nx/N%"
+  if (/\b(moves|steps|questions|hires|hours|days|weeks|months|quarters)\s+(between\s+you\s+and|from)\b/i.test(headline)) return "quantified-distance";
+  // time-to-payoff: "pays back by [period]" / "by [month/quarter/year-end]"
+  if (/\b(pays?\s+back|pays?\s+off|paid\s+back|paid\s+off)\b/i.test(headline)) return "time-to-payoff";
+  if (/\bby\s+(january|february|march|april|may|june|july|august|september|october|november|december|q[1-4]|year[-\s]?end|spring|fall|summer|winter|thanksgiving|christmas|new\s+year)/i.test(headline)) return "time-to-payoff";
+  // unlock: "unlock" / "pocket" / "capture" / "surface" verbs
+  if (/\b(unlocks?|pockets?|captures?|surfaces?|claims?|convert[s]?)\b/i.test(headline)) return "unlock";
+  // prize-waiting: "hiding in" / "sitting in" / "waiting in" with reader's asset
+  if (/\b(hiding|sitting|waiting)\s+in\b/i.test(headline)) return "prize-waiting";
+  // instructional: "How to X"
+  if (/^how\s+to\b/i.test(headline)) return "instructional";
+  return "other";
+}
 
 // Soft-check: does the headline reference a prize-element (dollar amount,
 // multiple, percentage, timeline, specific-win noun) from theMove.sentence?
@@ -3833,19 +3873,21 @@ ${panelResult.commonFlags
     }
   }
 
-  // Headline pattern check: TWO gates. (1) If the writer produced a headline
-  // matching a banned formula, rewrite via Haiku. (2) New Round-6 soft gate:
-  // if the headline doesn't CARRY a prize from theMove.sentence (no $ amount,
-  // no multiple, no %, no unclaimed-prize framing, no mechanism-why), ALSO
-  // rewrite — the writer composed a headline disconnected from the declared
-  // move. Rewriter sees theMove.sentence as the source of truth. Up to 3
-  // attempts before we accept whatever we have.
+  // Headline pattern check: THREE gates. (1) ban-regex match. (2) prize-carry
+  // soft gate from theMove.sentence. (3) Round-7 shape-rotation ban: if this
+  // issue's headline shape matches any of the last 3 issues' shapes, reject
+  // and rewrite with instruction to pick a DIFFERENT shape. All three route
+  // to the same Haiku rewrite path with the reason surfaced; up to 3 attempts.
   try {
     const headlineBan = headlineBanMatch(content.headline);
     const carriesPrize = headlineCarriesPrize(content.headline, content.theMove);
-    const triggerReason: { kind: "ban" | "weak_prize" | "ok"; detail: string } =
+    const currentShape = classifyHeadlineShape(content.headline);
+    const recentShapes = recentTopics.slice(0, 3).map((h) => ({ h, shape: classifyHeadlineShape(h) }));
+    const sameShapeRepeat = recentShapes.find((r) => r.shape === currentShape && currentShape !== "other");
+    const triggerReason: { kind: "ban" | "weak_prize" | "shape_repeat" | "ok"; detail: string } =
       headlineBan ? { kind: "ban", detail: `matches "${headlineBan.name}"` }
       : !carriesPrize ? { kind: "weak_prize", detail: "headline carries no prize element from theMove.sentence (no $/multiple/%/timeline/unclaim-frame/why-mechanism)" }
+      : sameShapeRepeat ? { kind: "shape_repeat", detail: `headline shape "${currentShape}" also used by recent issue "${sameShapeRepeat.h}" — pick a DIFFERENT shape (allowed: ${(['per-client-prize-range','prize-waiting','quantified-distance','captured-win','time-to-payoff','mechanism-why','unlock','instructional'] as HeadlineShape[]).filter((s) => !recentShapes.some((r) => r.shape === s)).join(", ") || "any shape except the one above"})` }
       : { kind: "ok", detail: "" };
     if (triggerReason.kind === "ok") {
       pipeline.push({
@@ -3876,13 +3918,17 @@ ${panelResult.commonFlags
         totalLatency += result.latencyMs;
         const newMatch = headlineBanMatch(result.headline);
         const newCarriesPrize = headlineCarriesPrize(result.headline, content.theMove);
-        if (!newMatch && newCarriesPrize) {
+        const newShape = classifyHeadlineShape(result.headline);
+        const newShapeRepeat = recentShapes.find((r) => r.shape === newShape && newShape !== "other");
+        if (!newMatch && newCarriesPrize && !newShapeRepeat) {
           rewritten = result.headline;
           break;
         }
         reasonForRewriter = newMatch
           ? `matches "${newMatch.name}"`
-          : "headline carries no prize element from theMove.sentence (no $/multiple/%/timeline/unclaim-frame/why-mechanism) — carry a specific prize from theMove";
+          : newShapeRepeat
+            ? `shape "${newShape}" still matches recent "${newShapeRepeat.h}" — pick a DIFFERENT shape (allowed: ${(['per-client-prize-range','prize-waiting','quantified-distance','captured-win','time-to-payoff','mechanism-why','unlock','instructional'] as HeadlineShape[]).filter((s) => !recentShapes.some((r) => r.shape === s)).join(", ")})`
+            : "headline carries no prize element from theMove.sentence (no $/multiple/%/timeline/unclaim-frame/why-mechanism) — carry a specific prize from theMove";
       }
       if (rewritten) {
         content = deepStripDashes({ ...content, headline: rewritten });
