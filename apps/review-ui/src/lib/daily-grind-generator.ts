@@ -1364,6 +1364,59 @@ async function runTopicProposer(
     // fallback handled below
   }
 
+  // Round 9 (2026-10-30) — domain-rotation gate. Mark feedback: "there are
+  // like 16 topics there shouldnt be this much overlap... this is dumb."
+  // The 16-domain rotation rule lived in the proposer PROMPT since 10-16
+  // but had no code-level enforcement. In 6 recent DGs (10-19 → 11-02),
+  // domain 11 (Succession/M&A/buy-sell) fired three times (10-26, 10-30,
+  // 11-02). This block classifies the proposal's domain, cross-references
+  // the last 5 shipped topics, and triggers a re-roll if the domain
+  // matches any of them. Same pattern as the headline shape classifier
+  // from Round 7 — LLMs can't be trusted to self-enforce rotation.
+  function classifyTopicDomain(text: string): number {
+    const t = text.toLowerCase();
+    // Order matters — more specific domains checked first. A topic that
+    // reads like both tax AND succession (e.g. "GRAT for pre-sale estate
+    // planning") should classify as the more specific one. Succession/M&A
+    // wins when business owner / exit / liquidity event / earnout / sale
+    // proceeds / aggregator / valuation are explicit.
+    if (/\b(business\s+owner|post[-\s]?sale|pre[-\s]?sale|liquidity\s+event|exit|earnout|m&a|succession|buy[-\s]?sell|aggregator|sale\s+proceeds|valuation\s+multiple|exit\s+multiple|11\.6x|business\s+sale|post[-\s]?liquidity|sold\s+the\s+business|business\s+closed)/i.test(t)) return 11;
+    if (/\b(roth\s+conversion|tax[-\s]?loss\s+harvest|qcd|donor[-\s]?advised|tax\s+calendar|state\s+residency|rmd|bunch\s+(ing|ed)?\s+charitable|tax[-\s]?gain\s+harvest|section\s+7520|hurdle\s+rate|tax\s+bracket|charitable\s+giving)/i.test(t)) return 3;
+    if (/\b(slat|grat|dynasty\s+trust|generation[-\s]?skipping|step[-\s]?up\s+basis|crt|crummey|ilit|beneficiary\s+design|transfer\s+mechanic|estate\s+planning|estate\s+attorney|qsbs)/i.test(t)) return 4;
+    if (/\b(whole\s+life|ltc|long[-\s]?term\s+care|disability\s+insurance|annuit(y|ies)|spia|dia|qlac|premium\s+financing|life\s+insurance|insurance\s+audit|insurance\s+strategy|disability\s+stress[-\s]?test)/i.test(t)) return 5;
+    if (/\b(sec\s+exam|finra|reg\s+bi|dol\s+fiduciary|custody\s+rule|marketing\s+rule|wsp|audit\s+trail|compliance\s+documentation|supervisory|principal\s+review)/i.test(t)) return 9;
+    if (/\b(aum\s+vs|flat[-\s]?fee|planning[-\s]?only\s+fee|retainer|fee\s+model|fee\s+compression|planning\s+fee|charge\s+for\s+planning)/i.test(t)) return 10;
+    if (/\b(crm|planning\s+software|right\s?capital|emoney|moneyguide|ai\s+tool|outsourced\s+cio|workflow\s+automation|tech\s+stack)/i.test(t)) return 7;
+    if (/\b(seo|podcast|speaking|linkedin|email\s+list|content\s+marketing|pr\s+(for|strategy)|growth\s+channel|audience\s+building|list[-\s]?building|referral\s+mechanic|coi\s+strategy|centers\s+of\s+influence)/i.test(t)) return 8;
+    if (/\b(portfolio\s+construction|factor\s+investing|direct\s+indexing|alternatives|rebalanc|asset\s+allocation|concentrated\s+position|cash\s+deployment|deploy.*cash|sitting\s+cash|post[-\s]?sale\s+(portfolio|protocol|deployment))/i.test(t)) return 2;
+    if (/\b(behavioral\s+finance|loss\s+aversion|present\s+bias|client\s+psychology|narrative\s+identity|anchoring|regret\s+aversion|paralysis)/i.test(t)) return 6;
+    if (/\b(next[-\s]?gen|wealth\s+transfer|adult\s+children|educating\s+heirs|inheritance\s+timing)/i.test(t)) return 12;
+    if (/\b(rate\s+expectation|duration|credit\s+spread|currency|geopolitical|macro|federal\s+reserve|fed|yield\s+curve|cycle)/i.test(t)) return 13;
+    if (/\b(hiring\s+associate|operations\s+hire|partner\s+equity|physician\s+model|firm\s+building|founder\s+bottleneck|team\s+build|culture)/i.test(t)) return 14;
+    if (/\b(contrarian\s+(stance|position)|fiduciary\s+ethic|industry\s+default|standing\s+against)/i.test(t)) return 15;
+    if (/\b(client\s+retention|attrition|engagement|disengag|silent\s+client|clients\s+(left|leaving|stopped)|retention\s+lift)/i.test(t)) return 1;
+    if (/\b(touchpoint|annual\s+review|service\s+tier|service\s+model|client\s+experience|discovery\s+call)/i.test(t)) return 16;
+    return 0; // unclassified
+  }
+  const DOMAIN_LABEL: Record<number, string> = {
+    1: "Client retention / attrition / engagement",
+    2: "Investment management",
+    3: "Tax strategy",
+    4: "Estate planning",
+    5: "Insurance",
+    6: "Behavioral finance / client psychology",
+    7: "Operations / tech stack",
+    8: "Growth / marketing",
+    9: "Compliance / regulatory",
+    10: "Fee models / pricing",
+    11: "Succession / M&A / buy-sell / post-sale",
+    12: "Next-gen / wealth transfer",
+    13: "Macro / markets / cycles",
+    14: "Firm building / team",
+    15: "Fiduciary ethics / stance",
+    16: "Client experience / service model",
+  };
+
   // Deterministic post-check: catch when the proposer stays in the
   // client-attrition / silence / engagement rut even though the prompt
   // tells it to rotate domains. Scans the proposed topic + angle for
@@ -1430,46 +1483,58 @@ async function runTopicProposer(
   const recentInRut = hasRutWord(recent3);
   const detectedCluster = detectClusterFromString(proposalText);
   const proposalInBannedCluster = detectedCluster != null && POSITIVE_WINDOW_BANNED_CLUSTERS.has(detectedCluster);
-  // Trigger re-roll if EITHER the headline/angle text contains a rut
-  // word OR the detected cluster is in the banned list. Rut-words catch
-  // negative wording; cluster-ban catches positive-wording-defensive-topic
-  // ("Document the gap before the claim arrives" slipped the word check
-  // but matched the compliance-documentation cluster).
-  if ((proposalInRut || proposalInBannedCluster) && !contentTypeOverride) {
-    console.warn("topic_proposer.rut_detected_rerolling", {
+  // Round-9 domain-rotation gate: classify proposed domain + last 5 shipped
+  // topics, trigger re-roll if the proposed domain matches any of the last 5.
+  const proposalDomain = classifyTopicDomain(proposalText);
+  const recentDomains = recentIssues.slice(0, 5).map((r) => ({
+    topic: r.topic,
+    domain: classifyTopicDomain(`${r.topic} ${r.mainAngle ?? ""} ${(r.keyTakes ?? []).join(" ")}`),
+  }));
+  const domainRepeat = proposalDomain !== 0
+    ? recentDomains.find((r) => r.domain === proposalDomain)
+    : undefined;
+  const proposalInRecentDomain = Boolean(domainRepeat);
+
+  if ((proposalInRut || proposalInBannedCluster || proposalInRecentDomain) && !contentTypeOverride) {
+    console.warn("topic_proposer.reroll_triggered", {
       proposalTopic: parsed?.topic,
       proposalInRut,
       proposalInBannedCluster,
+      proposalInRecentDomain,
+      proposalDomain,
+      proposalDomainLabel: DOMAIN_LABEL[proposalDomain] ?? "(unclassified)",
+      recentDomains: recentDomains.map((r) => ({ topic: r.topic, domain: r.domain, label: DOMAIN_LABEL[r.domain] ?? "(unclassified)" })),
       detectedCluster,
       recent3: recent3.slice(0, 200),
     });
-    const rejectReason = proposalInBannedCluster
-      ? `That topic is in the HARD-BANNED "${detectedCluster}" cluster during the current positive-framing window. All compliance-documentation, compliance-supervision, client-communication (attrition/silence), and team-and-scaling (capacity ceiling) topics are banned — they produce defensive/threat content regardless of how the headline is phrased.`
-      : `That topic is in the client-attrition / silence / engagement DOMAIN — the SAME domain as recent issues.`;
+    const forbiddenDomains = Array.from(new Set(recentDomains.map((r) => r.domain).filter((d) => d !== 0)));
+    const forbiddenDomainText = forbiddenDomains.length > 0
+      ? forbiddenDomains.map((n) => `${n}=${DOMAIN_LABEL[n]}`).join(", ")
+      : "(none classified)";
+    const allowedDomainText = Array.from({ length: 16 }, (_, i) => i + 1)
+      .filter((n) => !forbiddenDomains.includes(n))
+      .map((n) => `${n}=${DOMAIN_LABEL[n]}`)
+      .join(", ");
+    const rejectReason = proposalInRecentDomain
+      ? `That topic is in domain ${proposalDomain} (${DOMAIN_LABEL[proposalDomain]}) — the SAME domain as recent issue "${domainRepeat!.topic}". The 16-domain rotation rule is HARD: no domain can repeat within 5 issues. Forbidden domains for this re-roll (last 5 shipped): ${forbiddenDomainText}.`
+      : proposalInBannedCluster
+        ? `That topic is in the HARD-BANNED "${detectedCluster}" cluster during the current positive-framing window.`
+        : `That topic is in the client-attrition / silence / engagement DOMAIN — the SAME domain as recent issues.`;
     const rerollPrompt = `${fullPrompt}
 
 ## ⛔ RE-ROLL REQUIRED — your previous proposal was in the rut
 
 Your previous proposal was: "${parsed?.topic ?? ""}" (${parsed?.angle ?? ""}).
 
-${rejectReason} The last 3 topics were: ${recent3}.
+${rejectReason} The last 5 topics were: ${recentDomains.map((r) => `"${r.topic}" (domain ${r.domain}=${DOMAIN_LABEL[r.domain] ?? "unclassified"})`).join("; ")}.
 
-Propose a DIFFERENT topic from a DIFFERENT DOMAIN. Specifically BANNED for this re-roll:
-- Any topic about clients leaving, going silent, disengaging, being lost, or being missed
-- Any topic framed around what the advisor is MISSING or NOT seeing
-- Any topic about "touchpoints," "service model gaps," "annual review," "listening"
+Propose a DIFFERENT topic from a DIFFERENT DOMAIN.
 
-Pick from one of these domains instead:
-- Investment management (portfolio construction, factor investing, direct indexing, alternatives)
-- Tax strategy (Roth conversions, tax-loss harvesting, QCDs, state-residency)
-- Estate planning (SLATs, dynasty trusts, beneficiary design, step-up basis)
-- Operations / tech stack (CRM, planning software, AI tools, outsourced CIO)
-- Growth / marketing (SEO, podcast, content, speaking, PR)
-- Compliance / regulatory (Reg BI, marketing rule, custody rule)
-- Fee models / pricing (flat fee for HNW, planning-only fees)
-- Succession / M&A (valuation, earnouts, aggregator deals)
-- Macro / markets (rate expectations, credit spreads, currency, geopolitical)
-- Firm building / team (hiring, equity, physician model)
+HARD FORBIDDEN DOMAINS for this re-roll (used in last 5 shipped issues — DO NOT propose anything here): ${forbiddenDomainText}
+
+ALLOWED DOMAINS (pick from one of these): ${allowedDomainText}
+
+If NONE of the allowed domains fit the research well, re-roll with a different angle inside an allowed domain rather than returning to a forbidden one. Returning to a forbidden domain will trigger ANOTHER re-roll.
 
 Also use a DIFFERENT framing than problem-identification. Try: opportunity, celebration, observation, instruction, or contrarian.
 
@@ -1488,18 +1553,25 @@ Return the SAME JSON schema as before.`;
         const reparsedText = `${typeof reparsed?.topic === "string" ? reparsed.topic : ""} ${typeof reparsed?.angle === "string" ? reparsed.angle : ""}`;
         const reparsedCluster = detectClusterFromString(reparsedText);
         const reparsedBanned = reparsedCluster != null && POSITIVE_WINDOW_BANNED_CLUSTERS.has(reparsedCluster);
-        if (!hasRutWord(reparsedText) && !reparsedBanned) {
+        const reparsedDomain = classifyTopicDomain(reparsedText);
+        const reparsedDomainRepeat = reparsedDomain !== 0 && recentDomains.find((r) => r.domain === reparsedDomain);
+        if (!hasRutWord(reparsedText) && !reparsedBanned && !reparsedDomainRepeat) {
           parsed = reparsed;
-          console.info("topic_proposer.rut_rerolled_success", {
+          console.info("topic_proposer.reroll_success", {
             newTopic: reparsed?.topic,
             newCluster: reparsedCluster,
+            newDomain: reparsedDomain,
+            newDomainLabel: DOMAIN_LABEL[reparsedDomain] ?? "(unclassified)",
           });
         } else {
-          console.warn("topic_proposer.rut_reroll_still_in_rut_keeping_original", {
+          console.warn("topic_proposer.reroll_still_blocked_keeping_original", {
             rerollTopic: reparsed?.topic,
             rerollCluster: reparsedCluster,
+            rerollDomain: reparsedDomain,
+            rerollDomainLabel: DOMAIN_LABEL[reparsedDomain] ?? "(unclassified)",
             rerollInRut: hasRutWord(reparsedText),
             rerollInBannedCluster: reparsedBanned,
+            rerollInRecentDomain: Boolean(reparsedDomainRepeat),
           });
         }
       } catch (err) {
