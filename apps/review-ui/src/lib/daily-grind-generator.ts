@@ -5100,6 +5100,88 @@ export async function generateDailyGrindIssue(opts: {
     });
   }
 
+  // POST-ASSEMBLE SHAPE-ROTATION GATE — Round 7 (2026-10-30).
+  // The assemble_html Haiku runs AFTER runWriterPhase and overrides the
+  // headline + preheader. The headline_check inside runWriterPhase runs
+  // BEFORE assemble_html, so a Haiku that produces a per-client-prize-range
+  // subject slips every writer-side gate. This block catches that specific
+  // case: classify the FINAL subject's shape, compare to recent subjects,
+  // and if the shape matches any of the last 3, Haiku-rewrite with the
+  // shape-rotation constraint surfaced. Up to 3 attempts.
+  try {
+    const finalShape = classifyHeadlineShape(finalContent.headline);
+    const recentShapes = recentTopics.slice(0, 3).map((h) => ({ h, shape: classifyHeadlineShape(h) }));
+    const sameShapeRepeat = recentShapes.find((r) => r.shape === finalShape && finalShape !== "other");
+    const finalBan = headlineBanMatch(finalContent.headline);
+    const finalCarries = headlineCarriesPrize(finalContent.headline, finalContent.theMove);
+    if (!finalBan && finalCarries && !sameShapeRepeat) {
+      pipeline.push({
+        name: "post_assemble_headline_check",
+        status: "success",
+        notes: `final subject "${finalContent.headline}" (shape=${finalShape}) passes all gates`,
+      });
+    } else {
+      const reason = finalBan
+        ? `matches banned pattern "${finalBan.name}"`
+        : !finalCarries
+          ? `carries no prize element from theMove.sentence`
+          : `shape "${finalShape}" matches recent "${sameShapeRepeat!.h}" — pick a DIFFERENT shape (allowed: ${(['per-client-prize-range','prize-waiting','quantified-distance','captured-win','time-to-payoff','mechanism-why','unlock','instructional'] as HeadlineShape[]).filter((s) => !recentShapes.some((r) => r.shape === s)).join(", ")})`;
+      const originalFinal = finalContent.headline;
+      const contextSummary = finalContent.firstPull.paragraphs[0] ?? finalContent.headline;
+      let rewritten: string | null = null;
+      let reasonForRewriter = reason;
+      let attempts = 0;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        attempts++;
+        try {
+          const result = await rewriteBannedHeadline(
+            client, opts.issueDate, finalContent.headline, reasonForRewriter, recentTopics, contextSummary, finalContent.theMove?.sentence,
+          );
+          const newBan = headlineBanMatch(result.headline);
+          const newCarries = headlineCarriesPrize(result.headline, finalContent.theMove);
+          const newShape = classifyHeadlineShape(result.headline);
+          const newShapeRepeat = recentShapes.find((r) => r.shape === newShape && newShape !== "other");
+          if (!newBan && newCarries && !newShapeRepeat) {
+            rewritten = result.headline;
+            break;
+          }
+          reasonForRewriter = newBan
+            ? `matches banned "${newBan.name}"`
+            : newShapeRepeat
+              ? `shape "${newShape}" still matches recent "${newShapeRepeat.h}" — pick a DIFFERENT shape (allowed: ${(['per-client-prize-range','prize-waiting','quantified-distance','captured-win','time-to-payoff','mechanism-why','unlock','instructional'] as HeadlineShape[]).filter((s) => !recentShapes.some((r) => r.shape === s)).join(", ")})`
+              : `carries no prize element from theMove.sentence`;
+        } catch (err) {
+          pipeline.push({
+            name: "post_assemble_headline_check",
+            status: "warning",
+            notes: `rewrite call ${attempts} failed: ${err instanceof Error ? err.message : String(err)}`,
+          });
+          break;
+        }
+      }
+      if (rewritten) {
+        finalContent = { ...finalContent, headline: rewritten };
+        pipeline.push({
+          name: "post_assemble_headline_check",
+          status: "retried",
+          notes: `original "${originalFinal}" (${reason}); Haiku rewrite (${attempts} attempts) → "${rewritten}"`,
+        });
+      } else {
+        pipeline.push({
+          name: "post_assemble_headline_check",
+          status: "warning",
+          notes: `original "${originalFinal}" (${reason}); ${attempts} rewrites all failed, shipping original`,
+        });
+      }
+    }
+  } catch (err) {
+    pipeline.push({
+      name: "post_assemble_headline_check",
+      status: "warning",
+      notes: `post_assemble_headline_check threw: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   // STAGE: issue_summary — write AI-readable record of what this issue did,
   // for future topic_proposer calls to read. This is the "brain reads its
   // own work" mechanism — the system actually knows what's been covered.

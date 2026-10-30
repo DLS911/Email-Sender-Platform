@@ -53,7 +53,10 @@ export async function GET(req: Request): Promise<NextResponse> {
         n === "voice_review" ||
         n === "voice_sharpen" ||
         n === "persona_panel" ||
+        n === "headline_check" ||
         n === "headline_rewrite" ||
+        n === "post_assemble_headline_check" ||
+        n === "assemble_html" ||
         n === "audience_evaluation" ||
         n === "repetition_review"
       );
