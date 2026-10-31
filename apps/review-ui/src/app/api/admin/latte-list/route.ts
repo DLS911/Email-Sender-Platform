@@ -67,6 +67,11 @@ export async function GET(req: Request): Promise<NextResponse> {
       : [];
     const tastingBlob = tastingItems.map((t) => `${t.category ?? ""} ${t.title ?? ""}`).join(" ").toLowerCase();
     const hasPan = /\bpan\b|skillet|frying\s*pan|saute\s*pan/.test(tastingBlob);
+    const sundayPrepRaw = (r.sections?.sundayPrep ?? {}) as Record<string, unknown>;
+    const sundayPrep = {
+      title: typeof sundayPrepRaw.title === "string" ? sundayPrepRaw.title : null,
+      body: typeof sundayPrepRaw.body === "string" ? sundayPrepRaw.body : null,
+    };
     return {
       issue_date: r.issue_date,
       cover_story_headline: r.cover_story_headline,
@@ -78,6 +83,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       supabase_stored_img_count: supabaseStoredImgCount,
       tasting_items: tastingItems,
       has_pan: hasPan,
+      sunday_prep: sundayPrep,
       cost_usd: r.cost_usd,
       model: r.model,
       generated_at: r.generated_at,
