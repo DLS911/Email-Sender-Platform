@@ -58,6 +58,15 @@ export async function GET(req: Request): Promise<NextResponse> {
     const html = r.html ?? "";
     const htmlImgCount = (html.match(/<img\b/gi) ?? []).length;
     const supabaseStoredImgCount = (html.match(/supabase\.co\/storage\/v1\/object\/public\//gi) ?? []).length;
+    const tastingRaw = (r.sections?.tastingMenu ?? []) as Array<Record<string, unknown>>;
+    const tastingItems = Array.isArray(tastingRaw)
+      ? tastingRaw.map((t) => ({
+          category: typeof t?.category === "string" ? t.category : null,
+          title: typeof t?.title === "string" ? t.title : null,
+        }))
+      : [];
+    const tastingBlob = tastingItems.map((t) => `${t.category ?? ""} ${t.title ?? ""}`).join(" ").toLowerCase();
+    const hasPan = /\bpan\b|skillet|frying\s*pan|saute\s*pan/.test(tastingBlob);
     return {
       issue_date: r.issue_date,
       cover_story_headline: r.cover_story_headline,
@@ -67,6 +76,8 @@ export async function GET(req: Request): Promise<NextResponse> {
       image_section_count: imageKeys.length,
       html_img_tag_count: htmlImgCount,
       supabase_stored_img_count: supabaseStoredImgCount,
+      tasting_items: tastingItems,
+      has_pan: hasPan,
       cost_usd: r.cost_usd,
       model: r.model,
       generated_at: r.generated_at,
