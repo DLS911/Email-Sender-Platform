@@ -894,6 +894,16 @@ function repairJson(raw: string): string {
   // but content-internal smart quotes shouldn't break JSON anyway since
   // we'd escape only the boundary " marks)
   s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  // State-machine pass: escape UNESCAPED double quotes that appear INSIDE
+  // string values. Added 2026-11-02 after two consecutive 11-02 writer
+  // runs failed with "Expected ',' or '}' after property value" at
+  // line 17 — Sonnet emitted dialogue or embedded names with raw " marks
+  // (e.g. `"body": "He said "yes" and walked out."`) which prematurely
+  // closed the string. Heuristic: a quote inside a string is a closing
+  // quote only if the next non-whitespace char is `,`, `}`, `]`, or `:`
+  // (the structural tokens that follow a string value in JSON). Any other
+  // next-char means we're mid-content and the quote should be escaped.
+  s = escapeInnerStringQuotes(s);
   // Missing comma between array elements: `}\n  {` or `}\n{` etc.
   s = s.replace(/\}(\s*\n\s*)\{/g, "},$1{");
   // Missing comma between adjacent quoted strings on separate lines (object keys)
@@ -901,6 +911,49 @@ function repairJson(raw: string): string {
   // Trailing commas before } or ]
   s = s.replace(/,(\s*[\]\}])/g, "$1");
   return s;
+}
+
+export function escapeInnerStringQuotes(s: string): string {
+  const out: string[] = [];
+  let inString = false;
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i]!;
+    if (!inString) {
+      out.push(c);
+      if (c === '"') inString = true;
+      i++;
+      continue;
+    }
+    // In a string. Pass escapes through verbatim.
+    if (c === "\\") {
+      out.push(c);
+      if (i + 1 < s.length) out.push(s[i + 1]!);
+      i += 2;
+      continue;
+    }
+    if (c === '"') {
+      // Lookahead: closing quote iff next non-whitespace char is a JSON
+      // structural token after a string value (`,`, `}`, `]`, `:`, or EOF).
+      let j = i + 1;
+      while (j < s.length && /\s/.test(s[j]!)) j++;
+      const next = s[j] ?? "";
+      if (next === "" || next === "," || next === "}" || next === "]" || next === ":") {
+        out.push(c);
+        inString = false;
+        i++;
+      } else {
+        // Mid-string unescaped quote — escape it.
+        out.push("\\");
+        out.push('"');
+        i++;
+      }
+      continue;
+    }
+    out.push(c);
+    i++;
+  }
+  return out.join("");
 }
 
 function parseContent(rawText: string): DailyGrindContent {
