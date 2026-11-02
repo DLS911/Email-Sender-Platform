@@ -42,11 +42,12 @@ function headlineColumn(brand: string): string {
 export async function POST(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { brand?: string; issueDate?: string; label?: string };
+  let body: { brand?: string; issueDate?: string; label?: string; to?: string };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const brand = body.brand?.trim();
   const issueDate = body.issueDate?.trim();
   const label = body.label?.trim();
+  const toOverride = body.to?.trim();
   if (!brand || (brand !== "latte" && brand !== "daily-grind")) {
     return NextResponse.json({ error: "brand must be 'latte' or 'daily-grind'" }, { status: 400 });
   }
@@ -80,6 +81,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     ...(row.text_body ? { issueText: row.text_body } : {}),
     baseUrl,
     ...(label ? { label } : {}),
+    ...(toOverride ? { toOverride } : {}),
   });
 
   if (!result.ok) {
@@ -95,8 +97,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   return NextResponse.json({
     ok: true,
     resendId: result.resendId,
-    to: process.env.PREVIEW_APPROVER_EMAIL || "mark@castorabbott.com",
-    cc: process.env.EDITOR_ESCALATION_EMAIL || "austin@castorabbott.com",
+    to: toOverride || process.env.PREVIEW_APPROVER_EMAIL || "mark@castorabbott.com",
+    cc: toOverride ? undefined : (process.env.EDITOR_ESCALATION_EMAIL || "austin@castorabbott.com"),
     subject,
     contentHash,
   });

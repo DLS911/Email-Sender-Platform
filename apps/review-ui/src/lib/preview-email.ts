@@ -32,6 +32,8 @@ type PreviewInput = {
    * Lets the sender flag WHAT to look at without regenerating the issue.
    */
   label?: string;
+  /** Optional recipient override (routes TO this address instead of the default approver). */
+  toOverride?: string;
 };
 
 type PreviewSendResult = { ok: true; resendId: string } | { ok: false; error: string };
@@ -94,7 +96,10 @@ export async function sendPreviewEmail(input: PreviewInput): Promise<PreviewSend
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { ok: false, error: "RESEND_API_KEY missing" };
 
-  const to = process.env.PREVIEW_APPROVER_EMAIL || DEFAULT_APPROVER;
+  // Optional override of the TO recipient (added 2026-11-02). Lets a caller
+  // route a preview to someone other than the default approver (e.g. send
+  // to the editor only for a second-opinion read before Mark approves).
+  const to = input.toOverride?.trim() || process.env.PREVIEW_APPROVER_EMAIL || DEFAULT_APPROVER;
   // CC the editor (Austin by default) + any extra managers from
   // PREVIEW_CC_EXTRA (comma-separated). Every manager gets the same
   // draft; only Mark hits Approve/Needs Work.
