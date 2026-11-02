@@ -1485,10 +1485,25 @@ async function runTopicProposer(
   const proposalInBannedCluster = detectedCluster != null && POSITIVE_WINDOW_BANNED_CLUSTERS.has(detectedCluster);
   // Round-9 domain-rotation gate: classify proposed domain + last 5 shipped
   // topics, trigger re-roll if the proposed domain matches any of the last 5.
+  //
+  // Round-9b fix (2026-11-02): originally used `recentIssues[i].topic` which
+  // was almost always just the HEADLINE (the summaryByTopic.get(h) lookup
+  // above fails because summary.topic != headline). Headlines don't contain
+  // the classifier's regex triggers — "The 18-month window worth $40K-$180K
+  // per exit" (clearly tax+succession) classifies as 0 because the specific
+  // "liquidity event" / "basis reset" / "roth conversion" / etc. terms aren't
+  // in the headline. So EVERY recent domain was 0, which meant NO proposals
+  // ever triggered the re-roll. Round-9 was a no-op for 3 days.
+  //
+  // Use `recentIssueSummaries` directly — those have `mainAngle` + `keyTakes`
+  // populated by the issue_summary stage, which captures the actual topical
+  // content, not inbox-optimized headlines.
   const proposalDomain = classifyTopicDomain(proposalText);
-  const recentDomains = recentIssues.slice(0, 5).map((r) => ({
-    topic: r.topic,
-    domain: classifyTopicDomain(`${r.topic} ${r.mainAngle ?? ""} ${(r.keyTakes ?? []).join(" ")}`),
+  const classifierText = (s: typeof recentIssueSummaries[number]): string =>
+    [s.topic, s.mainAngle, (s.keyTakes ?? []).join(" "), s.cluster].filter(Boolean).join(" ");
+  const recentDomains = recentIssueSummaries.slice(0, 5).map((s) => ({
+    topic: s.topic,
+    domain: classifyTopicDomain(classifierText(s)),
   }));
   const domainRepeat = proposalDomain !== 0
     ? recentDomains.find((r) => r.domain === proposalDomain)
