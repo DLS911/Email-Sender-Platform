@@ -144,12 +144,13 @@ const MODEL = "claude-sonnet-4-5-20250929";
 const RESEARCH_TEMPERATURE = 0;
 const RESEARCH_MAX_TOKENS = 5000;
 const WRITER_TEMPERATURE = 0.45;
-// Bumped 5000 → 8000 on 2026-11-02 after two consecutive JSON parse failures
-// on 11-02 attempts, both at line 17 (theMove region). Round 7/8/9 added
-// theMove declaration + scene-first narrative paragraphs, pushing typical
-// output past the old 5000-token ceiling. Truncating mid-string produced
-// invalid JSON every time. Headroom now 8000; typical issue is ~3500-4500.
-const WRITER_MAX_TOKENS = 8000;
+// 5000 is the ceiling. Bumped to 8000 briefly on 2026-11-02 trying to
+// fix a JSON parse failure, but the fresh gen at 8000 hit Vercel's
+// 800s FUNCTION_INVOCATION_TIMEOUT (13+ min writer latency). Reverted
+// — the real fix for the parse failure was the state-machine
+// repairJson pass (same commit), not more token headroom. Typical
+// issue stays well under 5000 tokens.
+const WRITER_MAX_TOKENS = 5000;
 const WEB_SEARCH_MAX_USES = 8;
 
 const INPUT_COST_PER_M = 3;
