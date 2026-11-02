@@ -14,7 +14,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "@platform/observability";
 import { createClient } from "@supabase/supabase-js";
-import type { DailyGrindContent, DailyGrindContentType } from "../../../../lib/daily-grind-html-template";
+import type { DailyGrindContent } from "../../../../lib/daily-grind-html-template";
 import { renderDailyGrindHtml } from "../../../../lib/daily-grind-html-template";
 
 export const runtime = "nodejs";
@@ -76,7 +76,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     subject: rendered.subject,
     preheader: rendered.preheader,
     headline: sections.headline,
-    content_type: sections.contentType as DailyGrindContentType,
     generation_meta: {
       installedFrom: body.installedFrom ?? "dg-upsert-issue",
       installedAt: new Date().toISOString(),
