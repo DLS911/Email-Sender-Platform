@@ -2881,10 +2881,14 @@ export type HeadlineShape =
 
 export function classifyHeadlineShape(headline: string): HeadlineShape {
   const h = headline.toLowerCase();
-  // per-client-prize-range: $X-$Y + per client/deal/household (OR comma'd range)
-  const hasRange = /\$[\d.,]+[kmb]?\s*[-,]\s*\$?[\d.,]+[kmb]?/i.test(headline);
-  const perReader = /\bper\s+(client|deal|household|advisor|rep|office|book)\b/i.test(headline);
-  if (hasRange && perReader) return "per-client-prize-range";
+  // per-client-prize-range: per client/deal/household + ANY dollar amount
+  // (range OR single value). 2026-11-02 bug: single-value "$2.3M per client"
+  // used to fall through to "unlock" because the detector required TWO $
+  // amounts. Mark reads any $-per-client as the same shape regardless of
+  // whether it's a range, so classify both the same way.
+  const hasAnyDollar = /\$[\d]/i.test(headline);
+  const perReader = /\bper\s+(client|deal|household|advisor|rep|office|book|sale|engagement|exit)\b/i.test(headline);
+  if (hasAnyDollar && perReader) return "per-client-prize-range";
   // captured-win: "How a $X firm did Y" / "How one X Y" / "What a $X Z"
   if (/\b(how\s+one|how\s+a\s+\$|what\s+a\s+\$|what\s+top|how\s+top|how\s+\w+\s+(advisor|rias?|firms?)\s+)/i.test(headline)) return "captured-win";
   // mechanism-why: starts with "Why" + body explains a mechanism

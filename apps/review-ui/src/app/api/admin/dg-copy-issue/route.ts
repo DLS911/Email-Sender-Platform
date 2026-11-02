@@ -48,7 +48,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const { data: srcRow, error: sErr } = await db
     .from("daily_grind_issues")
-    .select("sections, subject, headline, preheader")
+    .select("sections, subject, headline, preheader, generation_meta")
     .eq("issue_date", sourceDate)
     .maybeSingle();
   if (sErr) return NextResponse.json({ error: `source: ${sErr.message}` }, { status: 500 });
@@ -75,6 +75,14 @@ export async function POST(req: Request): Promise<NextResponse> {
     webArchiveUrl: "https://castorabbott.com/newsletter/grind/",
   });
 
+  // Preserve generation_meta from the source (issueSummary, contentType,
+  // etc) so loadRecentIssueSummaries can still see this issue's topical
+  // content when it reads the DB. Only overlay a `copiedFrom` marker so
+  // we can trace the lineage. Nuking generation_meta on copy was the 2026-
+  // 10-30 bug — 10-30's issueSummary disappeared when we copied 11-02's
+  // content onto it, so the Round-9 domain-rotation gate couldn't see
+  // 10-30 as a domain-11 example on the 11-02 reroll.
+  const srcMeta = (srcRow.generation_meta ?? {}) as Record<string, unknown>;
   const payload = {
     issue_date: targetDate,
     sections,
@@ -84,6 +92,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     preheader: rendered.preheader,
     headline: sections.headline,
     generation_meta: {
+      ...srcMeta,
       copiedFrom: { sourceDate, copiedAt: new Date().toISOString() },
     },
     approval_status: "pending",
