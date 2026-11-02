@@ -235,7 +235,7 @@ async function loadRecentIssueSummaries(
 > {
   const { data, error } = await db
     .from("daily_grind_issues")
-    .select("issue_date, headline, generation_meta")
+    .select("issue_date, headline, generation_meta, sections")
     .order("issue_date", { ascending: false })
     .limit(limit);
   if (error) return [];
@@ -254,12 +254,25 @@ async function loadRecentIssueSummaries(
     issue_date: string;
     headline: string;
     generation_meta: unknown;
+    sections: unknown;
   }>) {
-    const meta = row.generation_meta;
-    if (!meta || typeof meta !== "object" || Array.isArray(meta)) continue;
-    const m = meta as Record<string, unknown>;
-    const contentType = typeof m.contentType === "string" ? m.contentType : "unknown";
-    const summary = m.issueSummary;
+    const meta = (row.generation_meta ?? {}) as Record<string, unknown>;
+    const contentType = typeof meta.contentType === "string" ? meta.contentType : "unknown";
+    const summary = meta.issueSummary;
+    // Backfill mainAngle from sections when issue_summary is missing. 2026-11-02:
+    // 10-23 and 10-30 (plus any pre-summary issues) were INVISIBLE to the
+    // domain-rotation gate because they had no summary. Now the loader pulls
+    // theMove.sentence + firstPull.paragraphs[0] as mainAngle so the
+    // classifier always has topical content to work with. 10-23's insurance
+    // domain couldn't be detected before this.
+    const sections = (row.sections ?? {}) as Record<string, unknown>;
+    const theMove = (sections.theMove ?? {}) as Record<string, unknown>;
+    const firstPull = (sections.firstPull ?? {}) as Record<string, unknown>;
+    const paragraphs = Array.isArray(firstPull.paragraphs) ? (firstPull.paragraphs as unknown[]) : [];
+    const theMoveSentence = typeof theMove.sentence === "string" ? theMove.sentence : "";
+    const firstPullPara1 = typeof paragraphs[0] === "string" ? (paragraphs[0] as string) : "";
+    const fallbackMainAngle = [theMoveSentence, firstPullPara1].filter(Boolean).join(" ").slice(0, 600);
+
     if (summary && typeof summary === "object" && !Array.isArray(summary)) {
       const s = summary as Record<string, unknown>;
       out.push({
@@ -267,7 +280,7 @@ async function loadRecentIssueSummaries(
         contentType,
         topic: row.headline,
         ...(typeof s.cluster === "string" ? { cluster: s.cluster } : {}),
-        ...(typeof s.mainAngle === "string" ? { mainAngle: s.mainAngle } : {}),
+        ...(typeof s.mainAngle === "string" ? { mainAngle: s.mainAngle } : (fallbackMainAngle ? { mainAngle: fallbackMainAngle } : {})),
         ...(Array.isArray(s.keyTakes)
           ? { keyTakes: (s.keyTakes as unknown[]).filter((x): x is string => typeof x === "string") }
           : {}),
@@ -282,12 +295,13 @@ async function loadRecentIssueSummaries(
         ...(typeof s.freshAfter === "string" ? { freshAfter: s.freshAfter } : {}),
       });
     } else {
-      // Pre-summary issues — still useful to surface as a headline-only entry
-      // so the proposer sees them in the recent list.
+      // Pre-summary issues — surface sections-derived text as mainAngle so
+      // the domain classifier can still see topical content.
       out.push({
         publishedAt: `${row.issue_date}T00:00:00Z`,
         contentType,
         topic: row.headline,
+        ...(fallbackMainAngle ? { mainAngle: fallbackMainAngle } : {}),
       });
     }
   }

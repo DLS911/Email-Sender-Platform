@@ -1457,6 +1457,42 @@ async function runTopicProposer(
     if (/\b(touchpoint|annual\s+review|service\s+tier|service\s+model|client\s+experience|discovery\s+call)/i.test(t)) return 16;
     return 0; // unclassified
   }
+  // Round-9c (2026-11-02): cluster → domain lookup. When an issue_summary is
+  // present it carries a reliable categorical `cluster` label — much more
+  // trustworthy than regex-matching mainAngle prose. Added after 11-02
+  // insurance repeat: 10-23 had NO summary, 10-28 had cluster="tax-scenarios"
+  // but mainAngle regex didn't catch it. Direct cluster mapping fixes both.
+  const CLUSTER_TO_DOMAIN: Record<string, number> = {
+    "client-retention": 1, "client-attrition": 1, "attrition-and-silence": 1,
+    "client-communication": 1,
+    "investment-management": 2, "portfolio-construction": 2, "post-sale-portfolio": 2,
+    "tax-scenarios": 3, "tax-strategy": 3, "tax-planning": 3, "tax-coordination": 3,
+    "estate-planning": 4, "transfer-mechanics": 4, "estate-tax": 4, "basis-reset": 4,
+    "insurance-coverage": 5, "insurance-coverage-defense": 5, "insurance-audit": 5,
+    "insurance-strategy": 5, "life-insurance": 5, "disability-insurance": 5,
+    "behavioral-finance": 6, "client-psychology": 6, "paralysis-and-permission": 6,
+    "operations-tech-stack": 7, "operations-and-tech": 7, "crm-and-workflow": 7,
+    "growth-marketing": 8, "growth-and-marketing": 8, "referral-mechanics": 8,
+    "compliance-documentation": 9, "compliance-supervision": 9, "compliance": 9,
+    "regulatory": 9,
+    "fee-models": 10, "fee-and-pricing": 10, "pricing-structure": 10,
+    "planning-fee-separation": 10,
+    "m-and-a-valuation": 11, "succession-and-ma": 11, "post-sale-protocol": 11,
+    "liquidity-event": 11, "post-liquidity": 11, "exit-planning": 11, "business-sale": 11,
+    "succession": 11,
+    "next-gen-transfer": 12, "wealth-transfer": 12,
+    "macro-markets": 13, "macro-and-markets": 13,
+    "firm-building": 14, "team-and-scaling": 14, "firm-structure": 14,
+    "fiduciary-ethics": 15, "fiduciary-stance": 15,
+    "client-experience": 16, "service-model": 16, "touchpoints": 16,
+  };
+
+  function classifyFromCluster(cluster: string | undefined): number {
+    if (!cluster) return 0;
+    const normalized = cluster.toLowerCase().trim();
+    return CLUSTER_TO_DOMAIN[normalized] ?? 0;
+  }
+
   const DOMAIN_LABEL: Record<number, string> = {
     1: "Client retention / attrition / engagement",
     2: "Investment management",
@@ -1560,10 +1596,13 @@ async function runTopicProposer(
   const proposalDomain = classifyTopicDomain(proposalText);
   const classifierText = (s: typeof recentIssueSummaries[number]): string =>
     [s.topic, s.mainAngle, (s.keyTakes ?? []).join(" "), s.cluster].filter(Boolean).join(" ");
-  const recentDomains = recentIssueSummaries.slice(0, 5).map((s) => ({
-    topic: s.topic,
-    domain: classifyTopicDomain(classifierText(s)),
-  }));
+  // Prefer cluster-based classification when present (categorical, reliable).
+  // Fall back to text regex when cluster is unmapped or missing.
+  const recentDomains = recentIssueSummaries.slice(0, 5).map((s) => {
+    const clusterDomain = classifyFromCluster(s.cluster);
+    const domain = clusterDomain !== 0 ? clusterDomain : classifyTopicDomain(classifierText(s));
+    return { topic: s.topic, domain };
+  });
   const domainRepeat = proposalDomain !== 0
     ? recentDomains.find((r) => r.domain === proposalDomain)
     : undefined;
