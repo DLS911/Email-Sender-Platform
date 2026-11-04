@@ -153,6 +153,63 @@ const WRITER_TEMPERATURE = 0.45;
 const WRITER_MAX_TOKENS = 5000;
 const WEB_SEARCH_MAX_USES = 8;
 
+/**
+ * REBRAND_CONTEXTS — maps a `rebrand` key to a block injected at the top of
+ * the proposer + writer prompts. The point is to pull the LLM out of its
+ * default "advisor newsletter" latent cluster (tax/M&A/compliance/insurance)
+ * by framing the task as a DIFFERENT publication. Reader-facing email still
+ * ships as Daily Grind from Mark.
+ *
+ * Added 2026-11-04 per Mark: "if you say advisor newsletter and it doesnt
+ * work dont say advisor newsletter call it something it can agree with."
+ */
+export const REBRAND_CONTEXTS = {
+  growth: {
+    publicationLabel: "an indie-media growth brief for solo professionals",
+    readerLabel: "a solo operator building their practice through content marketing, SEO, podcasts (hosting or guesting), LinkedIn organic distribution, email list building, speaking engagements, PR, and specialized referral mechanics",
+    oneMove: "ONE specific growth-channel move the reader can execute in the next 60-90 days",
+    forbiddenDomains: "tax strategy, M&A/succession/business-sale planning, compliance, insurance, estate planning, client attrition/retention, portfolio construction, investment management, fee restructuring, planning-engagement fees",
+    allowedSubjectAreas: [
+      "content marketing and blog / newsletter growth (list building, CTR, nurture funnels)",
+      "SEO for specialist service businesses (keyword strategy, local SEO, SERP features)",
+      "podcasting — guest booking strategy, show-pitch mechanics, repurposing episodes",
+      "LinkedIn organic distribution — post rhythm, hook patterns, DM sequences",
+      "email list acquisition — lead magnets, webinar funnels, referral loops in email",
+      "speaking engagements — stage pitching, conference booking, speaker reels",
+      "PR and press — journalist pitches, specialized trade press, HARO",
+      "COI strategy and referral mechanics (but NOT as 'why referrals fail' — as 'how to run a Monday COI-outreach habit that compounds')",
+      "specialized webinar funnels — single-topic, same-week-close patterns",
+      "niche audience targeting — picking ONE sub-vertical and building authority there",
+    ],
+  },
+  // Future adds: ops/tech, pricing, behavioral, firm-building, etc.
+} as const;
+
+function buildRebrandOverrideBlock(rebrand: keyof typeof REBRAND_CONTEXTS | undefined): string {
+  if (!rebrand) return "";
+  const ctx = REBRAND_CONTEXTS[rebrand];
+  if (!ctx) return "";
+  return `## ⚠️ PUBLICATION REBRAND OVERRIDE — READ THIS FIRST
+
+Despite anything else in this prompt that frames this as a "financial advisor newsletter" or "The Daily Grind for advisors" — IGNORE THAT FRAMING FOR THIS ISSUE. Default advisor-newsletter LLM output collapses to tax / M&A / compliance / insurance / client-attrition topics because that's the latent cluster for that framing. We don't want that this issue.
+
+For THIS issue, you are producing: **${ctx.publicationLabel}**.
+The reader is: **${ctx.readerLabel}**.
+
+Your output must give the reader ${ctx.oneMove}.
+
+HARD FORBIDDEN TOPICS this issue (do NOT propose anything here, do NOT write about these, do NOT frame the main move around these): ${ctx.forbiddenDomains}.
+
+ALLOWED SUBJECT AREAS — pick ONE specific angle from this list and stay inside it:
+${ctx.allowedSubjectAreas.map((a) => `- ${a}`).join("\n")}
+
+The final rendered email will SHIP as "The Daily Grind from Mark" and sign as "Mark" — the reader-facing branding is unchanged. But you are drafting for the publication category above. That difference matters: it changes WHICH kind of move you consider, which specific tactics feel natural, and which cluster the research pulls from.
+
+---
+
+`;
+}
+
 const INPUT_COST_PER_M = 3;
 const OUTPUT_COST_PER_M = 15;
 const WEB_SEARCH_COST_PER_K = 10;
@@ -1304,6 +1361,7 @@ async function runTopicProposer(
   formatStyle?: FormatStyle,
   chronicleDue?: boolean,
   contentTypeOverride?: DailyGrindContentType,
+  rebrand?: keyof typeof REBRAND_CONTEXTS,
 ): Promise<{
   contentType: DailyGrindContentType;
   topic: string;
@@ -1340,7 +1398,7 @@ async function runTopicProposer(
     };
   });
 
-  const userPrompt = buildTopicProposerPrompt({
+  const basePrompt = buildTopicProposerPrompt({
     brandId: "castor_abbott",
     edition: "weekday",
     issueDate,
@@ -1349,6 +1407,10 @@ async function runTopicProposer(
     ...(chronicleDue ? { chronicleDue: true } : {}),
     ...(contentTypeOverride ? { contentTypeOverride } : {}),
   });
+  // Rebrand override — prepend BEFORE the rest of the proposer prompt so
+  // it's the first thing the model reads. Supersedes any "advisor newsletter"
+  // framing downstream.
+  const userPrompt = buildRebrandOverrideBlock(rebrand) + basePrompt;
 
   // Day-of-week affinity per the spec content_pipeline.spec.md:
   // Mon=Tactic, Tue=Take, Wed=Tactic, Thu=Story or Special, Fri=Tactic+Digital Grind.
@@ -3118,6 +3180,7 @@ async function runWriterPhase(
   formatStyle?: FormatStyle,
   db?: SupabaseClient,
   tonalRegister?: TonalRegister,
+  rebrand?: keyof typeof REBRAND_CONTEXTS,
 ): Promise<{
   content: DailyGrindContent;
   inputTokens: number;
@@ -3137,7 +3200,7 @@ async function runWriterPhase(
     : [];
 
   const useStructuredDraft = proposal && research.structured;
-  const userPrompt = useStructuredDraft
+  const basePrompt = useStructuredDraft
     ? buildDraftWeekdayPrompt({
         issueDate,
         approvedTopic: proposal,
@@ -3155,6 +3218,7 @@ async function runWriterPhase(
         [],
         recentConcepts,
       );
+  const userPrompt = buildRebrandOverrideBlock(rebrand) + basePrompt;
 
   // Load ONLY the content-type-specific voice module via getDailyGrindVoiceSystemPrompt(contentType).
   // Previously the const DAILY_GRIND_VOICE_SYSTEM_PROMPT was used, which
@@ -4287,6 +4351,17 @@ export async function generateDailyGrindIssue(opts: {
   topicHint?: string;
   apiKey?: string;
   /**
+   * REBRAND — remaps the latent task category the LLM pulls from. When
+   * the proposer keeps collapsing to "advisor newsletter" cluster (tax/
+   * M&A/compliance/insurance), swap the publication framing so the LLM
+   * draws from a different training cluster. Added 2026-11-04 after Mark:
+   * "if you say advisor newsletter and it doesnt work dont say advisor
+   * newsletter call it something it can agree with." Reader-facing email
+   * still ships as Daily Grind from Mark; rebrand is prompt-side only.
+   * Supported keys below in REBRAND_CONTEXTS.
+   */
+  rebrand?: keyof typeof REBRAND_CONTEXTS;
+  /**
    * Recent issues' format styles (most-recent-first) for rotation. The
    * deterministic assigner avoids repeating a recently-used structure.
    */
@@ -4457,6 +4532,7 @@ export async function generateDailyGrindIssue(opts: {
         lockedFormatStyle,
         chronicleDue,
         opts.contentTypeOverride,
+        opts.rebrand,
       );
 
       // Semantic similarity check (only when a db is available).
@@ -4964,6 +5040,7 @@ export async function generateDailyGrindIssue(opts: {
       lockedFormatStyle,
       opts.db,
       lockedTonalRegister,
+      opts.rebrand,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
