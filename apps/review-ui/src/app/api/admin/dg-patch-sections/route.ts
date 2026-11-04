@@ -132,6 +132,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       text_body: rendered.text,
       subject: rendered.subject,
       preheader: rendered.preheader,
+      // Keep top-level `headline` column in sync with sections.headline so
+      // dg-dump / ac-push / preview all see the patched H1. Without this the
+      // sections JSON updates but the column drifts (caught 2026-11-04 when
+      // a headline patch landed in sections + subject but not in the
+      // column).
+      headline: next.headline,
     })
     .eq("issue_date", issueDate);
   if (upErr) return NextResponse.json({ error: `db update: ${upErr.message}` }, { status: 500 });
