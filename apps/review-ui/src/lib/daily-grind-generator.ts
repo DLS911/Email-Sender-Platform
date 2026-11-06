@@ -3883,12 +3883,64 @@ ${availableForNumber})`;
 
     if (factResult.verdict === "fix_required" && factResult.fixedDraft) {
       content = deepStripDashes(factResult.fixedDraft);
+      // 2026-11-06: verify the flagged claims are ACTUALLY gone after the
+      // auto-correct. Previously the code trusted the LLM-returned fixedDraft
+      // blindly — a draft where the LLM returned a near-identical "fix" that
+      // left the fabricated details intact (e.g. "Schwab study of 3,400
+      // declined recommendations" survived a fix_required pass with the
+      // pipeline noting "5 issue(s) auto-corrected"). Now we scan the
+      // post-fix content for each issue's claimInDraft text — if ANY
+      // survives, demote the stage to warning so downstream flows know the
+      // auto-fix didn't actually resolve the facts.
+      const contentBlob = JSON.stringify(content).toLowerCase();
+      const survivedClaims = factResult.issues.filter((issue) => {
+        const claim = (issue.claimInDraft || "").trim().toLowerCase();
+        if (claim.length < 8) return false;
+        // Take a fingerprint of the claim (first ~40 chars) — if it's still
+        // in the content verbatim, the auto-fix didn't remove it.
+        const fingerprint = claim.slice(0, 40);
+        return contentBlob.includes(fingerprint);
+      });
+      if (survivedClaims.length > 0) {
+        pipeline.push({
+          name: "fact_check",
+          status: "warning",
+          latencyMs: Date.now() - factCheckStart,
+          notes: `verdict=fix_required, ${factResult.issues.length} issue(s) flagged BUT ${survivedClaims.length} claim fingerprint(s) still present after auto-correct — the LLM returned a fix that didn't actually remove the flagged text. Needs human review. First survivor: "${survivedClaims[0]?.claimInDraft?.slice(0, 120) ?? "?"}"`,
+          data: {
+            verdict: factResult.verdict,
+            issueCount: factResult.issues.length,
+            survivedCount: survivedClaims.length,
+            survivedIssues: survivedClaims.map((i) => ({
+              section: i.section,
+              claimSnippet: i.claimInDraft?.slice(0, 160) ?? "",
+              severity: i.severity,
+            })),
+          },
+        });
+      } else {
+        pipeline.push({
+          name: "fact_check",
+          status: "retried",
+          latencyMs: Date.now() - factCheckStart,
+          notes: `verdict=fix_required, ${factResult.issues.length} issue(s) auto-corrected and verified removed from content. ${factResult.summary}`,
+          data: { verdict: factResult.verdict, issueCount: factResult.issues.length },
+        });
+      }
+    } else if (factResult.verdict === "fix_required" && !factResult.fixedDraft) {
+      // LLM said "fix_required" but didn't return a fixedDraft. The old code
+      // silently fell through to the pass branch — now log a warning so
+      // downstream flows know fact_check could not apply its own fix.
       pipeline.push({
         name: "fact_check",
-        status: "retried",
+        status: "warning",
         latencyMs: Date.now() - factCheckStart,
-        notes: `verdict=fix_required, ${factResult.issues.length} issue(s) auto-corrected. ${factResult.summary}`,
-        data: { verdict: factResult.verdict, issueCount: factResult.issues.length },
+        notes: `verdict=fix_required BUT the LLM returned no fixedDraft — ${factResult.issues.length} issue(s) flagged with no auto-correction applied. Needs human review. ${factResult.summary}`,
+        data: {
+          verdict: factResult.verdict,
+          issueCount: factResult.issues.length,
+          issues: factResult.issues.slice(0, 5),
+        },
       });
     } else if (factResult.verdict === "reject") {
       pipeline.push({
