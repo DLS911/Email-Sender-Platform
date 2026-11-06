@@ -182,7 +182,27 @@ export const REBRAND_CONTEXTS = {
       "niche audience targeting — picking ONE sub-vertical and building authority there",
     ],
   },
-  // Future adds: ops/tech, pricing, behavioral, firm-building, etc.
+  behavioral: {
+    publicationLabel: "a weekly decision-architecture essay for professionals who negotiate complex choices with clients",
+    readerLabel: "a practitioner who runs high-stakes conversations where the decision is rarely about the math — it's about who gets to decide, when, and what story they're defending",
+    oneMove: "ONE specific reframing move the reader can run in their next complex conversation — a question, a sequence, a default, a pre-commitment, a structure that removes friction from the right choice",
+    forbiddenDomains: "tax mechanics, M&A/succession, compliance documentation, insurance products, estate instruments, portfolio construction, fee negotiations, client-attrition tactics, 'how to close more deals' sales framing",
+    allowedSubjectAreas: [
+      "loss aversion and the endowment effect — why clients defend decisions they wouldn't make fresh today",
+      "status quo bias — the physics of inaction and how to get a client to move without pressure",
+      "anchoring — how the first number or frame sticks, and how to set the right one on purpose",
+      "regret aversion — pre-commitment devices and how to pre-empt the counterfactual-regret spiral",
+      "mental accounting — round numbers, bucket-matching, and why a client with $2M in cash can't hear 'asset allocation' the way you say it",
+      "pre-mortems and reversible decisions — structuring choices so the client owns them without analysis paralysis",
+      "choice architecture — defaults, framing, and the one question that collapses a 6-option menu",
+      "narrative identity — the stories clients tell themselves about money/legacy/freedom, and how to work inside them",
+      "scarcity and timing — why the right conversation at the wrong moment lands as noise",
+      "social proof calibration — when peer behavior helps a client decide and when it triggers suspicion",
+      "overconfidence calibration — how to let a client be right about their intuition in a way that creates momentum",
+      "friction audits — mapping where the client's energy leaks between 'I agree' and 'I'll do it'",
+    ],
+  },
+  // Future adds: ops/tech, pricing, firm-building, etc.
 } as const;
 
 function buildRebrandOverrideBlock(rebrand: keyof typeof REBRAND_CONTEXTS | undefined): string {
