@@ -24,6 +24,33 @@ function isAuthorized(req: Request): boolean {
 export async function GET(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const raw = process.env.GOOGLE_API_KEY ?? "";
+  // Live probe to Gemini from inside the Vercel function, with the exact
+  // payload saturday-latte-images.ts uses. If this returns 429 but a direct
+  // curl from Austin's shell works with the same key, the issue is IP /
+  // referrer / network-level — not the key or the env var.
+  let probeResult: unknown = null;
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${raw}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: "A simple stone wall at golden hour" }] }],
+        generationConfig: {
+          responseModalities: ["IMAGE"],
+          imageConfig: { aspectRatio: "1:1" },
+        },
+      }),
+    });
+    const bodyText = await resp.text();
+    probeResult = {
+      httpStatus: resp.status,
+      ok: resp.ok,
+      bodySnippet: bodyText.slice(0, 500),
+    };
+  } catch (err) {
+    probeResult = { fetchError: err instanceof Error ? err.message : String(err) };
+  }
   return NextResponse.json({
     envName: "GOOGLE_API_KEY",
     present: raw.length > 0,
@@ -32,5 +59,6 @@ export async function GET(req: Request): Promise<NextResponse> {
     deploymentUrl: process.env.VERCEL_URL ?? null,
     deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
     region: process.env.VERCEL_REGION ?? null,
+    liveGeminiProbe: probeResult,
   });
 }
