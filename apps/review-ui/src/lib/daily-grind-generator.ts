@@ -202,6 +202,27 @@ export const REBRAND_CONTEXTS = {
       "friction audits — mapping where the client's energy leaks between 'I agree' and 'I'll do it'",
     ],
   },
+  portfolio: {
+    publicationLabel: "a weekly investment-mechanics brief for advisors who construct portfolios — concrete tactical moves at the holding / account / tax-lot level",
+    readerLabel: "a fiduciary advisor who runs client money across taxable, tax-deferred, and tax-free accounts and who needs portfolio moves specific enough to execute on the next client review — not generic 'diversify your holdings' advice",
+    oneMove: "ONE specific portfolio-mechanics move the reader can execute in the next client meeting — a concentrated-position unwind sequence, a tax-location swap, a rebalancing trigger, a specific fixed-income or alternatives allocation decision with concrete sizing, a direct-indexing harvest step, an options overlay for a concrete client scenario",
+    forbiddenDomains: "annual reviews, review meetings, client walkthroughs, planning gaps, client retention, clients going silent / stopped showing up, book profitability, which clients cost more, service-model audits, fee restructuring, pricing, retainer tiers, growth marketing, content marketing, SEO, podcasting, LinkedIn, speaking engagements, M&A / succession / practice sale, CFO hire, compliance / Woodbridge / examiner-proof, insurance product sales, estate-plan drafting language, behavioral-finance generalities ('loss aversion'), deal-closing / prospect pitching, 'ask one question' framing",
+    allowedSubjectAreas: [
+      "concentrated single-stock positions — NUA mechanics, 10b5-1 trading plans, exchange funds, charitable DAF stock contributions, QSBS Section 1202 harvest sequencing, protective collars, zero-cost collars, variable prepaid forwards",
+      "direct indexing and tax-loss harvesting at the lot level — specific mechanics, wash-sale window management, when to shift from ETF to SMA",
+      "asset location across taxable / tax-deferred / tax-free — which holdings go where and why, ordering for a specific household",
+      "fixed income construction — treasury ladder mechanics, I-bond timing, municipal bond vs taxable, corporate credit vs treasuries at current curves, duration decisions",
+      "cash management — treasury direct vs HYSA vs MMF vs insured cash sweep, when cash becomes a drag, parking strategies for a specific horizon",
+      "alternatives allocation — private credit vs private equity secondaries, venture funds, real-asset funds, J-curve management, liquidity sleeves, how much alts and why for a specific net-worth tier",
+      "factor tilts and portfolio construction — value / momentum / quality / low-vol / size — specific implementation vehicles and sizing",
+      "rebalancing mechanics — bands vs calendar, tax-aware rebalancing, when to drift on purpose",
+      "options overlays — cash-secured puts for entry, covered calls for exit, protective collars for concentrated holders, income generation on existing positions",
+      "international and emerging-markets allocation — current implementation, vehicle choice (ETF / fund / SMA), hedged vs unhedged",
+      "retirement-income portfolio mechanics — bucket strategy, dynamic withdrawal rules, sequence-of-returns risk mitigation, Roth conversion ordering, NUA-vs-rollover decision tree",
+      "crypto / gold / commodities — if, when, how much, and in which account — for an advisor NOT selling the kool-aid",
+      "glide-path mechanics for a specific client type — the pre-retiree, the UHNW decumulator, the business-owner post-exit",
+    ],
+  },
   // Future adds: ops/tech, pricing, firm-building, etc.
 } as const;
 
