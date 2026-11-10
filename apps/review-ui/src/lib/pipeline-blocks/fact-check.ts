@@ -86,7 +86,9 @@ export function buildFactCheckPrompt(input: FactCheckInput): string {
 - Geographic generalization preserved
 - Demographic generalization preserved (mid-30s, mid-50s, not specific ages)
 
-**SCOPE NOTE:** The Unspoken, The Flip, Main Content commentary, Grounds for Thought, and Ancient Truth application are Mark's pattern-recognition voice and do NOT require research backing for every detail. Specific dollar amounts in the Unspoken (like '\$187 lunch') are illustrative, not claims to verify. Only flag facts that PRESENT THEMSELVES as cited (Worth Knowing items, The Number's research-sourced stat).`,
+**SCOPE NOTE:** The Unspoken, The Flip, Main Content commentary, Grounds for Thought, and Ancient Truth application are Mark's pattern-recognition voice and do NOT require research backing for every detail. Specific dollar amounts in the Unspoken (like '\$187 lunch') are illustrative, not claims to verify.
+
+**EXCEPTION THAT OVERRIDES THE SCOPE NOTE — numeric findings anywhere.** Any sentence, in ANY section including howTo step bodies and firstPull paragraphs, that presents a number as a FINDING must be in research. The tells: "N% of [group]," "surveys show," "studies find," "research shows," "data suggests," "[publisher] found," "X out of Y." On 2026-11-09 a howTo step body shipped "Industry surveys show 78% of advisors believe this. Only 34% of clients agree." — fabricated, and it passed because howTo was treated as commentary. A percentage attached to a group is never commentary. If it's not in research: issueType "unsourced", severity "high", and the fix is DELETE the sentence (do not soften it, do not keep the number with a vaguer attribution). The only numbers exempt are illustrative scene dollars with no population attached.`,
     ),
   );
 

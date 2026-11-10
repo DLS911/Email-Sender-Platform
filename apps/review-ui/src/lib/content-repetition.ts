@@ -179,3 +179,33 @@ export async function loadRecentWorthKnowingHeadlines(
   const items = await loadRecentWorthKnowingItems(db, issueDateExclusive, limit);
   return items.map((i) => ({ issueDate: i.issueDate, headline: i.headline }));
 }
+
+/**
+ * Pull the opening clause of recent issues' first paragraph. Fed to the
+ * writer so it rotates opener SHAPE the way it already rotates headline
+ * shape. 2026-11-09: Fri opened "One of my clients called me last Tuesday.
+ * Let's call him Jim." and Mon's draft opened "I was on a call last week
+ * with a guy I've known for years" — the story-format prompt was handing
+ * the writer those exact phrases. Mark: "make sure the intro is also diff,
+ * its very sim to the fri one."
+ */
+export async function loadRecentOpeners(
+  db: SupabaseClient,
+  issueDateExclusive: string,
+  limit = 8,
+): Promise<Array<{ issueDate: string; opener: string }>> {
+  const { data, error } = await db
+    .from("daily_grind_issues")
+    .select("issue_date, sections")
+    .lt("issue_date", issueDateExclusive)
+    .order("issue_date", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  const out: Array<{ issueDate: string; opener: string }> = [];
+  for (const row of data as Array<{ issue_date: string; sections: { firstPull?: { paragraphs?: unknown[] } } | null }>) {
+    const first = row.sections?.firstPull?.paragraphs?.[0];
+    if (typeof first !== "string" || first.trim().length === 0) continue;
+    out.push({ issueDate: row.issue_date, opener: first.trim().slice(0, 220) });
+  }
+  return out;
+}

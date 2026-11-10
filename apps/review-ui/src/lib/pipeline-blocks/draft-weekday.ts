@@ -59,6 +59,13 @@ export type DraftWeekdayInput = {
    * are supplied, URL check is skipped but headline check still runs.
    */
   recentWorthKnowingHeadlines?: Array<{ issueDate: string; headline: string; url?: string }>;
+  /**
+   * Opening clause of the last N issues' first paragraph. The writer must
+   * not reuse the SHAPE of any of these (not just the words). Added
+   * 2026-11-09 after Fri and Mon both opened "[someone] called me / I was
+   * on a call with a guy I've known for years."
+   */
+  recentOpeners?: Array<{ issueDate: string; opener: string }>;
 };
 
 /**
@@ -108,7 +115,9 @@ function formatStyleRules(formatStyle: FormatStyle): string {
     case "story":
       return `**Format: STORY.** A REAL story, not a thesis in prose. The user feedback that triggered this rewrite: "it's more like when someone has a beat behind them and they are just talking. talking in third person. there is no intrigue." Fix that.
 
-**Required voice: FIRST PERSON — Mark narrating a scene.** Not third-person "the advisor." Open with "I was on a call last week with a friend of mine," or "A guy I've known for years called about something," or "Jim called me on a Tuesday — he's run his practice for eighteen years, forty-two clients, mostly surgeons." Named characters, specific details, Mark's actual voice as a witness or interlocutor. NEVER "the advisor saw..." or "the advisor realized..." — that's third-person documentary distance.
+**Required voice: FIRST PERSON — Mark narrating a scene.** Not third-person "the advisor." Mark is a witness or interlocutor: someone he knows did a thing, and he's telling you about it. Named characters, specific details. NEVER "the advisor saw..." or "the advisor realized..." — that's third-person documentary distance.
+
+**Opener shape — DO NOT use the stock phone-call entry.** "I was on a call last week with a friend of mine" / "A guy I've known for years called about something" / "[Name] called me on a Tuesday" / "One of my clients called me" are RETIRED. Two consecutive issues opened that way in November 2026 and the reader noticed. Pick a different door into the scene: a text Mark got, a line someone said at dinner, something Mark read and then saw play out, a number on a screen, the moment after the call rather than the call. If the "RECENT OPENERS" section below is present, your first sentence must not share its shape with any of them.
 
 **Required structure (classic narrative):**
 1. **Setup / mid-scene open.** Drop the reader into the middle of a moment: a phone call, a text, a conversation at a conference bar. Name the character ("Jim," "a friend I'll call David"). Give one visual anchor — the number on his screen, the way he said it, the pause before he answered.
@@ -349,6 +358,90 @@ This rule applies to firstPull.paragraphs AND mainContent.howTo step bodies. A s
     ),
   );
 
+  // 2026-11-09 — the issue that shipped that day took Mark ~2 hours of
+  // line edits. Every edit below is a real before/after from that session.
+  // The point is the MOVE each edit makes, not the words. The Mark-side
+  // phrases are not templates; the recent-openers rotation below will
+  // reject them if they get reused verbatim.
+  sections.push(
+    formatSection(
+      "⚠️ MARK'S EDITS — what the AI draft did vs. what shipped (2026-11-09). Learn the move, not the words.",
+      `Each pair is a real edit Mark made by hand. Read the direction of the edit.
+
+**1. The opener is Mark noticing something, not a thesis about "the advisors who..."**
+- AI wrote: "The advisors who close the biggest engagements rarely mention the portfolio in the first meeting. Not because the portfolio doesn't matter, it does, but because the client didn't show up to talk about asset allocation."
+- Mark wrote: "I was brushing up on some advisor news recently and one of the stats I saw stuck with me."
+- The move: start low-key, first person, with the thing Mark actually encountered. Then hand the reader the thing. A thesis statement about a class of advisors is a lecture. A guy telling you what he noticed is a colleague.
+
+**2. A stat is named by its study, sample, and question — or it isn't a stat.**
+- AI wrote: "Industry surveys show 78% of advisors believe this. Only 34% of clients agree." (Fabricated. No such survey.)
+- Mark wrote: "Wealthtender ran a Voice of the Client study in 2025. They asked five hundred Americans, ages 35 to 64 with household incomes over $100,000, a single question. What is the most valuable role a financial advisor can play in your life? The top answer was long-term goal planning at 49 percent. Expert investment advice came in second at 34 percent."
+- The move: "industry surveys show" / "studies find" / "research shows" with a clean percentage and no named study is a fabrication tell. Name the publisher, the year, the N, the question wording, and give the ranking. If research doesn't contain that, you don't have a stat — don't write one.
+
+**3. Don't move a general-population stat onto the reader's own book.**
+- AI wrote: "Why do only 34% of your clients rank investment advice..."
+- Mark: "no thats not the stat its clients in general. idk the persons clients."
+- The move: a survey of 500 Americans says nothing about the reader's 48 households. "Clients" not "your clients." Precision about what the number measures beats punch.
+
+**4. Say the thing. Don't pre-defend it.**
+- AI wrote: "That's not a signal to stop managing portfolios. Investment advice came in second, which means a third of clients still call it the most valuable thing an advisor does. The signal is that nearly half, forty-nine percent, ranked long-term goal planning higher. Two thirds picked something other than investment advice."
+- Mark cut it to: "Two thirds of them ranked something other than investment advice first."
+- The move: the "that's not to say X, but Y" sandwich is hedging dressed as balance. One declarative sentence. If the reader wants the caveat they'll supply it.
+
+**5. Mark writes TO advisors. He is never one of them.**
+- AI wrote: "two thirds of the people most of us are trying to reach"
+- Mark: "change to most advisors not most of us, mark isnt a fin ad"
+- The move: no "us," "we," "our clients," "our practices" that puts Mark inside the advisor cohort. "Most advisors." "The advisors I work with." Second person "you" to the reader is fine. First-person plural is not.
+
+**6. State what the stat measures before you extrapolate from it.**
+- AI wrote (right after the 49% long-term-planning stat): "They walked in carrying a situation. A business sale on the horizon. A kid's college gap. A parent entering memory care. An inheritance they do not know how to unwind."
+- Mark: "does people saying they think long term goal planning is more important mean this?"
+- Mark's fix: "Long-term goal planning isn't the same work as investment selection. It's the plan that sits above the portfolio. How much do I need by the age I want to stop working. How do I turn the account balance into a paycheck that lasts thirty years... And when a life event rearranges that plan, a business sale, a parent entering memory care, an inheritance that won't unwind cleanly..."
+- The move: first say what the number actually measured (retirement + education planning). THEN bridge to the vivid cases, framed as things that rearrange that plan — not as what the survey found. Vivid examples the data doesn't support read as true until someone checks, and Mark checks.
+
+**7. One idea per paragraph. If two paragraphs make the same point, cut one.**
+- AI's paragraph 3 ended: "If you open the meeting with the portfolio, you are showing the client the tool before you have talked about what they are trying to build with it."
+- AI's paragraph 4 opened: "The conventional first meeting opens with risk tolerance, asset allocation, a performance deck. That sequence assumes the client arrived with 'what should I invest in.'"
+- Mark: "the paragraph above this one makes this one pretty redundant." Paragraph 4 deleted.
+- The move: restating the thesis with fresh wording is the most common AI padding. Before you write paragraph N, ask what it adds that N-1 didn't. If the answer is "emphasis," cut it.
+
+**8. Subject, verb, object. Not "X are the ones who Y, by Z, what W."**
+- AI wrote: "The advisors who hold onto the clients they want are the ones who learn, by the end of the first meeting, what the client is actually navigating."
+- Mark: "this sentence is weird."
+- Mark's fix: "The advisors who build long relationships leave the first meeting knowing what the client is actually navigating."
+- The move: "are the ones who" + a parenthetical clause + a trailing object is an AI syntax tell. Find the verb. Put it next to the subject.
+
+**9. The How-to-Practice subhead is the insight in plain words. Not a stat, not a diagnosis, not a branded protocol.**
+- AI wrote: "Why portfolio-first discovery fails" (diagnosis)
+- Then tried: "What 66% ranked higher than investment advice" (stat) — rejected
+- Then: "Lead with the plan" (terse directive) — rejected
+- Then: "The 24-Hour Question" (named protocol) — rejected
+- Mark wrote: "Find What They Need from What They Want"
+- The move: the subhead is the whole email compressed into one ordinary sentence a reader could say out loud. If it needs a number, a colon, or a capital-P Protocol to work, it isn't it.
+
+**10. How-to steps carry a literal script the reader can say or send.**
+- AI wrote: "Belief: Clients hire advisors for investment expertise: Industry surveys show 78%..." (a belief to abandon, with a fake stat)
+- Mark's version: "Email the next three client reviews on your calendar, 24 hours out. One sentence, no agenda, nothing attached. 'What's the situation you're hoping this review helps you figure out?' That's the whole email."
+- The move: a step is an action with the exact words in quotes. Not a belief, not a principle, not a reframe. The reader should be able to do it Monday without thinking.
+
+If your draft contains any of the AI-side patterns above, fix it before you return.`,
+    ),
+  );
+
+  // Recent openers — rotate the SHAPE of the first sentence the way
+  // headlines rotate shape. Data-driven: whatever actually shipped.
+  const recentOpeners = input.recentOpeners ?? [];
+  if (recentOpeners.length > 0) {
+    sections.push(
+      formatSection(
+        "RECENT OPENERS — your first sentence must not share a SHAPE with any of these",
+        `${recentOpeners.map((o) => `- [${o.issueDate}] "${o.opener}${o.opener.length >= 220 ? "…" : ""}"`).join("\n")}
+
+Shape means the structural entry, not the topic: "[someone] called me" / "I was on a call with" / "I was reading X and" / "A guy I know" / "Last Tuesday" / "You walk into" / "Every conference speaker" are each a shape. Two issues in a row with the same shape reads as a template, and the reader notices before the editor does. Pick a door nobody on this list used.`,
+      ),
+    );
+  }
+
   // Per-content-type structure
   sections.push(
     formatSection(
@@ -412,7 +505,8 @@ Mark is NOT a practicing financial advisor. The voice references "the advisors I
 - ✓ "The advisors I work with who land big clients all do one thing"
 - ✗ "When I run discovery calls"
 - ✗ "In my client meetings"
-- ✗ "My clients tell me"`,
+- ✗ "My clients tell me"
+- ✗ "most of us" / "we advisors" / "our clients" / "our practices" — first-person PLURAL also puts Mark inside the cohort. He isn't. Use "most advisors," "the advisors I work with," or second-person "you."`,
     ),
   );
 
@@ -574,7 +668,7 @@ The Main Content closing must NOT restate The Number paragraph. Land somewhere n
     { ... }
   ],
   "mainContent": {
-    "subhead": "<5-12 words, sub-heading>",
+    "subhead": "<5-10 ordinary words that state the email's insight as something a reader could say out loud, e.g. 'Find What They Need from What They Want'. NOT a stat, NOT a diagnosis ('Why X fails'), NOT a branded protocol name ('The 24-Hour Question'). It sits under a fixed 'How to Practice' label.>",
     "intro": "<1-2 paragraphs, 40-80 words>",
     "howTo": {
       "title": "<e.g. 'How to do it:' or 'The math:'>",

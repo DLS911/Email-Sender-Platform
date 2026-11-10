@@ -19,6 +19,7 @@ import {
   findOverusedPhrases,
   loadRecentWorthKnowingHeadlines,
   loadRecentWorthKnowingItems,
+  loadRecentOpeners,
 } from "./content-repetition";
 import { buildFactCheckPrompt } from "./pipeline-blocks/fact-check";
 import {
@@ -1357,7 +1358,7 @@ If the research bundle only surfaces threats/problems, PICK A DIFFERENT ANGLE on
 3. Main article (firstPull.paragraphs) opens with narrative/argument/upside, not a stat dump or a diagnosis of what everyone's doing wrong. The whole article argues toward the MOVE named in theMove.
 4. Each paragraph of the main article adds a NEW angle — no single theme word repeats across 3+ paragraphs.
 5. At least 3 sentences in the article run under 8 words for rhythm.
-6. mainContent.subhead names the How to Practice section (e.g. "The 20-Minute Monday Protocol").
+6. mainContent.subhead states the email's insight in 5-10 ordinary words a reader could say out loud (e.g. "Find What They Need from What They Want"). Not a stat, not a diagnosis, not a branded protocol name — Mark rejected all three of those on 2026-11-09.
 7. mainContent.howTo has 3-5 labeled steps the reader can execute Monday. Each step is a specific move, not a platitude.
 8. Shot of Wisdom (ancientTruth) uses a concrete metaphor — not "as believers" or "trust in His plan".
 9. P.S. is a specific, upside-oriented question that invites a real reply.
@@ -3239,6 +3240,11 @@ async function runWriterPhase(
   const preWriteRecentWK = db
     ? await loadRecentWorthKnowingItems(db, issueDate, 45).catch(() => [])
     : [];
+  // Recent first-paragraph openers so the writer rotates opener SHAPE
+  // (2026-11-09: Fri + Mon both opened "[someone] called me").
+  const preWriteRecentOpeners = db
+    ? await loadRecentOpeners(db, issueDate, 8).catch(() => [])
+    : [];
 
   const useStructuredDraft = proposal && research.structured;
   const basePrompt = useStructuredDraft
@@ -3249,6 +3255,7 @@ async function runWriterPhase(
         ...(formatStyle ? { formatStyle } : {}),
         ...(tonalRegister ? { tonalRegister } : {}),
         ...(preWriteRecentWK.length > 0 ? { recentWorthKnowingHeadlines: preWriteRecentWK } : {}),
+        ...(preWriteRecentOpeners.length > 0 ? { recentOpeners: preWriteRecentOpeners } : {}),
       })
     : buildWriterUserPrompt(
         issueDate,

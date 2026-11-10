@@ -293,14 +293,25 @@ export const CANONICAL_EXAMPLES = {
   // First Pull — sets up the argument with narrative tension pointing at
   // an UPSIDE, not a failure. Opens with the advisor who did the thing right,
   // or with the opportunity most peers haven't noticed yet.
+  // 2026-11-09 audit: the old versions of [0] and [1] contained the exact
+  // tics Mark keeps editing out — [0] ended "Most advisors don't. The ones
+  // who do win..." (the Round-8-banned classifier) and [1] cited "$1.1M,
+  // $780K, and $620K" with no source (fabricated precision). The writer
+  // imitates canon, so canon can't carry the disease. [2] is the real
+  // shipped 2026-11-09 opener after Mark's edits — the "I noticed a thing,
+  // here's the thing" shape.
   firstPullOpener: [
     {
       theme: "two-character narrative (the advisor who did it)",
-      text: `You walk into a prospect meeting with your deck, your fees, your differentiators ready. The advisor down the street walks into the same kind of meeting with something else: fifteen minutes of prep done on LinkedIn that morning. She knows the prospect just took a board seat. She saw a comment on an article about generational transfer. She knows the daughter plays college volleyball. In the first six minutes she asks about the board seat and the daughter. By minute twelve the prospect is talking about the family cabin. By minute thirty she has a signed engagement. The whole difference is fifteen minutes anyone could spend. Most advisors don't. The ones who do win the next decade of referrals from clients they haven't met yet.`,
+      text: `You walk into a prospect meeting with your deck, your fees, your differentiators ready. The advisor down the street walks into the same kind of meeting with something else: fifteen minutes of prep done on LinkedIn that morning. She knows the prospect just took a board seat. She saw a comment on an article about generational transfer. She knows the daughter plays college volleyball. In the first six minutes she asks about the board seat and the daughter. By minute twelve the prospect is talking about the family cabin. By minute thirty she has a signed engagement. The whole difference is fifteen minutes anyone could spend.`,
     },
     {
       theme: "naming the opportunity most are ignoring",
-      text: `Every conference speaker has told you to pick a niche. Serve dentists. Own the tech executives. Specialize. The talk is right in the long run, but there's a nearer-term move most firms miss: get radically specific about the first ten minutes of your discovery call. Not your niche. Not your fee. The first ten minutes. Three advisors we track who sharpened those ten minutes last year without changing a single other thing added $1.1M, $780K, and $620K in new recurring revenue. The specialization conversation can wait. The first ten minutes cannot.`,
+      text: `Every conference speaker has told you to pick a niche. Serve dentists. Own the tech executives. Specialize. The talk is right in the long run, but there's a nearer-term move most firms miss: get radically specific about the first ten minutes of your discovery call. Not your niche. Not your fee. The first ten minutes. Sharpen those ten minutes and leave everything else alone for a quarter. The specialization conversation can wait. The first ten minutes cannot.`,
+    },
+    {
+      theme: "Mark noticed a stat, hands it over plainly (shipped 2026-11-09)",
+      text: `I was brushing up on some advisor news recently and one of the stats I saw stuck with me. Wealthtender ran a Voice of the Client study in 2025. They asked five hundred Americans, ages 35 to 64 with household incomes over $100,000, a single question. What is the most valuable role a financial advisor can play in your life? The top answer was long-term goal planning at 49 percent. Expert investment advice came in second at 34 percent. Reducing financial stress and anxiety took third at 28, tax optimization fourth at 27, accountability fifth at 16. Two thirds of them ranked something other than investment advice first.`,
     },
   ],
 
@@ -360,7 +371,7 @@ export const CANONICAL_EXAMPLES = {
   // left behind.
   closingLandings: [
     `It doesn't get easier. You get better. The compounding is on your side.`,
-    `Most advisors won't do this. That's exactly why it keeps working for the ones who do.`,
+    `It keeps working because it's unglamorous. Nobody competes for the unglamorous move.`,
     `Advisors who tighten this up this quarter are the ones referrals find in Q2.`,
     `Build the kind of practice you'd happily refer your own family to. The multiple takes care of itself.`,
     `The move isn't dramatic. It just has to be the one you actually make this week.`,

@@ -151,7 +151,18 @@ Cross-check EVERY current draft Worth Knowing item against both. Swap any repeat
       `Evaluate the draft against these criteria. The criteria vary by content type but the structure of the review is consistent.
 
 **Universal criteria:**
-1. **Voice integrity.** Does the draft sound like Mark's voice (sharp colleague who's seen patterns across 1000+ advisors)? Or does it drift into AI-generic, content-marketing, or consultant-pitch failure modes?
+1. **Voice integrity — check for these SPECIFIC AI tells.** Each is a real edit Mark made by hand on 2026-11-09; the pattern is the thing to catch, not the words.
+   a. **Thesis-statement opener.** First sentence is a claim about a class of people ("The advisors who close the biggest engagements rarely...") instead of Mark encountering something ("I was brushing up on some advisor news and one stat stuck with me"). → revise.
+   b. **Unsourced survey language.** "Industry surveys show," "studies find," "research shows," "data suggests" followed by a clean percentage and no named publisher/year/N/question. This is the fabrication tell — the 11-09 draft invented "78% of advisors / 34% of clients." → revise; either name the study from research or delete the number.
+   c. **General stat personalized onto the reader.** A population survey rendered as "your clients," "your book," "your households." → revise to "clients."
+   d. **Hedge sandwich.** "That's not to say X. ... The real point is Y." / "That doesn't mean... but..." / "To be fair..." A declarative point pre-defended before it's made. → cut the sandwich, keep the point.
+   e. **First-person plural.** "most of us," "we advisors," "our clients," "our practices." Mark is not an advisor. → "most advisors" / "the advisors I work with" / "you."
+   f. **Stat overclaim.** Vivid specifics presented as what a study found when the study measured something narrower (survey said "long-term goal planning"; draft says clients "walked in carrying a business sale, a parent in memory care..."). → revise so the draft first states what the number measured, then bridges to examples framed as extensions.
+   g. **Redundant paragraph.** Paragraph N restates N-1's point with new wording. → cut N. "Emphasis" is not a reason to keep it.
+   h. **Nested-clause sentence.** "X are the ones who Y, by Z, what W." → subject, verb, object.
+   i. **Subhead that isn't the insight.** A stat ("What 66% ranked higher"), a diagnosis ("Why X fails"), or a branded protocol ("The 24-Hour Question") where a plain sentence belongs ("Find What They Need from What They Want"). → revise.
+   j. **How-to step with no script.** A belief to drop or a principle to hold instead of an action with the literal words in quotes. → revise so the reader could do it Monday.
+   Any of a–j present → verdict is at least "revise" with the specific line quoted in specificFlags. Beyond these: does it drift into content-marketing or consultant-pitch register?
 2. **Framework honesty.** Are the framework references (Trust Stacking, GAP, Physician Model, contrarian positions, etc.) applied where they genuinely fit? Or are they forced as decoration?
 3. **The earned line.** Is there at least one line in the main section that lands hard — a take that crystallizes, a specific that surprises, an observation the reader will remember (like 'That lunch cost you $187 and exactly zero referrals' or 'The dog seems unconvinced about your long-term equity allocation')?
 4. **Strong close.** Does the close land without hedging? Or does it dissolve into 'of course your situation varies' mush?

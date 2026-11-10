@@ -88,6 +88,10 @@ export function buildStylePassPrompt(input: StylePassInput): string {
 - Filler hedges: "of course your situation may vary," "consider whether," "it might be worth"
 - Generic transitions: "furthermore," "moreover," "in conclusion," "to that end"
 - AI vocabulary: "crucial," "robust," "comprehensive," "nuanced," "delve into," "let's explore"
+- Author-position drift (Mark is not an advisor): "most of us," "we advisors," "our clients," "our practices," "our books" → "most advisors," "the advisors I work with," or second-person "you"
+- Unsourced-survey tells: "industry surveys show," "studies show," "research shows," "data suggests," "experts agree" when not immediately followed by a named publisher and year → flag in styleNotes; do NOT invent a source, do NOT delete the sentence (that's the fact-check block's call)
+- Hedge sandwiches: "that's not to say," "that doesn't mean," "to be fair," "this isn't about," "of course" (as a pre-defense) → cut the hedge clause, keep the claim
+- Nested-clause syntax: "are the ones who," "is the one that," "tend to be those who" → restructure to subject-verb-object
 
 **Sentence rhythm:**
 - Watch for sentence-pattern repetition within a section. If three consecutive sentences open the same way, vary one.
