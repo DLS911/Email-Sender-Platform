@@ -87,7 +87,18 @@ export async function POST(req: Request): Promise<NextResponse> {
     const { error: upErr } = await db.from("daily_grind_issues").update(payload).eq("issue_date", issueDate);
     if (upErr) return NextResponse.json({ error: `update: ${upErr.message}` }, { status: 500 });
   } else {
-    const { error: inErr } = await db.from("daily_grind_issues").insert(payload);
+    // Fresh insert: the generation columns are NOT NULL with no defaults
+    // (first hit 2026-11-16 installing a hand-authored 11-18 with no row).
+    const insertPayload = {
+      ...payload,
+      generated_at: new Date().toISOString(),
+      model: "hand-authored",
+      input_tokens: 0,
+      output_tokens: 0,
+      cost_usd: 0,
+      latency_ms: 0,
+    };
+    const { error: inErr } = await db.from("daily_grind_issues").insert(insertPayload);
     if (inErr) return NextResponse.json({ error: `insert: ${inErr.message}` }, { status: 500 });
   }
 

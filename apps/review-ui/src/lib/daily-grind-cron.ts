@@ -540,10 +540,28 @@ export async function runDailyGrindGenerate(
       // Include generated_at so we can measure age.
       const { data: existing } = await db
         .from("daily_grind_issues")
-        .select("issue_date, headline, generated_at")
+        .select("issue_date, headline, generated_at, approval_status, generation_meta")
         .eq("issue_date", targetDate)
         .maybeSingle();
       if (existing) {
+        // Never regenerate over an issue Mark approved or one that was
+        // hand-installed (dg-upsert-issue sets generation_meta.installedFrom).
+        // 2026-11-13: a hand-authored draft was stomped by this staleness
+        // rule the night before send. Age is not a reason to discard
+        // human work.
+        const meta = (existing.generation_meta ?? {}) as Record<string, unknown>;
+        const handInstalled = typeof meta.installedFrom === "string" && meta.installedFrom.length > 0;
+        if (existing.approval_status === "approved" || handInstalled) {
+          pipeline.push({
+            name: "cache_check",
+            status: "success",
+            latencyMs: Date.now() - cacheStart,
+            notes: `protected row for ${targetDate} (${existing.approval_status}${handInstalled ? ", hand-installed" : ""}) — never regenerated regardless of age`,
+          });
+          result.reusedExisting = true;
+          result.headline = existing.headline;
+          return result;
+        }
         const generatedAt = existing.generated_at ? new Date(existing.generated_at) : null;
         const ageHours = generatedAt
           ? (Date.now() - generatedAt.getTime()) / (1000 * 60 * 60)
