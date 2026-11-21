@@ -27,10 +27,17 @@ function isAuthorized(req: Request): boolean {
 
 export async function POST(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  let body: { issueDate?: string; reflection?: string | null };
+  // 2026-11-21: also accepts optional verse + reference so a repeated verse
+  // can be swapped without a regen (Psalm 19 had shipped six times).
+  let body: { issueDate?: string; reflection?: string | null; verse?: string; reference?: string };
   try { body = (await req.json()) as typeof body; } catch { return NextResponse.json({ error: "invalid JSON" }, { status: 400 }); }
   const issueDate = body.issueDate?.trim();
   const nextRefl = typeof body.reflection === "string" ? body.reflection : "";
+  const nextVerse = typeof body.verse === "string" && body.verse.trim() ? body.verse.trim() : null;
+  const nextReference = typeof body.reference === "string" && body.reference.trim() ? body.reference.trim() : null;
+  if ((nextVerse === null) !== (nextReference === null)) {
+    return NextResponse.json({ error: "verse and reference must be provided together" }, { status: 400 });
+  }
   if (!issueDate) return NextResponse.json({ error: "issueDate required" }, { status: 400 });
 
   const supaUrl = process.env.SUPABASE_URL;
@@ -50,7 +57,12 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const next: SaturdayLatteContent = structuredClone(sections);
   const prev = next.sabbath.reflection;
+  const prevReference = next.sabbath.reference;
   next.sabbath.reflection = nextRefl;
+  if (nextVerse !== null && nextReference !== null) {
+    next.sabbath.verse = nextVerse;
+    next.sabbath.reference = nextReference;
+  }
 
   const rendered = renderSaturdayLatteHtml(next, {
     issueDate,
@@ -63,6 +75,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     .eq("issue_date", issueDate);
   if (upErr) return NextResponse.json({ error: `db update: ${upErr.message}` }, { status: 500 });
 
-  logger.info("latte_set_sabbath_reflection.success", { issueDate, prevLen: prev?.length ?? 0, nextLen: nextRefl.length });
-  return NextResponse.json({ ok: true, prev, next: nextRefl });
+  logger.info("latte_set_sabbath_reflection.success", { issueDate, prevLen: prev?.length ?? 0, nextLen: nextRefl.length, prevReference, nextReference: next.sabbath.reference });
+  return NextResponse.json({ ok: true, prev, next: nextRefl, prevReference, reference: next.sabbath.reference, verse: next.sabbath.verse });
 }
