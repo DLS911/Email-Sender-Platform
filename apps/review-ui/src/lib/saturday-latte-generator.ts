@@ -740,7 +740,7 @@ Example (Eureka Springs cover story):
     "car": "2024 Lexus LC 500",
     "url": "https://www.lexus.com/models/LC",
     "specs": "5.0L V8 • 471 HP • Naturally aspirated, 7,300 RPM redline",
-    "body": "..."
+    "body": "REQUIRED. 80-140 words of READER copy in Mark's voice: what this car is, why this one and not its siblings, what it is like to own or drive, roughly what they trade for. Prose a person reads. It is NOT a visual description and NOT a photo brief. Never put the image prompt here (no colors-at-a-time-of-day, no 'NOT the previous generation', no lighting, no film stock, no 'no people in frame'). The visual spec belongs ONLY in imagePrompts.theDrive below. A body that reads like a photo brief is rejected and the whole draft is regenerated."
   },
   "sundayPrep": { "title": "...", "body": "..." },
   "sundayReset": { "quote": "...", "author": "..." },
@@ -805,6 +805,31 @@ function deepStripDashes<T>(input: T): T {
     return out as unknown as T;
   }
   return input;
+}
+
+/**
+ * True when theDrive.body reads like the IMAGE PROMPT instead of reader copy.
+ * 2026-11-21 shipped: "1993 Mazda RX-7 ... in Competition Yellow Mica parked at
+ * a coastal overlook at 7:15 AM. Pop-up headlights retracted (NOT the fixed
+ * headlights of the FC generation) ... Portra 400 warmth. No people in frame."
+ * The writer put the photo brief in the prose field; nothing checked its shape.
+ */
+export function looksLikeImagePrompt(body: string): { prompt: true; tells: string[] } | { prompt: false } {
+  const tells: string[] = [];
+  const checks: Array<[RegExp, string]> = [
+    [/\(NOT the\b|\bNOT the (previous|prior|earlier|fixed)\b/i, "explicit-negative"],
+    [/no (people|humans|figures) in (the )?frame/i, "no-people-in-frame"],
+    [/\b(portra|ektar|kodak|fuji(film)?|film stock|35mm|medium format)\b/i, "film-stock"],
+    [/\blight from the (east|west|north|south)\b|\bgolden hour\b|\bovercast (morning|afternoon|light)\b|\bside[- ]light\b/i, "lighting-direction"],
+    [/\bin (the )?frame\b|\bforeground\b|\brule of thirds\b|\boff-center composition\b|\bleft third\b|\bright third\b/i, "composition"],
+    [/\bat \d{1,2}:\d{2} ?(AM|PM)\b/i, "time-of-day"],
+    [/\bparked (at|on|in)\b.{0,60}\b(overlook|marina|lot|roadside|driveway|cobbles|street)\b/i, "parked-at-setting"],
+  ];
+  for (const [re, name] of checks) if (re.test(body)) tells.push(name);
+  // Strong single tell: it opens like a photo brief ("<car> in <Color> parked at ...").
+  const opensLikeBrief = /^.{0,120}\b(in|finished in)\s+[A-Z][a-z]+(\s[A-Z][a-z]+){0,3}\s+(parked|sitting|stopped)\b/.test(body);
+  if (opensLikeBrief) tells.push("opens-like-brief");
+  return tells.length >= 2 || opensLikeBrief ? { prompt: true, tells } : { prompt: false };
 }
 
 function parseLatteContent(rawText: string): {
@@ -1085,16 +1110,66 @@ export async function runWriterPhase(
   const firstBlock = response.content[0];
   if (!firstBlock || firstBlock.type !== "text") throw new Error("writer: no text block");
 
-  const { content, contentType, imagePrompts } = parseLatteContent(firstBlock.text);
-  const stripped = deepStripDashes(content);
+  let parsed = parseLatteContent(firstBlock.text);
+  let inputTokens = response.usage.input_tokens;
+  let outputTokens = response.usage.output_tokens;
+  let totalLatency = latencyMs;
+
+  // Guard: theDrive.body must be reader copy, not the photo brief. Mirrors the
+  // Daily Grind theMove gate: re-prompt ONCE with the specific failure, keep
+  // the better draft, never throw (a throw here would fail the Friday cron).
+  const driveCheck = looksLikeImagePrompt(parsed.content.theDrive.body);
+  if (driveCheck.prompt) {
+    console.warn("latte.writer.the_drive_body_is_image_prompt.regenerating", {
+      tells: driveCheck.tells,
+      bodyPreview: parsed.content.theDrive.body.slice(0, 160),
+    });
+    const regenStart = Date.now();
+    const regenPrompt = `${parts.join("\n")}
+
+## ⛔ RE-DRAFT REQUIRED — theDrive.body was the image prompt, not the write-up
+
+Your previous theDrive.body began: "${parsed.content.theDrive.body.slice(0, 200)}"
+
+That text is a PHOTO BRIEF (${driveCheck.tells.join(", ")}). It belongs ONLY in imagePrompts.theDrive. theDrive.body is prose a reader reads: what this car is, why this one and not its siblings, what it is like to own or drive, roughly what they trade for. 80-140 words. No colors-at-a-time-of-day, no "(NOT the previous generation)", no lighting, no film stock, no "no people in frame".
+
+Re-draft the ENTIRE issue with the same picks, fixing theDrive.body, and keep the visual spec in imagePrompts.theDrive. Return the full JSON object again.`;
+    const regenResponse = await client.messages.create({
+      model: WRITER_MODEL,
+      max_tokens: WRITER_MAX_TOKENS,
+      temperature: WRITER_TEMPERATURE,
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: regenPrompt }],
+    });
+    totalLatency += Date.now() - regenStart;
+    inputTokens += regenResponse.usage.input_tokens;
+    outputTokens += regenResponse.usage.output_tokens;
+    const regenBlock = regenResponse.content[0];
+    if (regenBlock && regenBlock.type === "text") {
+      try {
+        const regenParsed = parseLatteContent(regenBlock.text);
+        const recheck = looksLikeImagePrompt(regenParsed.content.theDrive.body);
+        if (!recheck.prompt) {
+          parsed = regenParsed;
+          console.info("latte.writer.the_drive_body_regen_passed", { bodyPreview: regenParsed.content.theDrive.body.slice(0, 120) });
+        } else {
+          console.warn("latte.writer.the_drive_body_regen_still_prompt", { tells: recheck.tells });
+        }
+      } catch (err) {
+        console.warn("latte.writer.the_drive_body_regen_parse_failed", { message: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+
+  const stripped = deepStripDashes(parsed.content);
 
   return {
     content: stripped,
-    contentType,
-    imagePrompts,
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-    latencyMs,
+    contentType: parsed.contentType,
+    imagePrompts: parsed.imagePrompts,
+    inputTokens,
+    outputTokens,
+    latencyMs: totalLatency,
   };
 }
 
