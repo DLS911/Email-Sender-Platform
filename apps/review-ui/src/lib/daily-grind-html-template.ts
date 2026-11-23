@@ -66,6 +66,20 @@ export type DailyGrindContent = {
   groundsForThought: string;
   ancientTruth: { verse: string; reference: string; application: string };
   ps: string;
+  /**
+   * Optional per-issue sponsor block. When absent the template renders the
+   * standing Castor Abbott appointments block. Added 2026-11-23 for the
+   * Thanksgiving issue's Black Friday announcement (Mark: "have the segment
+   * be black to stick out").
+   */
+  sponsor?: {
+    label?: string;
+    headline: string;
+    body: string;
+    ctaLabel: string;
+    ctaUrl: string;
+    theme?: "light" | "dark";
+  };
 };
 
 export type RenderInputs = {
@@ -123,6 +137,46 @@ function renderTheNumber(theNumber: {
     ${sourceLine}
   </td>
 </tr>`;
+}
+
+function renderSponsor(sponsor: DailyGrindContent["sponsor"]): string {
+  const s = sponsor ?? {
+    label: "A Word From Our Sponsor",
+    headline: "Industry average: $5M. Our clients: $23M.",
+    body: "Same effort. Different quality of prospect. We deliver appointments with investors averaging $2.36M in investable assets, looking for a good advisor.",
+    ctaLabel: "See if you qualify →",
+    ctaUrl: "https://go.oncehub.com/CastorAbbottTeam",
+    theme: "light" as const,
+  };
+  const dark = s.theme === "dark";
+  const boxBg = dark ? "#1a1715" : "#faf8f5";
+  const boxBorder = dark ? "1px solid #1a1715" : "1px solid #e8e4de";
+  const headColor = dark ? "#faf8f5" : "#2d2926";
+  const bodyColor = dark ? "#d9d2c7" : "#4a4540";
+  const label = s.label ?? "A Word From Our Sponsor";
+  return `<tr>
+            <td class="section-gutter" style="padding: 0 40px;">
+              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">${escapeHtml(label)}</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: ${boxBg}; border: ${boxBorder}; border-radius: 8px;">
+                <tr>
+                  <td class="callout-inner" style="padding: 24px 20px; background-color: ${boxBg};">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr class="sponsor-row">
+                        <td class="sponsor-logo" style="width: 80px; vertical-align: top; padding-right: 20px;">
+                          <img src="https://cdn.prod.website-files.com/62e057b9f7203c5b6fdf1a48/62e81abb175ad2b73e18ecdf_Castor-Abbott-Logo-Diamond-Webclip.jpg" alt="Castor Abbott" width="80" style="display: block; width: 80px; height: 80px; border-radius: 8px;">
+                        </td>
+                        <td class="sponsor-text" style="vertical-align: top;">
+                          <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: ${headColor}; margin: 0 0 12px 0;">${escapeHtml(s.headline)}</p>
+                          <p style="color: ${bodyColor}; font-size: 15px; margin: 0 0 16px 0;">${escapeHtml(s.body)}</p>
+                          <p style="margin: 0;"><a href="${escapeHtml(s.ctaUrl)}" style="color: #c4a882; text-decoration: none; font-size: 15px; font-weight: 600;">${escapeHtml(s.ctaLabel)}</a></p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>`;
 }
 
 function renderTheUnspoken(text: string): string {
@@ -272,30 +326,8 @@ export function renderDailyGrindHtml(
 
           ${divider()}
 
-          <!-- SPONSOR -->
-          <tr>
-            <td class="section-gutter" style="padding: 0 40px;">
-              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">A Word From Our Sponsor</p>
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #faf8f5; border: 1px solid #e8e4de; border-radius: 8px;">
-                <tr>
-                  <td class="callout-inner" style="padding: 24px 20px;">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                      <tr class="sponsor-row">
-                        <td class="sponsor-logo" style="width: 80px; vertical-align: top; padding-right: 20px;">
-                          <img src="https://cdn.prod.website-files.com/62e057b9f7203c5b6fdf1a48/62e81abb175ad2b73e18ecdf_Castor-Abbott-Logo-Diamond-Webclip.jpg" alt="Castor Abbott" width="80" style="display: block; width: 80px; height: 80px; border-radius: 8px;">
-                        </td>
-                        <td class="sponsor-text" style="vertical-align: top;">
-                          <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: #2d2926; margin: 0 0 12px 0;">Industry average: $5M. Our clients: $23M.</p>
-                          <p style="color: #4a4540; font-size: 15px; margin: 0 0 16px 0;">Same effort. Different quality of prospect. We deliver appointments with investors averaging $2.36M in investable assets, looking for a good advisor.</p>
-                          <p style="margin: 0;"><a href="https://go.oncehub.com/CastorAbbottTeam" style="color: #c4a882; text-decoration: none; font-size: 15px; font-weight: 600;">See if you qualify &rarr;</a></p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          <!-- SPONSOR — standing Castor Abbott block unless content.sponsor overrides it -->
+          ${renderSponsor(content.sponsor)}
 
           ${divider()}
 
@@ -305,8 +337,10 @@ export function renderDailyGrindHtml(
                a single "How to Practice" label since the whole newsletter
                is now one unified teaching move. The subhead + howToBox
                render inside this section; mainContent.intro and
-               mainContent.closing are hidden to keep the section tight. -->
-          <tr>
+               mainContent.closing are hidden to keep the section tight.
+               2026-11-23: skipped entirely when there are no steps, so a
+               special issue (Thanksgiving) can run without a how-to. -->
+          ${content.mainContent.howTo.steps.length > 0 ? `<tr>
             <td style="padding: 0 40px;">
               <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 14px 0;">How to Practice</p>
               <h2 style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: #2d2926; margin: 0 0 12px 0;">${escapeHtml(content.mainContent.subhead)}</h2>
@@ -314,7 +348,7 @@ export function renderDailyGrindHtml(
             </td>
           </tr>
 
-          ${divider()}
+          ${divider()}` : ""}
 
           <!-- SHOT OF WISDOM — renamed from Ancient Truth 2026-10-22.
                2026-10-26 per Mark: AI application paragraph dropped
@@ -393,15 +427,25 @@ function renderText(content: DailyGrindContent, inputs: RenderInputs): string {
     lines.push(p);
     lines.push("");
   }
-  lines.push("=== HOW TO PRACTICE ===");
-  lines.push("");
-  lines.push(content.mainContent.subhead);
-  lines.push("");
-  lines.push(content.mainContent.howTo.title);
-  for (const s of content.mainContent.howTo.steps) {
-    lines.push(`  ${s.label}: ${s.body}`);
+  if (content.sponsor) {
+    lines.push(`=== ${(content.sponsor.label ?? "A WORD FROM OUR SPONSOR").toUpperCase()} ===`);
+    lines.push("");
+    lines.push(content.sponsor.headline);
+    lines.push(content.sponsor.body);
+    lines.push(`${content.sponsor.ctaLabel}: ${content.sponsor.ctaUrl}`);
+    lines.push("");
   }
-  lines.push("");
+  if (content.mainContent.howTo.steps.length > 0) {
+    lines.push("=== HOW TO PRACTICE ===");
+    lines.push("");
+    lines.push(content.mainContent.subhead);
+    lines.push("");
+    lines.push(content.mainContent.howTo.title);
+    for (const s of content.mainContent.howTo.steps) {
+      lines.push(`  ${s.label}: ${s.body}`);
+    }
+    lines.push("");
+  }
   lines.push("=== SHOT OF WISDOM ===");
   lines.push("");
   lines.push(`"${content.ancientTruth.verse}"`);
