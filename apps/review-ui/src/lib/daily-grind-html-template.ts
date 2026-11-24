@@ -83,8 +83,9 @@ export type DailyGrindContent = {
     label?: string;
     headline: string;
     body: string;
-    ctaLabel: string;
-    ctaUrl: string;
+    /** Omit both (or pass empty strings) to render the block with no link line. */
+    ctaLabel?: string;
+    ctaUrl?: string;
     theme?: "light" | "dark";
   };
 };
@@ -161,6 +162,7 @@ function renderSponsor(sponsor: DailyGrindContent["sponsor"]): string {
   const headColor = dark ? "#faf8f5" : "#2d2926";
   const bodyColor = dark ? "#d9d2c7" : "#4a4540";
   const label = s.label ?? "A Word From Our Sponsor";
+  const hasCta = Boolean(s.ctaLabel && s.ctaUrl);
   return `<tr>
             <td class="section-gutter" style="padding: 0 40px;">
               <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">${escapeHtml(label)}</p>
@@ -174,8 +176,8 @@ function renderSponsor(sponsor: DailyGrindContent["sponsor"]): string {
                         </td>
                         <td class="sponsor-text" style="vertical-align: top;">
                           <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: ${headColor}; margin: 0 0 12px 0;">${escapeHtml(s.headline)}</p>
-                          <p style="color: ${bodyColor}; font-size: 15px; margin: 0 0 16px 0;">${escapeHtml(s.body)}</p>
-                          <p style="margin: 0;"><a href="${escapeHtml(s.ctaUrl)}" style="color: #c4a882; text-decoration: none; font-size: 15px; font-weight: 600;">${escapeHtml(s.ctaLabel)}</a></p>
+                          <p style="color: ${bodyColor}; font-size: 15px; margin: 0${hasCta ? " 0 16px 0" : ""};">${escapeHtml(s.body)}</p>
+                          ${hasCta ? `<p style="margin: 0;"><a href="${escapeHtml(s.ctaUrl!)}" style="color: #c4a882; text-decoration: none; font-size: 15px; font-weight: 600;">${escapeHtml(s.ctaLabel!)}</a></p>` : ""}
                         </td>
                       </tr>
                     </table>
@@ -462,7 +464,9 @@ function renderText(content: DailyGrindContent, inputs: RenderInputs): string {
     lines.push("");
     lines.push(content.sponsor.headline);
     lines.push(content.sponsor.body);
-    lines.push(`${content.sponsor.ctaLabel}: ${content.sponsor.ctaUrl}`);
+    if (content.sponsor.ctaLabel && content.sponsor.ctaUrl) {
+      lines.push(`${content.sponsor.ctaLabel}: ${content.sponsor.ctaUrl}`);
+    }
     lines.push("");
   }
   if (content.mainContent.howTo.steps.length > 0) {
