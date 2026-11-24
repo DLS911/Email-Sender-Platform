@@ -56,6 +56,13 @@ export type DailyGrindContent = {
     selectedType?: "number" | "unspoken" | "flip";
   };
   firstPull: { paragraphs: string[] };
+  /**
+   * Optional inline image inside the main article. Rendered after the
+   * paragraph at index `afterParagraph` (0-based; -1 = above the first
+   * paragraph). Added 2026-11-23 for the Thanksgiving issue (Mark: "include
+   * a image of lincoln at a rally ... before the proclamation").
+   */
+  inlineImage?: { url: string; alt: string; caption?: string; afterParagraph: number };
   worthKnowing: WorthKnowingItem[];
   mainContent: {
     subhead: string;
@@ -260,9 +267,21 @@ export function renderDailyGrindHtml(
   inputs: RenderInputs,
 ): { html: string; text: string; subject: string; preheader: string } {
   const sectionLabel = CONTENT_TYPE_LABEL[content.contentType];
-  const firstPullParagraphs = content.firstPull.paragraphs
-    .map((p) => `<p style="margin: 0 0 14px 0;">${escapeHtml(p)}</p>`)
-    .join("\n");
+  const img = content.inlineImage;
+  const inlineImageHtml = img
+    ? `<img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.alt)}" width="520" style="display: block; width: 100%; max-width: 520px; height: auto; border-radius: 6px; margin: 6px 0 ${img.caption ? "8" : "20"}px 0;">` +
+      (img.caption
+        ? `<p style="font-size: 12px; color: #8a8178; margin: 0 0 20px 0; line-height: 1.5;">${escapeHtml(img.caption)}</p>`
+        : "")
+    : "";
+  const firstPullParagraphs = [
+    ...(img && img.afterParagraph < 0 ? [inlineImageHtml] : []),
+    ...content.firstPull.paragraphs.map(
+      (p, i) =>
+        `<p style="margin: 0 0 14px 0;">${escapeHtml(p)}</p>` +
+        (img && i === img.afterParagraph ? `\n${inlineImageHtml}` : ""),
+    ),
+  ].join("\n");
 
   const worthKnowingItems = content.worthKnowing
     .map((item, i) => renderWorthKnowingItem(item, i === content.worthKnowing.length - 1))
@@ -423,10 +442,21 @@ function renderText(content: DailyGrindContent, inputs: RenderInputs): string {
   lines.push("");
   lines.push(content.headline.toUpperCase());
   lines.push("");
-  for (const p of content.firstPull.paragraphs) {
-    lines.push(p);
+  const imgLine = content.inlineImage
+    ? `[Image: ${content.inlineImage.alt}${content.inlineImage.caption ? `. ${content.inlineImage.caption}` : ""}] ${content.inlineImage.url}`
+    : null;
+  if (imgLine && content.inlineImage!.afterParagraph < 0) {
+    lines.push(imgLine);
     lines.push("");
   }
+  content.firstPull.paragraphs.forEach((p, i) => {
+    lines.push(p);
+    lines.push("");
+    if (imgLine && i === content.inlineImage!.afterParagraph) {
+      lines.push(imgLine);
+      lines.push("");
+    }
+  });
   if (content.sponsor) {
     lines.push(`=== ${(content.sponsor.label ?? "A WORD FROM OUR SPONSOR").toUpperCase()} ===`);
     lines.push("");
