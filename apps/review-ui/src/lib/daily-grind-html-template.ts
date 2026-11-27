@@ -163,6 +163,8 @@ function renderSponsor(sponsor: DailyGrindContent["sponsor"]): string {
   const bodyColor = dark ? "#d9d2c7" : "#4a4540";
   const label = s.label ?? "A Word From Our Sponsor";
   const hasCta = Boolean(s.ctaLabel && s.ctaUrl);
+  // Body may carry blank-line paragraph breaks (2026-11-27 Black Friday block).
+  const bodyParas = s.body.split(/\n\n+/).map((b) => b.trim()).filter(Boolean);
   return `<tr>
             <td class="section-gutter" style="padding: 0 40px;">
               <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">${escapeHtml(label)}</p>
@@ -176,7 +178,7 @@ function renderSponsor(sponsor: DailyGrindContent["sponsor"]): string {
                         </td>
                         <td class="sponsor-text" style="vertical-align: top;">
                           <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: ${headColor}; margin: 0 0 12px 0;">${escapeHtml(s.headline)}</p>
-                          <p style="color: ${bodyColor}; font-size: 15px; margin: 0${hasCta ? " 0 16px 0" : ""};">${escapeHtml(s.body)}</p>
+                          ${bodyParas.map((b, i) => `<p style="color: ${bodyColor}; font-size: 15px; margin: 0${i < bodyParas.length - 1 ? " 0 12px 0" : hasCta ? " 0 16px 0" : ""};">${escapeHtml(b)}</p>`).join("\n                          ")}
                           ${hasCta ? `<p style="margin: 0;"><a href="${escapeHtml(s.ctaUrl!)}" style="color: #c4a882; text-decoration: none; font-size: 15px; font-weight: 600;">${escapeHtml(s.ctaLabel!)}</a></p>` : ""}
                         </td>
                       </tr>
