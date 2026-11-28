@@ -37,6 +37,20 @@ export type SaturdayLatteContent = {
   // case-insensitive occurrence of each `text` in body paragraphs with a
   // hyperlink to `url`. Used for restaurants, hotels, attractions.
   coverStoryLinks?: LinkInBody[];
+  /**
+   * Optional sponsor block rendered after the cover story. Added 2026-11-28
+   * for the Black Friday announcement (Mark: "the sat issue needs the black
+   * friday section here also"). Absent → no block at all (the Latte has no
+   * standing sponsor). Body may carry blank-line paragraph breaks.
+   */
+  sponsor?: {
+    label?: string;
+    headline: string;
+    body: string;
+    ctaLabel?: string;
+    ctaUrl?: string;
+    theme?: "light" | "dark";
+  };
   // Image URLs (post-generation). 7 slots, all optional.
   images?: {
     hero?: string;
@@ -185,6 +199,48 @@ function renderTheDrive(d: SaturdayLatteContent["theDrive"], imageUrl: string | 
 <p style="color: #4a4540; font-size: 16px; line-height: 1.7; margin: 0;">${escapeHtml(d.body)}</p>`;
 }
 
+function renderSponsor(s: NonNullable<SaturdayLatteContent["sponsor"]>): string {
+  const dark = s.theme === "dark";
+  const boxBg = dark ? "#1a1715" : "#faf8f5";
+  const boxBorder = dark ? "1px solid #1a1715" : "1px solid #e8e4de";
+  const headColor = dark ? "#faf8f5" : "#2d2926";
+  const bodyColor = dark ? "#d9d2c7" : "#4a4540";
+  const label = s.label ?? "A Word From Our Sponsor";
+  const hasCta = Boolean(s.ctaLabel && s.ctaUrl);
+  const bodyParas = s.body.split(/\n\n+/).map((b) => b.trim()).filter(Boolean);
+  const bodyHtml = bodyParas
+    .map((b, i) => `<p style="color: ${bodyColor}; font-size: 15px; line-height: 1.6; margin: 0${i < bodyParas.length - 1 ? " 0 12px 0" : hasCta ? " 0 16px 0" : ""};">${escapeHtml(b)}</p>`)
+    .join("\n                          ");
+  const cta = hasCta
+    ? `<p style="margin: 0;"><a href="${escapeHtml(s.ctaUrl!)}" style="color: #c4a882; text-decoration: none; font-size: 15px; font-weight: 600;">${escapeHtml(s.ctaLabel!)}</a></p>`
+    : "";
+  return `<tr>
+            <td style="padding: 0 48px;">
+              <p style="font-size: 12px; font-weight: 700; color: #c4a882; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">${escapeHtml(label)}</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: ${boxBg}; border: ${boxBorder}; border-radius: 8px;">
+                <tr>
+                  <td style="padding: 24px 20px; background-color: ${boxBg};">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="width: 80px; vertical-align: top; padding-right: 20px;">
+                          <img src="https://cdn.prod.website-files.com/62e057b9f7203c5b6fdf1a48/62e81abb175ad2b73e18ecdf_Castor-Abbott-Logo-Diamond-Webclip.jpg" alt="Castor Abbott" width="80" style="display: block; width: 80px; height: 80px; border-radius: 8px;">
+                        </td>
+                        <td style="vertical-align: top;">
+                          <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; color: ${headColor}; line-height: 1.3; margin: 0 0 12px 0;">${escapeHtml(s.headline)}</p>
+                          ${bodyHtml}
+                          ${cta}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          ${divider()}`;
+}
+
 export function renderSaturdayLatteHtml(
   content: SaturdayLatteContent,
   inputs: RenderInputs,
@@ -270,6 +326,8 @@ export function renderSaturdayLatteHtml(
           </tr>
 
           ${divider()}
+
+          ${content.sponsor ? renderSponsor(content.sponsor) : ""}
 
           <!-- TASTING MENU -->
           <tr>
@@ -401,6 +459,14 @@ function renderText(content: SaturdayLatteContent, inputs: RenderInputs): string
   lines.push("");
   for (const p of content.coverStoryParagraphs) {
     lines.push(p);
+    lines.push("");
+  }
+  if (content.sponsor) {
+    lines.push(`=== ${(content.sponsor.label ?? "A WORD FROM OUR SPONSOR").toUpperCase()} ===`);
+    lines.push("");
+    lines.push(content.sponsor.headline);
+    for (const b of content.sponsor.body.split(/\n\n+/)) lines.push(b.trim());
+    if (content.sponsor.ctaLabel && content.sponsor.ctaUrl) lines.push(`${content.sponsor.ctaLabel}: ${content.sponsor.ctaUrl}`);
     lines.push("");
   }
   lines.push("=== THE TASTING MENU ===");
